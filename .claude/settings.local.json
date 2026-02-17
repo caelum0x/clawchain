@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(go version:*)",
+      "Bash(ignite version:*)",
+      "Bash(node --version:*)",
+      "Bash(docker:*)",
+      "Bash(go env:*)",
+      "Bash(curl:*)",
+      "Bash(bash)",
+      "Bash(go install:*)",
+      "Bash(tar:*)",
+      "Bash(~/go/bin/ignite version:*)",
+      "Bash(export PATH=\"$HOME/go/bin:$PATH\")"
+    ]
+  }
+}
