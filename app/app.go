@@ -46,7 +46,9 @@ import (
 	ibckeeper "github.com/cosmos/ibc-go/v10/modules/core/keeper"
 
 	"clawchain/docs"
+	agentmodulekeeper "clawchain/x/agent/keeper"
 	clawchainmodulekeeper "clawchain/x/clawchain/keeper"
+	privacymodulekeeper "clawchain/x/privacy/keeper"
 )
 
 const (
@@ -101,6 +103,8 @@ type App struct {
 	// simulation manager
 	sm              *module.SimulationManager
 	ClawchainKeeper clawchainmodulekeeper.Keeper
+	PrivacyKeeper   privacymodulekeeper.Keeper
+	AgentKeeper     agentmodulekeeper.Keeper
 }
 
 func init() {
@@ -181,6 +185,8 @@ func New(
 		&app.CircuitBreakerKeeper,
 		&app.ParamsKeeper,
 		&app.ClawchainKeeper,
+		&app.PrivacyKeeper,
+		&app.AgentKeeper,
 	); err != nil {
 		panic(err)
 	}

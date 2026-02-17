@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+package clawchain.agent.v1;
+
+import "amino/amino.proto";
+import "clawchain/agent/v1/params.proto";
+import "cosmos/base/query/v1beta1/pagination.proto";
+import "gogoproto/gogo.proto";
+import "google/api/annotations.proto";
+
+option go_package = "clawchain/x/agent/types";
+
+// Query defines the gRPC querier service.
+service Query {
+  // Parameters queries the parameters of the module.
+  rpc Params(QueryParamsRequest) returns (QueryParamsResponse) {
+    option (google.api.http).get = "/clawchain/agent/v1/params";
+  }
+
+  // Agent Queries a list of Agent items.
+  rpc Agent(QueryAgentRequest) returns (QueryAgentResponse) {
+    option (google.api.http).get = "/clawchain/agent/v1/agent/{address}";
+  }
+}
+
+// QueryParamsRequest is request type for the Query/Params RPC method.
+message QueryParamsRequest {}
+
+// QueryParamsResponse is response type for the Query/Params RPC method.
+message QueryParamsResponse {
+  // params holds all the parameters of this module.
+  Params params = 1 [
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
+}
+
+// QueryAgentRequest defines the QueryAgentRequest message.
+message QueryAgentRequest {
+  string address = 1;
+}
+
+// QueryAgentResponse defines the QueryAgentResponse message.
+message QueryAgentResponse {
+  string name = 1;
+  string pubkey = 2;
+  string endpoint = 3;
+  bool registered = 4;
+}

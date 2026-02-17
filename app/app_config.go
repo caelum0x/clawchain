@@ -1,8 +1,12 @@
 package app
 
 import (
+	_ "clawchain/x/agent/module"
+	agentmoduletypes "clawchain/x/agent/types"
 	_ "clawchain/x/clawchain/module"
 	clawchainmoduletypes "clawchain/x/clawchain/types"
+	_ "clawchain/x/privacy/module"
+	privacymoduletypes "clawchain/x/privacy/types"
 	"time"
 
 	runtimev1alpha1 "cosmossdk.io/api/cosmos/app/runtime/v1alpha1"
@@ -126,6 +130,8 @@ var (
 						ibcexported.ModuleName,
 						// chain modules
 						clawchainmoduletypes.ModuleName,
+						privacymoduletypes.ModuleName,
+						agentmoduletypes.ModuleName,
 						// this line is used by starport scaffolding # stargate/app/beginBlockers
 					},
 					EndBlockers: []string{
@@ -135,6 +141,8 @@ var (
 						group.ModuleName,
 						// chain modules
 						clawchainmoduletypes.ModuleName,
+						privacymoduletypes.ModuleName,
+						agentmoduletypes.ModuleName,
 						// this line is used by starport scaffolding # stargate/app/endBlockers
 					},
 					// The following is mostly only needed when ModuleName != StoreKey name.
@@ -172,6 +180,8 @@ var (
 						icatypes.ModuleName,
 						// chain modules
 						clawchainmoduletypes.ModuleName,
+						privacymoduletypes.ModuleName,
+						agentmoduletypes.ModuleName,
 						// this line is used by starport scaffolding # stargate/app/initGenesis
 					},
 				}),
@@ -271,6 +281,14 @@ var (
 			{
 				Name:   clawchainmoduletypes.ModuleName,
 				Config: appconfig.WrapAny(&clawchainmoduletypes.Module{}),
+			},
+			{
+				Name:   privacymoduletypes.ModuleName,
+				Config: appconfig.WrapAny(&privacymoduletypes.Module{}),
+			},
+			{
+				Name:   agentmoduletypes.ModuleName,
+				Config: appconfig.WrapAny(&agentmoduletypes.Module{}),
 			},
 			// this line is used by starport scaffolding # stargate/app/moduleConfig
 		},

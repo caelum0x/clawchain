@@ -1,0 +1,13 @@
+syntax = "proto3";
+package clawchain.agent.v1;
+
+import "amino/amino.proto";
+import "gogoproto/gogo.proto";
+
+option go_package = "clawchain/x/agent/types";
+
+// Params defines the parameters for the module.
+message Params {
+  option (amino.name) = "clawchain/x/agent/Params";
+  option (gogoproto.equal) = true;
+}

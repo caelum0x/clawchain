@@ -1,0 +1,89 @@
+syntax = "proto3";
+
+package clawchain.privacy.v1;
+
+import "amino/amino.proto";
+import "clawchain/privacy/v1/params.proto";
+import "cosmos/msg/v1/msg.proto";
+import "cosmos_proto/cosmos.proto";
+import "gogoproto/gogo.proto";
+
+option go_package = "clawchain/x/privacy/types";
+
+// Msg defines the Msg service.
+service Msg {
+  option (cosmos.msg.v1.service) = true;
+
+  // UpdateParams defines a (governance) operation for updating the module
+  // parameters. The authority defaults to the x/gov module account.
+  rpc UpdateParams(MsgUpdateParams) returns (MsgUpdateParamsResponse);
+
+  // PrivateTransfer defines the PrivateTransfer RPC.
+  rpc PrivateTransfer(MsgPrivateTransfer) returns (MsgPrivateTransferResponse);
+
+  // Shield defines the Shield RPC.
+  rpc Shield(MsgShield) returns (MsgShieldResponse);
+
+  // Unshield defines the Unshield RPC.
+  rpc Unshield(MsgUnshield) returns (MsgUnshieldResponse);
+}
+
+// MsgUpdateParams is the Msg/UpdateParams request type.
+message MsgUpdateParams {
+  option (cosmos.msg.v1.signer) = "authority";
+  option (amino.name) = "clawchain/x/privacy/MsgUpdateParams";
+
+  // authority is the address that controls the module (defaults to x/gov unless overwritten).
+  string authority = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+
+  // params defines the module parameters to update.
+
+  // NOTE: All parameters must be supplied.
+  Params params = 2 [
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
+}
+
+// MsgUpdateParamsResponse defines the response structure for executing a
+// MsgUpdateParams message.
+message MsgUpdateParamsResponse {}
+
+// MsgPrivateTransfer defines the MsgPrivateTransfer message.
+message MsgPrivateTransfer {
+  option (cosmos.msg.v1.signer) = "creator";
+  string creator = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  string old_commitments = 2;
+  string new_commitments = 3;
+  string nullifiers = 4;
+  string root = 5;
+  string proof = 6;
+}
+
+// MsgPrivateTransferResponse defines the MsgPrivateTransferResponse message.
+message MsgPrivateTransferResponse {}
+
+// MsgShield defines the MsgShield message.
+message MsgShield {
+  option (cosmos.msg.v1.signer) = "creator";
+  string creator = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  uint64 amount = 2;
+  string coins = 3;
+}
+
+// MsgShieldResponse defines the MsgShieldResponse message.
+message MsgShieldResponse {}
+
+// MsgUnshield defines the MsgUnshield message.
+message MsgUnshield {
+  option (cosmos.msg.v1.signer) = "creator";
+  string creator = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  string commitment = 2;
+  string nullifier = 3;
+  string proof = 4;
+  uint64 amount = 5;
+  string recipient = 6;
+}
+
+// MsgUnshieldResponse defines the MsgUnshieldResponse message.
+message MsgUnshieldResponse {}

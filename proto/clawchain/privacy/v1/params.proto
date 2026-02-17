@@ -1,0 +1,13 @@
+syntax = "proto3";
+package clawchain.privacy.v1;
+
+import "amino/amino.proto";
+import "gogoproto/gogo.proto";
+
+option go_package = "clawchain/x/privacy/types";
+
+// Params defines the parameters for the module.
+message Params {
+  option (amino.name) = "clawchain/x/privacy/Params";
+  option (gogoproto.equal) = true;
+}
