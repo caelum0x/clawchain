@@ -2,7 +2,6 @@ package keeper
 
 import (
 	"context"
-	"encoding/hex"
 	"fmt"
 	"math/big"
 	"sync"
@@ -35,6 +34,11 @@ func getZeroHashes() [merkle.Depth + 1]*big.Int {
 }
 
 func (k msgServer) Shield(ctx context.Context, msg *types.MsgShield) (*types.MsgShieldResponse, error) {
+	// Enforce per-block privacy transaction rate limit.
+	if err := k.CheckAndIncrementPrivacyTxCount(ctx); err != nil {
+		return nil, err
+	}
+
 	senderAddr, err := k.addressCodec.StringToBytes(msg.Creator)
 	if err != nil {
 		return nil, errorsmod.Wrap(types.ErrInvalidAddress, "invalid sender address")
@@ -42,6 +46,13 @@ func (k msgServer) Shield(ctx context.Context, msg *types.MsgShield) (*types.Msg
 
 	if msg.Amount == 0 {
 		return nil, errorsmod.Wrap(types.ErrInvalidAmount, "amount must be greater than zero")
+	}
+
+	// Enforce minimum shield amount to prevent dust-shield attacks.
+	minShieldAmount := types.GetMinShieldAmount()
+	if msg.Amount < minShieldAmount {
+		return nil, errorsmod.Wrapf(types.ErrInvalidAmount,
+			"amount %d is below minimum shield amount %d", msg.Amount, minShieldAmount)
 	}
 
 	// Parse the coin denomination from msg.Coins (e.g., "stake").
@@ -57,48 +68,24 @@ func (k msgServer) Shield(ctx context.Context, msg *types.MsgShield) (*types.Msg
 		return nil, errorsmod.Wrap(types.ErrInsufficientFunds, err.Error())
 	}
 
-	// Create commitment = MiMC(amount, blinding).
-	// For Shield, we generate the blinding deterministically from the commitment count
-	// (the user should ideally provide it, but the proto has Amount and Coins fields only).
-	// We use the commitment count as a simple blinding factor for on-chain deposits.
-	// In a production system, the blinding would come from the client.
-	commitCount, err := k.CommitmentCount.Peek(ctx)
-	if err != nil {
-		commitCount = 0
+	// Require client-provided cryptographic blinding factor.
+	// The blinding MUST be a 32-byte value generated client-side using a CSPRNG.
+	// Deterministic or empty blinding defeats the privacy guarantees of the shielded pool.
+	if len(msg.Blinding) == 0 {
+		return nil, errorsmod.Wrap(types.ErrInvalidAmount, "blinding factor is required; generate 32 random bytes client-side")
+	}
+	if len(msg.Blinding) != 32 {
+		return nil, errorsmod.Wrap(types.ErrInvalidAmount, "blinding must be exactly 32 bytes")
 	}
 
 	amount := new(big.Int).SetUint64(msg.Amount)
-	// Use commitment count + 1 as a simple blinding for the on-chain generated commitment.
-	blinding := new(big.Int).SetUint64(commitCount + 1)
+	blinding := new(big.Int).SetBytes(msg.Blinding)
 
 	commitment := merkle.MiMCHashPair(amount, blinding)
 	commitmentBytes := commitment.Bytes()
-	commitmentHex := hex.EncodeToString(commitmentBytes)
-
-	// Get the next leaf index and store the commitment.
-	leafIndex, err := k.CommitmentCount.Next(ctx)
+	leafIndex, commitmentHex, rootHex, err := k.AppendCommitment(ctx, commitmentBytes)
 	if err != nil {
-		return nil, errorsmod.Wrap(types.ErrInvalidCommitment, "failed to get next commitment index")
-	}
-
-	// Store the commitment in the commitments map.
-	if err := k.Commitments.Set(ctx, leafIndex, commitmentBytes); err != nil {
-		return nil, errorsmod.Wrap(types.ErrInvalidCommitment, "failed to store commitment")
-	}
-
-	// Insert into the on-chain Merkle tree and update nodes.
-	if err := k.insertLeafAndUpdateTree(ctx, leafIndex, commitment); err != nil {
-		return nil, errorsmod.Wrap(types.ErrMerkleTreeFull, err.Error())
-	}
-
-	// Compute and store the new Merkle root.
-	root, err := k.computeRootFromState(ctx)
-	if err != nil {
-		return nil, errorsmod.Wrap(types.ErrInvalidCommitment, "failed to compute merkle root")
-	}
-	rootHex := hex.EncodeToString(root.Bytes())
-	if err := k.MerkleRoots.Set(ctx, rootHex, true); err != nil {
-		return nil, errorsmod.Wrap(types.ErrInvalidCommitment, "failed to store merkle root")
+		return nil, err
 	}
 
 	// Emit event.
