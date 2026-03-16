@@ -7,3 +7,43 @@ release/
 *.dot
 *.log
 *.ign
+clawchain/
+.tmp/
+bin/
+proto/_deps/
+third_party/proto/
+testnet/public/
+artifacts/*.bin
+artifacts/*.key
+
+# Build outputs
+build/
+dist/
+*.wasm
+coverage.out
+coverage.html
+
+# Node / TypeScript
+node_modules/
+.next/
+.nuxt/
+.turbo/
+*.tsbuildinfo
+
+# Go
+vendor/
+*.test
+
+# Secrets and credentials
+.env
+*.env
+.env.*
+!.env.example
+credentials.json
+service-account*.json
+**/secrets/
+*.pem
+*.p12
+*.pfx
+*.key
+!artifacts/.gitkeep
