@@ -1,0 +1,417 @@
+##
+## ClawChain Full-Stack Docker Compose
+##
+## Runs the blockchain node, web dashboard, clawd agent, and all backend services.
+##
+## Usage:
+##   docker compose up -d                    # Start core stack
+##   docker compose --profile gpu up -d      # Start with GPU provider
+##   docker compose --profile tools up -d    # Start with developer tools (artemis, cryo, data-portal, flood, flux, rivet)
+##   docker compose logs -f clawchain        # Follow chain logs
+##   docker compose down                     # Stop everything
+##
+## Ports:
+##   26657  CometBFT RPC
+##   1317   REST API (LCD)
+##   9090   gRPC
+##   3000   Web dashboard
+##   8090   GPU provider (gpu profile only) / Inference sidecar
+##   8888   Token faucet
+##   8891   WebSocket event proxy
+##   8892   Notification service
+##   9091   Inference sidecar metrics
+##   17171  Tx history indexer
+##
+
+services:
+  # -- ClawChain Node --------------------------------------------------------
+  clawchain:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: clawchain-node
+    ports:
+      - "26657:26657"   # CometBFT RPC
+      - "1317:1317"     # REST API
+      - "9090:9090"     # gRPC
+      - "26660:26660"   # Prometheus metrics
+    volumes:
+      - clawchain-data:/root/.clawchain
+    environment:
+      - CHAIN_ID=clawchain-testnet-1
+      - MONIKER=clawchain-docker
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:26657/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    networks:
+      - clawnet
+    restart: unless-stopped
+
+  # -- clawd Agent -----------------------------------------------------------
+  clawd:
+    build:
+      context: .
+      dockerfile: cmd/clawd/Dockerfile
+    container_name: clawchain-clawd
+    environment:
+      - BLOCKCHAIN_RPC_URL=http://clawchain:26657
+      - BLOCKCHAIN_REST_URL=http://clawchain:1317
+      - BLOCKCHAIN_CHAIN_ID=clawchain-testnet-1
+      - BLOCKCHAIN_AUTONOMOUS_LOOP_ENABLED=true
+      - BLOCKCHAIN_AUTO_ACCEPT_TASKS=true
+    depends_on:
+      clawchain:
+        condition: service_healthy
+    networks:
+      - clawnet
+    restart: unless-stopped
+
+  # -- Token Faucet ----------------------------------------------------------
+  claw-faucet:
+    build:
+      context: .
+      dockerfile: cmd/claw-faucet/Dockerfile
+    container_name: clawchain-faucet
+    ports:
+      - "8889:8888"
+    environment:
+      - CHAIN_REST=http://clawchain:1317
+      - CHAIN_RPC=http://clawchain:26657
+      - CHAIN_ID=clawchain-testnet-1
+      - FAUCET_MNEMONIC=${FAUCET_MNEMONIC:-satisfy adjust timber high purchase tuition stool faith fine install that you unaware feed domain license impose boss human eager hat rent enjoy dawn}
+      - FAUCET_AMOUNT=10000000
+    depends_on:
+      clawchain:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8888/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - clawnet
+    restart: unless-stopped
+
+  # -- WebSocket Event Proxy -------------------------------------------------
+  claw-eventsd:
+    build:
+      context: .
+      dockerfile: cmd/claw-eventsd/Dockerfile
+    container_name: clawchain-eventsd
+    ports:
+      - "8891:8891"
+    environment:
+      - CHAIN_RPC=http://clawchain:26657
+      - CHAIN_WS=ws://clawchain:26657/websocket
+    depends_on:
+      clawchain:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8891/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - clawnet
+    restart: unless-stopped
+
+  # -- Notification Service --------------------------------------------------
+  claw-notifyd:
+    build:
+      context: .
+      dockerfile: cmd/claw-notifyd/Dockerfile
+    container_name: clawchain-notifyd
+    ports:
+      - "8892:8892"
+    environment:
+      - CHAIN_REST=http://clawchain:1317
+      - CHAIN_RPC=http://clawchain:26657
+    depends_on:
+      clawchain:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8892/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - clawnet
+    restart: unless-stopped
+
+  # -- Inference Sidecar -----------------------------------------------------
+  claw-inference-sidecar:
+    build:
+      context: .
+      dockerfile: cmd/claw-inference-sidecar/Dockerfile
+    container_name: clawchain-inference-sidecar
+    profiles:
+      - gpu
+    ports:
+      - "8090:8090"
+      - "9091:9091"
+    environment:
+      - CHAIN_REST=http://clawchain:1317
+      - CHAIN_RPC=http://clawchain:26657
+      - CHAIN_ID=clawchain-testnet-1
+      - PROVIDER_ADDRESS=${PROVIDER_ADDRESS:-}
+      - PROVIDER_KEY_HEX=${PROVIDER_KEY_HEX:-}
+      - METRICS_ADDR=:9091
+    depends_on:
+      clawchain:
+        condition: service_healthy
+    networks:
+      - clawnet
+    restart: unless-stopped
+
+  # -- Web Dashboard ---------------------------------------------------------
+  web:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+    container_name: clawchain-web
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_API_URL=http://clawchain:1317
+      - VITE_RPC_URL=http://clawchain:26657
+      - VITE_REST_URL=http://clawchain:1317
+    depends_on:
+      clawchain:
+        condition: service_healthy
+      claw-faucet:
+        condition: service_healthy
+      claw-eventsd:
+        condition: service_healthy
+      claw-notifyd:
+        condition: service_healthy
+    networks:
+      - clawnet
+    restart: unless-stopped
+
+  # -- GPU Provider (optional, enable with --profile gpu) --------------------
+  gpu-provider:
+    build:
+      context: .
+      dockerfile: cmd/claw-gpu-provider/Dockerfile
+    container_name: clawchain-gpu-provider
+    environment:
+      - CLAWCHAIN_RPC=http://clawchain:26657
+      - CLAWCHAIN_REST=http://clawchain:1317
+      - PROVIDER_LISTEN_ADDR=:8090
+    ports:
+      - "8095:8090"
+    profiles:
+      - gpu
+    depends_on:
+      clawchain:
+        condition: service_healthy
+    networks:
+      - clawnet
+    restart: unless-stopped
+
+  # -- Claw Explorer (Vue 3) -------------------------------------------------
+  claw-explorer:
+    build:
+      context: ./claw-explorer
+      dockerfile: Dockerfile
+    container_name: clawchain-explorer
+    ports:
+      - "8082:8080"
+    environment:
+      - VITE_CHAIN_API=http://clawchain:1317
+      - VITE_CHAIN_RPC=http://clawchain:26657
+    depends_on:
+      clawchain:
+        condition: service_healthy
+    networks:
+      - clawnet
+    restart: unless-stopped
+
+  # -- DEX App (Next.js) ----------------------------------------------------
+  dex-app:
+    build:
+      context: ./dex-app
+      dockerfile: Dockerfile
+    container_name: clawchain-dex
+    ports:
+      - "3002:3000"
+    environment:
+      - NEXT_PUBLIC_CHAIN_ID=clawchain-1
+      - NEXT_PUBLIC_LCD=http://clawchain:1317
+    depends_on:
+      clawchain:
+        condition: service_healthy
+    networks:
+      - clawnet
+    restart: unless-stopped
+
+  # -- Landing Page (Vite static) -------------------------------------------
+  landing:
+    build:
+      context: ./landing
+      dockerfile: Dockerfile
+    container_name: clawchain-landing
+    ports:
+      - "8093:8090"
+    networks:
+      - clawnet
+    restart: unless-stopped
+
+  # -- Docs Site (Docusaurus) -----------------------------------------------
+  docs-site:
+    build:
+      context: ./docs-site
+      dockerfile: Dockerfile
+    container_name: clawchain-docs
+    ports:
+      - "8091:8091"
+    networks:
+      - clawnet
+    restart: unless-stopped
+
+  # -- Tx History Indexer ---------------------------------------------------
+  claw-txhistoryd:
+    build:
+      context: .
+      dockerfile: cmd/claw-txhistoryd/Dockerfile
+    container_name: clawchain-txhistoryd
+    ports:
+      - "17171:17171"
+    environment:
+      - CLAW_LCD_MAINNET=http://clawchain:1317
+      - CLAW_LCD_TESTNET=http://clawchain:1317
+    depends_on:
+      clawchain:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:17171/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - clawnet
+    restart: unless-stopped
+
+  # -- Developer Tools (optional, enable with --profile tools) --------------
+
+  # DEX arbitrage bot
+  claw-artemis:
+    build:
+      context: ./cmd/claw-artemis
+      dockerfile: Dockerfile
+    container_name: clawchain-artemis
+    environment:
+      - CHAIN_REST=http://clawchain:1317
+      - CHAIN_RPC=http://clawchain:26657
+    depends_on:
+      clawchain:
+        condition: service_healthy
+    profiles:
+      - tools
+    networks:
+      - clawnet
+    restart: unless-stopped
+
+  # Blockchain data extractor
+  claw-cryo:
+    build:
+      context: ./cmd/claw-cryo
+      dockerfile: Dockerfile
+    container_name: clawchain-cryo
+    environment:
+      - CHAIN_REST=http://clawchain:1317
+      - CHAIN_RPC=http://clawchain:26657
+    depends_on:
+      clawchain:
+        condition: service_healthy
+    profiles:
+      - tools
+    networks:
+      - clawnet
+    restart: unless-stopped
+
+  # Data download service
+  claw-data-portal:
+    build:
+      context: ./cmd/claw-data-portal
+      dockerfile: Dockerfile
+    container_name: clawchain-data-portal
+    environment:
+      - CHAIN_REST=http://clawchain:1317
+      - CHAIN_RPC=http://clawchain:26657
+    depends_on:
+      clawchain:
+        condition: service_healthy
+    profiles:
+      - tools
+    networks:
+      - clawnet
+    restart: unless-stopped
+
+  # RPC load tester
+  claw-flood:
+    build:
+      context: ./cmd/claw-flood
+      dockerfile: Dockerfile
+    container_name: clawchain-flood
+    environment:
+      - CHAIN_REST=http://clawchain:1317
+      - CHAIN_RPC=http://clawchain:26657
+    depends_on:
+      clawchain:
+        condition: service_healthy
+    profiles:
+      - tools
+    networks:
+      - clawnet
+    restart: unless-stopped
+
+  # LLM explorer
+  claw-flux:
+    build:
+      context: ./cmd/claw-flux
+      dockerfile: Dockerfile
+    container_name: clawchain-flux
+    environment:
+      - CHAIN_REST=http://clawchain:1317
+      - CHAIN_RPC=http://clawchain:26657
+    depends_on:
+      clawchain:
+        condition: service_healthy
+    profiles:
+      - tools
+    networks:
+      - clawnet
+    restart: unless-stopped
+
+  # Chain inspector
+  claw-rivet:
+    build:
+      context: ./cmd/claw-rivet
+      dockerfile: Dockerfile
+    container_name: clawchain-rivet
+    environment:
+      - CHAIN_REST=http://clawchain:1317
+      - CHAIN_RPC=http://clawchain:26657
+    depends_on:
+      clawchain:
+        condition: service_healthy
+    profiles:
+      - tools
+    networks:
+      - clawnet
+    restart: unless-stopped
+
+networks:
+  clawnet:
+    driver: bridge
+
+volumes:
+  clawchain-data:
