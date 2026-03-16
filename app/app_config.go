@@ -5,8 +5,21 @@ import (
 	agentmoduletypes "clawchain/x/agent/types"
 	_ "clawchain/x/clawchain/module"
 	clawchainmoduletypes "clawchain/x/clawchain/types"
+	_ "clawchain/x/governance/module"
+	governancemoduletypes "clawchain/x/governance/types"
+	_ "clawchain/x/marketplace/module"
+	_ "clawchain/x/oracle/module"
+	oraclemoduletypes "clawchain/x/oracle/types"
+	marketplacemoduletypes "clawchain/x/marketplace/types"
+	_ "clawchain/x/messaging/module"
+	_ "clawchain/x/modelregistry/module"
+	modelregistrymoduletypes "clawchain/x/modelregistry/types"
+	messagingmoduletypes "clawchain/x/messaging/types"
 	_ "clawchain/x/privacy/module"
 	privacymoduletypes "clawchain/x/privacy/types"
+	_ "clawchain/x/reputation/module"
+	reputationmoduletypes "clawchain/x/reputation/types"
+	tokenfactorytypes "clawchain/x/tokenfactory/types"
 	"time"
 
 	runtimev1alpha1 "cosmossdk.io/api/cosmos/app/runtime/v1alpha1"
@@ -70,6 +83,7 @@ import (
 	slashingtypes "github.com/cosmos/cosmos-sdk/x/slashing/types"
 	_ "github.com/cosmos/cosmos-sdk/x/staking" // import for side-effects
 	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
+	wasmtypes "github.com/CosmWasm/wasmd/x/wasm/types"
 	icatypes "github.com/cosmos/ibc-go/v10/modules/apps/27-interchain-accounts/types"
 	ibctransfertypes "github.com/cosmos/ibc-go/v10/modules/apps/transfer/types"
 	ibcexported "github.com/cosmos/ibc-go/v10/modules/core/exported"
@@ -84,9 +98,16 @@ var (
 		{Account: stakingtypes.BondedPoolName, Permissions: []string{authtypes.Burner, stakingtypes.ModuleName}},
 		{Account: stakingtypes.NotBondedPoolName, Permissions: []string{authtypes.Burner, stakingtypes.ModuleName}},
 		{Account: govtypes.ModuleName, Permissions: []string{authtypes.Burner}},
+		{Account: marketplacemoduletypes.ModuleName, Permissions: []string{authtypes.Burner}},
+		{Account: modelregistrymoduletypes.ModuleName, Permissions: []string{authtypes.Burner}},
+		{Account: agentmoduletypes.ModuleName, Permissions: []string{authtypes.Burner, authtypes.Minter}},
+		{Account: privacymoduletypes.ModuleName},
+		{Account: governancemoduletypes.ModuleName, Permissions: []string{authtypes.Burner}},
 		{Account: nft.ModuleName},
 		{Account: ibctransfertypes.ModuleName, Permissions: []string{authtypes.Minter, authtypes.Burner}},
 		{Account: icatypes.ModuleName},
+		{Account: wasmtypes.ModuleName, Permissions: []string{authtypes.Burner}},
+		{Account: tokenfactorytypes.ModuleName, Permissions: []string{authtypes.Minter, authtypes.Burner}},
 	}
 
 	// blocked account addresses
@@ -128,10 +149,18 @@ var (
 						epochstypes.ModuleName,
 						// ibc modules
 						ibcexported.ModuleName,
+						// cosmwasm
+						wasmtypes.ModuleName,
 						// chain modules
 						clawchainmoduletypes.ModuleName,
 						privacymoduletypes.ModuleName,
 						agentmoduletypes.ModuleName,
+						messagingmoduletypes.ModuleName,
+						marketplacemoduletypes.ModuleName,
+						reputationmoduletypes.ModuleName,
+						modelregistrymoduletypes.ModuleName,
+						oraclemoduletypes.ModuleName,
+						tokenfactorytypes.ModuleName,
 						// this line is used by starport scaffolding # stargate/app/beginBlockers
 					},
 					EndBlockers: []string{
@@ -143,6 +172,15 @@ var (
 						clawchainmoduletypes.ModuleName,
 						privacymoduletypes.ModuleName,
 						agentmoduletypes.ModuleName,
+						messagingmoduletypes.ModuleName,
+						marketplacemoduletypes.ModuleName,
+						reputationmoduletypes.ModuleName,
+						modelregistrymoduletypes.ModuleName,
+						governancemoduletypes.ModuleName,
+						oraclemoduletypes.ModuleName,
+						tokenfactorytypes.ModuleName,
+						// cosmwasm
+						wasmtypes.ModuleName,
 						// this line is used by starport scaffolding # stargate/app/endBlockers
 					},
 					// The following is mostly only needed when ModuleName != StoreKey name.
@@ -178,10 +216,19 @@ var (
 						ibcexported.ModuleName,
 						ibctransfertypes.ModuleName,
 						icatypes.ModuleName,
+						// cosmwasm (after ibc transfer)
+						wasmtypes.ModuleName,
 						// chain modules
 						clawchainmoduletypes.ModuleName,
 						privacymoduletypes.ModuleName,
 						agentmoduletypes.ModuleName,
+						messagingmoduletypes.ModuleName,
+						marketplacemoduletypes.ModuleName,
+						reputationmoduletypes.ModuleName,
+						modelregistrymoduletypes.ModuleName,
+						governancemoduletypes.ModuleName,
+						oraclemoduletypes.ModuleName,
+						tokenfactorytypes.ModuleName,
 						// this line is used by starport scaffolding # stargate/app/initGenesis
 					},
 				}),
@@ -289,6 +336,30 @@ var (
 			{
 				Name:   agentmoduletypes.ModuleName,
 				Config: appconfig.WrapAny(&agentmoduletypes.Module{}),
+			},
+			{
+				Name:   messagingmoduletypes.ModuleName,
+				Config: appconfig.WrapAny(&messagingmoduletypes.Module{}),
+			},
+			{
+				Name:   marketplacemoduletypes.ModuleName,
+				Config: appconfig.WrapAny(&marketplacemoduletypes.Module{}),
+			},
+			{
+				Name:   reputationmoduletypes.ModuleName,
+				Config: appconfig.WrapAny(&reputationmoduletypes.Module{}),
+			},
+			{
+				Name:   modelregistrymoduletypes.ModuleName,
+				Config: appconfig.WrapAny(&modelregistrymoduletypes.Module{}),
+			},
+			{
+				Name:   governancemoduletypes.ModuleName,
+				Config: appconfig.WrapAny(&governancemoduletypes.Module{}),
+			},
+			{
+				Name:   oraclemoduletypes.ModuleName,
+				Config: appconfig.WrapAny(&oraclemoduletypes.Module{}),
 			},
 			// this line is used by starport scaffolding # stargate/app/moduleConfig
 		},

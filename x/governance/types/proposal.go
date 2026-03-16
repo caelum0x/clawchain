@@ -45,6 +45,7 @@ var AllowedModules = map[string]bool{
 	"privacy":       true,
 	"messaging":     true,
 	"reputation":    true,
+	"oracle":        true,
 }
 
 // AllowedParams maps module names to their valid parameter keys.
@@ -89,6 +90,14 @@ var AllowedParams = map[string][]string{
 		"task_sla_on_time_reward_bps",
 		"task_sla_late_penalty_bps",
 		"task_sla_lateness_step_blocks",
+	},
+	"oracle": {
+		"vote_period",
+		"vote_threshold",
+		"reward_band",
+		"slash_fraction",
+		"slash_window",
+		"min_valid_per_window",
 	},
 }
 
