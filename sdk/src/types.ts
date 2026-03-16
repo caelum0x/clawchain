@@ -2000,6 +2000,84 @@ export interface GenesisInfo {
   moduleList: string[];
 }
 
+// ---------------------------------------------------------------------------
+// Oracle module – query responses
+// ---------------------------------------------------------------------------
+
+/** A single oracle price entry. */
+export interface OraclePrice {
+  /** Denom pair identifier, e.g. "CLAW/USD". */
+  denom_pair: string;
+  /** Decimal price string. */
+  price: string;
+  /** Block height at which the price was recorded. */
+  block_height: string;
+  /** ISO-8601 timestamp of the price update. */
+  timestamp: string;
+}
+
+/** Response for a single oracle price query. */
+export interface OraclePriceResponse {
+  rate: OraclePrice;
+}
+
+/** Response for querying all oracle prices. */
+export interface OraclePricesResponse {
+  rates: OraclePrice[];
+}
+
+/** A single entry in the oracle price history. */
+export interface OraclePriceHistoryEntry {
+  /** Decimal price string. */
+  price: string;
+  /** Block height at which the price was recorded. */
+  block_height: string;
+  /** ISO-8601 timestamp of the price update. */
+  timestamp: string;
+  /** Optional number of blocks this price was valid. */
+  duration_blocks?: string;
+}
+
+/** Response for an oracle price history query. */
+export interface OraclePriceHistoryResponse {
+  entries: OraclePriceHistoryEntry[];
+}
+
+/** Oracle module parameters. */
+export interface OracleParamsData {
+  /** Number of blocks in each voting period. */
+  vote_period: string;
+  /** Minimum percentage of votes required for a valid price. */
+  vote_threshold: string;
+  /** Percentage band around the weighted median for rewards. */
+  reward_band: string;
+  /** Fraction of stake slashed per missed vote. */
+  slash_fraction: string;
+  /** Number of blocks in the slash evaluation window. */
+  slash_window: string;
+  /** Minimum valid votes per window before slashing. */
+  min_valid_per_window: string;
+  /** List of whitelisted denom pairs. */
+  whitelist: string[];
+}
+
+/** Response for querying oracle module params. */
+export interface OracleParamsResponse {
+  params: OracleParamsData;
+}
+
+/** Response for querying a validator's miss counter. */
+export interface OracleMissCounterResponse {
+  /** Number of missed oracle votes as a string. */
+  miss_counter: string;
+}
+
+/** Response for querying a validator's feeder delegation. */
+export interface OracleFeederResponse {
+  /** Bech32 address of the delegated feeder. */
+  feeder: string;
+}
+
 /** Health status of a single endpoint. */
 export interface EndpointHealth {
   /** URL that was probed. */

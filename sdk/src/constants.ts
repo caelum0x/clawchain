@@ -563,3 +563,25 @@ export const REST_WASM_CONTRACT_SMART_SUFFIX = "smart";
 
 /** REST path suffix for listing contracts by code ID. */
 export const REST_WASM_CODE_CONTRACTS_SUFFIX = "contracts";
+
+// ---------------------------------------------------------------------------
+// Oracle module REST paths
+// ---------------------------------------------------------------------------
+
+/** REST path prefix for querying a single oracle price by denom pair. */
+export const REST_ORACLE_PRICE = "/clawchain/oracle/v1/price";
+
+/** REST path for querying all oracle prices. */
+export const REST_ORACLE_PRICES = "/clawchain/oracle/v1/prices";
+
+/** REST path prefix for querying oracle price history by denom pair. */
+export const REST_ORACLE_PRICE_HISTORY = "/clawchain/oracle/v1/price_history";
+
+/** REST path for querying oracle module params. */
+export const REST_ORACLE_PARAMS = "/clawchain/oracle/v1/params";
+
+/** REST path prefix for querying the feeder delegate for a validator. */
+export const REST_ORACLE_FEEDER = "/clawchain/oracle/v1/feeder";
+
+/** REST path prefix for querying the miss counter for a validator. */
+export const REST_ORACLE_MISS = "/clawchain/oracle/v1/miss";

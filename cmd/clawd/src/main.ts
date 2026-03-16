@@ -63,6 +63,16 @@ import {
   runGovernanceVote,
   runGovernanceParams,
 } from "./commands/governance.js";
+import {
+  runOraclePrice,
+  runOraclePrices,
+  runOracleHistory,
+  runOracleParams,
+  runOracleFeeder,
+  runOracleMiss,
+  runOraclePrevote,
+  runOracleVote,
+} from "./commands/oracle.js";
 import { runSkillList, runSkillCreate, runSkillPurchase } from "./commands/skill.js";
 import {
   runClawHubValidate,
@@ -2233,6 +2243,83 @@ govCmd
   .option("--json", "output JSON")
   .action(async (opts) => {
     await runGovernanceParams({ json: opts.json });
+  });
+
+// ---------------------------------------------------------------------------
+// clawd oracle
+// ---------------------------------------------------------------------------
+const oracleCmd = program.command("oracle").description("Oracle price feeds and voting");
+
+oracleCmd
+  .command("price")
+  .description("Query oracle price for a denom pair")
+  .argument("<pair>", "denom pair (e.g. CLAW/USD)")
+  .option("--json", "output JSON")
+  .action(async (pair, opts) => {
+    await runOraclePrice({ pair, json: opts.json });
+  });
+
+oracleCmd
+  .command("prices")
+  .description("List all oracle prices")
+  .option("--json", "output JSON")
+  .action(async (opts) => {
+    await runOraclePrices({ json: opts.json });
+  });
+
+oracleCmd
+  .command("history")
+  .description("Price history for a denom pair")
+  .argument("<pair>", "denom pair (e.g. CLAW/USD)")
+  .option("--limit <n>", "max entries to show", parseInt)
+  .option("--json", "output JSON")
+  .action(async (pair, opts) => {
+    await runOracleHistory({ pair, limit: opts.limit, json: opts.json });
+  });
+
+oracleCmd
+  .command("params")
+  .description("Query oracle module parameters")
+  .option("--json", "output JSON")
+  .action(async (opts) => {
+    await runOracleParams({ json: opts.json });
+  });
+
+oracleCmd
+  .command("feeder")
+  .description("Query feeder delegation for a validator")
+  .argument("<validator>", "validator address")
+  .option("--json", "output JSON")
+  .action(async (validator, opts) => {
+    await runOracleFeeder({ validator, json: opts.json });
+  });
+
+oracleCmd
+  .command("miss")
+  .description("Query miss counter for a validator")
+  .argument("<validator>", "validator address")
+  .option("--json", "output JSON")
+  .action(async (validator, opts) => {
+    await runOracleMiss({ validator, json: opts.json });
+  });
+
+oracleCmd
+  .command("prevote")
+  .description("Submit aggregate prevote (hash-based)")
+  .argument("<hash>", "prevote hash")
+  .requiredOption("--validator <address>", "validator address")
+  .action(async (hash, opts) => {
+    await runOraclePrevote({ hash, validator: opts.validator });
+  });
+
+oracleCmd
+  .command("vote")
+  .description("Submit aggregate vote (reveal)")
+  .argument("<salt>", "salt used in prevote")
+  .argument("<rates>", "exchange rates string")
+  .requiredOption("--validator <address>", "validator address")
+  .action(async (salt, rates, opts) => {
+    await runOracleVote({ salt, rates, validator: opts.validator });
   });
 
 // ---------------------------------------------------------------------------

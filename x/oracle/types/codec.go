@@ -2,16 +2,26 @@ package types
 
 import (
 	"github.com/cosmos/cosmos-sdk/codec"
-	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
+	cdctypes "github.com/cosmos/cosmos-sdk/codec/types"
+	sdk "github.com/cosmos/cosmos-sdk/types"
+	"github.com/cosmos/cosmos-sdk/types/msgservice"
 )
 
 // RegisterCodec registers the oracle module's types on the legacy amino codec.
-func RegisterCodec(_ *codec.LegacyAmino) {
-	// No amino-registered messages for now.
+func RegisterCodec(cdc *codec.LegacyAmino) {
+	cdc.RegisterConcrete(&MsgDelegateFeeder{}, "clawchain/oracle/MsgDelegateFeeder", nil)
+	cdc.RegisterConcrete(&MsgAggregateExchangeRatePrevote{}, "clawchain/oracle/MsgAggregateExchangeRatePrevote", nil)
+	cdc.RegisterConcrete(&MsgAggregateExchangeRateVote{}, "clawchain/oracle/MsgAggregateExchangeRateVote", nil)
+	cdc.RegisterConcrete(&MsgUpdateOracleParams{}, "clawchain/oracle/MsgUpdateOracleParams", nil)
 }
 
 // RegisterInterfaces registers the oracle module's interface types.
-func RegisterInterfaces(_ codectypes.InterfaceRegistry) {
-	// No gRPC msg/query services to register yet — oracle uses
-	// hand-rolled REST/query handlers through the keeper directly.
+func RegisterInterfaces(registry cdctypes.InterfaceRegistry) {
+	registry.RegisterImplementations((*sdk.Msg)(nil),
+		&MsgDelegateFeeder{},
+		&MsgAggregateExchangeRatePrevote{},
+		&MsgAggregateExchangeRateVote{},
+		&MsgUpdateOracleParams{},
+	)
+	msgservice.RegisterMsgServiceDesc(registry, &_Msg_serviceDesc)
 }

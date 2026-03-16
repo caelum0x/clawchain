@@ -203,6 +203,12 @@ export {
   REST_WASM_CODE,
   REST_WASM_CONTRACT,
   REST_GPU_PROVIDERS,
+  REST_ORACLE_PRICE,
+  REST_ORACLE_PRICES,
+  REST_ORACLE_PRICE_HISTORY,
+  REST_ORACLE_PARAMS,
+  REST_ORACLE_FEEDER,
+  REST_ORACLE_MISS,
 } from "./constants.js";
 
 // Types – re-export everything
@@ -379,4 +385,14 @@ export type {
   PortfolioSummary,
   AgentEarnings,
   LeaderboardEntry,
+  // Oracle module types
+  OraclePrice,
+  OraclePriceResponse,
+  OraclePricesResponse,
+  OraclePriceHistoryEntry,
+  OraclePriceHistoryResponse,
+  OracleParamsData,
+  OracleParamsResponse,
+  OracleMissCounterResponse,
+  OracleFeederResponse,
 } from "./types.js";

@@ -174,6 +174,12 @@ import type {
   PortfolioSummary,
   AgentEarnings,
   LeaderboardEntry,
+  OraclePriceResponse,
+  OraclePricesResponse,
+  OraclePriceHistoryResponse,
+  OracleParamsResponse,
+  OracleMissCounterResponse,
+  OracleFeederResponse,
 } from "./types.js";
 import {
   DEFAULT_RPC_URL,
@@ -310,6 +316,12 @@ import {
   REST_WASM_CONTRACT_SMART_SUFFIX,
   REST_WASM_CODE_CONTRACTS_SUFFIX,
   REST_AGENT_REWARDS,
+  REST_ORACLE_PRICE,
+  REST_ORACLE_PRICES,
+  REST_ORACLE_PRICE_HISTORY,
+  REST_ORACLE_PARAMS,
+  REST_ORACLE_FEEDER,
+  REST_ORACLE_MISS,
 } from "./constants.js";
 
 // ---------------------------------------------------------------------------
@@ -5672,6 +5684,101 @@ export class ClawChainClient {
     } catch (e: any) {
       return { address, rank: 0, percentile: 0, tier: "unknown", reputationScore: 0, totalAgents: 0 };
     }
+  }
+
+  // -----------------------------------------------------------------------
+  // Queries – Oracle module
+  // -----------------------------------------------------------------------
+
+  /**
+   * Query the current oracle price for a given denom pair.
+   *
+   * @param denomPair - Denom pair identifier, e.g. "CLAW/USD".
+   */
+  async getOraclePrice(denomPair: string): Promise<OraclePriceResponse> {
+    const url = `${this.restUrl}${REST_ORACLE_PRICE}/${encodeURIComponent(denomPair)}`;
+    const res = await fetch(url);
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(`ClawChainClient.getOraclePrice: HTTP ${res.status} – ${body}`);
+    }
+    return (await res.json()) as OraclePriceResponse;
+  }
+
+  /**
+   * Query all current oracle prices.
+   */
+  async getOraclePrices(): Promise<OraclePricesResponse> {
+    const url = `${this.restUrl}${REST_ORACLE_PRICES}`;
+    const res = await fetch(url);
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(`ClawChainClient.getOraclePrices: HTTP ${res.status} – ${body}`);
+    }
+    return (await res.json()) as OraclePricesResponse;
+  }
+
+  /**
+   * Query oracle price history for a given denom pair.
+   *
+   * @param denomPair - Denom pair identifier, e.g. "CLAW/USD".
+   * @param limit - Maximum number of history entries to return.
+   */
+  async getOraclePriceHistory(denomPair: string, limit?: number): Promise<OraclePriceHistoryResponse> {
+    let url = `${this.restUrl}${REST_ORACLE_PRICE_HISTORY}/${encodeURIComponent(denomPair)}`;
+    if (limit !== undefined) {
+      const qp = new URLSearchParams({ limit: String(limit) });
+      url += `?${qp.toString()}`;
+    }
+    const res = await fetch(url);
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(`ClawChainClient.getOraclePriceHistory: HTTP ${res.status} – ${body}`);
+    }
+    return (await res.json()) as OraclePriceHistoryResponse;
+  }
+
+  /**
+   * Query oracle module parameters.
+   */
+  async getOracleParams(): Promise<OracleParamsResponse> {
+    const url = `${this.restUrl}${REST_ORACLE_PARAMS}`;
+    const res = await fetch(url);
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(`ClawChainClient.getOracleParams: HTTP ${res.status} – ${body}`);
+    }
+    return (await res.json()) as OracleParamsResponse;
+  }
+
+  /**
+   * Query the miss counter for a validator's oracle votes.
+   *
+   * @param validator - Bech32 validator address.
+   */
+  async getOracleMissCounter(validator: string): Promise<OracleMissCounterResponse> {
+    const url = `${this.restUrl}${REST_ORACLE_MISS}/${encodeURIComponent(validator)}`;
+    const res = await fetch(url);
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(`ClawChainClient.getOracleMissCounter: HTTP ${res.status} – ${body}`);
+    }
+    return (await res.json()) as OracleMissCounterResponse;
+  }
+
+  /**
+   * Query the feeder delegation for a validator.
+   *
+   * @param validator - Bech32 validator address.
+   */
+  async getOracleFeederDelegation(validator: string): Promise<OracleFeederResponse> {
+    const url = `${this.restUrl}${REST_ORACLE_FEEDER}/${encodeURIComponent(validator)}`;
+    const res = await fetch(url);
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(`ClawChainClient.getOracleFeederDelegation: HTTP ${res.status} – ${body}`);
+    }
+    return (await res.json()) as OracleFeederResponse;
   }
 
   // -----------------------------------------------------------------------
