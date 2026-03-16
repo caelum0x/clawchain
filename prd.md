@@ -294,9 +294,9 @@ new-blokchain/
 
 ---
 
-## Current Status (March 10, 2026)
+## Current Status (March 16, 2026)
 
-### Functional Reality Check (Comprehensive Audit — March 10, 2026)
+### Functional Reality Check (Comprehensive Audit — March 16, 2026)
 
 > **Honest assessment**: Code compiles and 2,490 tests pass, but **the chain has never been booted
 > as a persistent network**. Without a running chain, every app that queries chain APIs returns
@@ -331,9 +331,9 @@ new-blokchain/
 | **All cmd/ services** (15 total) | YES | YES (local) | 95% | ~15,000+ LOC real working code, genuinely integrated |
 | **GPU Compute Fabric** (dantegpu-core/) | YES | **NOT YET** | 85% | 518-line ClawChainClient with CLAW payments, never orchestrated end-to-end |
 | **OpenClaw Extension** (openclaw/) | YES | YES* | 95% | 67 source files, 39 tools. Binary runs correctly. *Needs running chain for tools to work |
-| **Web Dashboard** (web/) | YES | YES* | 100% | 42 pages, real data queries, Keplr wallet, DIRECT signing (fixed). *Needs running chain |
+| **Web Dashboard** (web/) | YES | YES* | 100% | 43 pages (incl. Oracle), real data queries, Keplr wallet, DIRECT signing (fixed). *Needs running chain |
 | **TypeScript SDK** (sdk/) | YES | YES | 100% | 260 tests pass, proper CosmJS signing, bech32 prefix fixed to `claw` |
-| **clawd CLI** (cmd/clawd/) | YES | YES (local) | 100% | 68 command files, 317 subcommands, 559 tests |
+| **clawd CLI** (cmd/clawd/) | YES | YES (local) | 100% | 69 command files, 325+ subcommands, 559 tests |
 | **CosmWasm / Smart Contracts** | YES | **NOT DEPLOYED** | 90% | Module wired in app.go, but no contracts uploaded to any chain |
 | **DEX Contracts** (contracts/dex/) | YES (.wasm built) | **NOT DEPLOYED** | 85% | 7 WASM contracts built (factory, pair, pair_stable, pair_concentrated, router, oracle, whitelist). Artifacts in `artifacts/`. Needs chain deployment via `deploy-dex.sh` |
 | **DEX Frontend** (dex-app/) | YES (0 TS errors) | YES* | **90%** | **FIXED** — All 73 files rewritten from `@terra-money/terra.js` to `@cosmjs/stargate` + `@cosmjs/cosmwasm-stargate`. Uses Keplr + SigningCosmWasmClient. *Needs running chain + deployed contracts |
@@ -349,19 +349,19 @@ new-blokchain/
 | **Infrastructure** | YES | **NOT TESTED** | 90% | Docker/K8s/systemd/Nginx configs exist but never run as full stack |
 | **Security** | N/A | **BLOCKED** | 25% | Audit not started, MPC ceremony not performed |
 
-### Build & Test Verification (All passing as of March 10, 2026)
+### Build & Test Verification (All passing as of March 16, 2026)
 
 - All 9 Go binaries compile (`go build ./...` clean)
-- Go integration tests: **908 tests pass** (0 failures)
-- SDK: **260 tests pass**, ESM dist/ built, bech32 prefix corrected to `claw`
-- Web dashboard: **763 tests pass** (tsc + vite build clean), wallet signing fixed to DIRECT mode
-- clawd CLI: **559 tests pass** (68 command files, 317 subcommands)
+- Go integration tests: **908+ tests pass** (0 failures), includes oracle gRPC + tokenfactory tests
+- SDK: **260 tests pass**, ESM dist/ built, bech32 prefix corrected to `claw`, oracle methods added
+- Web dashboard: **763 tests pass** (tsc + vite build clean), wallet signing fixed to DIRECT mode, Oracle page added
+- clawd CLI: **559 tests pass** (69 command files, 325+ subcommands — oracle commands added)
 - DEX Rust contracts: `cargo check` clean
 - DEX frontend: `tsc --noEmit` clean
 - Explorer: vite build clean
 - Landing page: vite build clean
 - Docs site: docusaurus build clean
-- **Total: 2,490 tests pass across all projects (0 failures)**
+- **Total: 2,490+ tests pass across all projects (0 failures)**
 - OpenRouter AI inference: 5/5 pipeline tests pass (connectivity, models, completion, streaming, usage)
 
 ---
@@ -618,20 +618,35 @@ new-blokchain/
 - CONTRIBUTING.md: Updated project layout (all 15 cmd/ services), build commands (make targets), test commands, Docker section
 </details>
 
+<details>
+<summary>Sprint 27: Oracle Client Surface + Housekeeping (March 16, 2026)</summary>
+
+- Oracle gRPC: query.pb.go (2400+ LOC), tx.pb.go (1285 LOC), query.pb.gw.go (571 LOC) — full QueryServer (6 RPCs) + MsgServer (4 RPCs) + REST gateway
+- Oracle gRPC server impls: grpc_query_server.go (100 LOC), grpc_msg_server.go (65 LOC) — delegates to existing keeper
+- Oracle module: RegisterServices + RegisterGRPCGatewayRoutes wired in module.go
+- Oracle codec: RegisterInterfaces updated with 4 Msg types + MsgServiceDesc
+- Oracle types_proto.go: Proto-compatible struct definitions for ExchangeRate, PriceHistoryEntry, etc.
+- clawd CLI: oracle.ts (340 LOC) — 8 subcommands (price, prices, history, params, feeder, miss, prevote, vote)
+- SDK: 6 oracle REST constants, 9 TypeScript interfaces, 6 ClawChainClient methods, exports
+- Web: Oracle.tsx dashboard page (314 LOC) — price table, click-to-expand history, collapsible params
+- Web: Route + sidebar nav link added
+- Housekeeping: .gitignore (.local-node/), tokenfactory tests (8 tests), PRD status update
+</details>
+
 ---
 
 ## What's Next
 
-> Status as of March 11, 2026: **Full-stack Docker stack validated and running.** Chain at height 300+, all 14 services healthy, 265 Prometheus metrics scraped, Grafana dashboards live. Remaining blockers are all external (domain/hosting, security audit, genesis ceremony).
+> Status as of March 16, 2026: **Full-stack Docker stack validated and running.** Chain at height 300+, all 14 services healthy, 265 Prometheus metrics scraped, Grafana dashboards live. Oracle module fully queryable (gRPC, REST, CLI, SDK, web). Remaining blockers are all external (domain/hosting, security audit, genesis ceremony).
 
-### Current State Summary (March 11, 2026)
+### Current State Summary (March 16, 2026)
 
 | Area | Status | Notes |
 |---|---|---|
 | Chain node | ✅ Running | Height 300+, 5s blocks, single validator testnet |
 | Docker stack | ✅ Validated | 14 services: chain, clawd, faucet, eventsd, notifyd, txhistoryd, web, explorer, dex, landing, docs, prometheus, grafana, alertmanager |
 | Monitoring | ✅ Live | Prometheus :9091, Grafana :3010, AlertManager :9093, 265 metrics, 29 alert rules |
-| Tests | ✅ 2,490 pass | Go: 908 integration, TS: 1,582 (web 763, clawd 559, sdk 260) |
+| Tests | ✅ 2,490+ pass | Go: 908+ integration (oracle+tokenfactory), TS: 1,582 (web 763, clawd 559, sdk 260) |
 | CosmWasm | ✅ Integrated | wasmd v0.61.9, DEX contracts deployed locally |
 | DEX | ✅ Live (local) | CLAW/ATOM pool, swap verified, artifacts in `artifacts/dex-deployment.json` |
 | Web dashboard | ✅ Running | 42 pages, :3000, real chain data, 0 mock data |
@@ -641,7 +656,7 @@ new-blokchain/
 | Public infra | ❌ Missing | No `clawchain.io` DNS, no cloud hosting — FIX #7 |
 | Security audit | ❌ External | Needs external firm |
 | Mobile wallet | ⏸ Deferred | Keplr browser wallet covers launch |
-| 7-day soak | 🔄 Started | Began March 11, 2026 |
+| 7-day soak | 🔄 Day 5/7 | Began March 11, completes March 18, 2026 |
 
 ### DELETE — Remove from repo
 
@@ -710,7 +725,7 @@ These directories add nothing to ClawChain. They are unmodified forks with zero 
 
 | # | Task | Depends On | Status |
 |---|---|---|---|
-| 12 | **7-day stable testnet soak** | Phase B + C | **IN PROGRESS** — Started March 11, 2026. Chain running, blocks every ~5s. |
+| 12 | **7-day stable testnet soak** | Phase B + C | **IN PROGRESS** — Day 5/7. Started March 11, completes March 18, 2026. Chain running, blocks every ~5s. |
 | 13 | **All launch checklist items signed off** | Phase A-D | **IN PROGRESS** — Phases A-D complete. Pending: domain/hosting, public endpoints. |
 | 14 | **Security audit findings resolved** | External | **WAITING** — External audit firm engagement needed |
 | 15 | **Mainnet genesis ceremony** | Dry run + real validators | **WAITING** — Depends on audit + validator recruitment |
@@ -738,6 +753,7 @@ These directories add nothing to ClawChain. They are unmodified forks with zero 
 | P15 Docs & Polish | Tutorials, API ref | **DONE** | 4 tutorials (2205 LOC), API reference (all modules), sidebar updated |
 | P16 Launch Gate | All leads | **IN PROGRESS** | 7-day soak started March 11, security audit (external), genesis ceremony |
 | P17 Operational Validation | Full stack | **DONE** | 14-service Docker stack running. Chain height 300+, 5s block time, 265 Prometheus metrics, health-check-all 10/12. DEX contracts deployed (local). No public infra yet (FIX #7) |
+| P18 Oracle Client Surface | `x/oracle`, `cmd/clawd`, `sdk/`, `web/` | **DONE** | Full gRPC QueryServer (6 RPCs) + MsgServer (4 RPCs) + REST gateway. clawd oracle: 8 subcommands. SDK: 6 client methods + 9 types + 6 constants. Web: Oracle dashboard page. tokenfactory tests added (8 tests). |
 | Mobile Wallet | `claw-wallet-mobile/` | **WAITING** | Essentially unmodified Oko Wallet (~2.3% customization). Not blocking — Keplr browser wallet works. Can revisit later |
 | ~~reth/~~ | ~~`reth/`~~ | **DELETE** | Completely unmodified Paradigm fork. Zero ClawChain code. Ethereum client, irrelevant to Cosmos SDK chain |
 | ~~claw-viem/, claw-wagmi/~~ | — | **DELETED** | Empty/unused packages removed |
@@ -879,20 +895,7 @@ ClawDEX is live. Astroport Core fork (262 Rust files) rebranded and deployed.
   Effort: Significant — needs real GPU operator hardware.
 
   ---
-  3. clawd in Docker — Agent-Only Mode
-
-  Right now the clawd container runs without openclaw (ENOENT gracefully handled). It handles the autonomous loop and messaging but has no AI gateway. To get
-   full clawd functionality in Docker:
-
-  ┌─────────────────────────────────────────┬────────────────────────────────────────────────┐
-  │                  Task                   │                    Details                     │
-  ├─────────────────────────────────────────┼────────────────────────────────────────────────┤
-  │ Bundle openclaw into clawd Docker image │ COPY openclaw binary into cmd/clawd/Dockerfile │
-  ├─────────────────────────────────────────┼────────────────────────────────────────────────┤
-  │ OR distribute openclaw separately       │ Mount it via volume or install via npm         │
-  └─────────────────────────────────────────┴────────────────────────────────────────────────┘
-
-  Effort: ~30 minutes.
+  ~~3. clawd in Docker — Agent-Only Mode~~ **DONE** — openclaw bundled into clawd Docker image (March 16, 2026)
 
   ---
   4. Multi-Validator Testnet
@@ -934,7 +937,7 @@ ClawDEX is live. Astroport Core fork (262 Rust files) rebranded and deployed.
   ┌─────────────────────────────┬─────────────────────────────────┐
   │            Task             │             Blocker             │
   ├─────────────────────────────┼─────────────────────────────────┤
-  │ 7-day soak (started Mar 11) │ 6 days left                     │
+  │ 7-day soak (started Mar 11) │ 2 days left (completes Mar 18)  │
   ├─────────────────────────────┼─────────────────────────────────┤
   │ Security audit              │ External firm                   │
   ├─────────────────────────────┼─────────────────────────────────┤
