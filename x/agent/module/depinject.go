@@ -8,10 +8,17 @@ import (
 	"cosmossdk.io/depinject/appconfig"
 	"github.com/cosmos/cosmos-sdk/codec"
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
+	mintkeeper "github.com/cosmos/cosmos-sdk/x/mint/keeper"
 
 	"clawchain/x/agent/keeper"
 	"clawchain/x/agent/types"
 )
+
+// ProvideMintKeeperAdapter converts the SDK mint keeper to the agent module's
+// MintKeeper interface so depinject can resolve it without a concrete-type cycle.
+func ProvideMintKeeperAdapter(mk mintkeeper.Keeper) types.MintKeeper {
+	return keeper.NewMintKeeperAdapter(mk)
+}
 
 var _ depinject.OnePerModuleType = AppModule{}
 
@@ -21,7 +28,7 @@ func (AppModule) IsOnePerModuleType() {}
 func init() {
 	appconfig.Register(
 		&types.Module{},
-		appconfig.Provide(ProvideModule),
+		appconfig.Provide(ProvideModule, ProvideMintKeeperAdapter),
 	)
 }
 
@@ -35,6 +42,7 @@ type ModuleInputs struct {
 
 	AuthKeeper types.AuthKeeper
 	BankKeeper types.BankKeeper
+	MintKeeper types.MintKeeper
 }
 
 type ModuleOutputs struct {
@@ -55,6 +63,9 @@ func ProvideModule(in ModuleInputs) ModuleOutputs {
 		in.Cdc,
 		in.AddressCodec,
 		authority,
+		in.BankKeeper,
+		in.MintKeeper,
+		nil, // ReputationKeeper wired post-init in app.go to break cycle
 	)
 	m := NewAppModule(in.Cdc, k, in.AuthKeeper, in.BankKeeper)
 

@@ -78,6 +78,21 @@ func (am AppModule) RegisterServices(registrar grpc.ServiceRegistrar) error {
 	types.RegisterMsgServer(registrar, keeper.NewMsgServerImpl(am.keeper))
 	types.RegisterQueryServer(registrar, keeper.NewQueryServerImpl(am.keeper))
 
+	// Register migrations. The registrar is a module.Configurator at runtime,
+	// which provides RegisterMigration for the upgrade framework.
+	if cfg, ok := registrar.(module.Configurator); ok {
+		m := keeper.NewMigrator(am.keeper)
+		if err := cfg.RegisterMigration(types.ModuleName, 1, m.Migrate1to2); err != nil {
+			return fmt.Errorf("failed to migrate x/%s from version 1 to 2: %w", types.ModuleName, err)
+		}
+		if err := cfg.RegisterMigration(types.ModuleName, 2, m.Migrate2to3); err != nil {
+			return fmt.Errorf("failed to migrate x/%s from version 2 to 3: %w", types.ModuleName, err)
+		}
+		if err := cfg.RegisterMigration(types.ModuleName, 3, m.Migrate3to4); err != nil {
+			return fmt.Errorf("failed to migrate x/%s from version 3 to 4: %w", types.ModuleName, err)
+		}
+	}
+
 	return nil
 }
 
@@ -128,16 +143,17 @@ func (am AppModule) ExportGenesis(ctx sdk.Context, _ codec.JSONCodec) json.RawMe
 // ConsensusVersion is a sequence number for state-breaking change of the module.
 // It should be incremented on each consensus-breaking change introduced by the module.
 // To avoid wrong/empty versions, the initial version should be set to 1.
-func (AppModule) ConsensusVersion() uint64 { return 1 }
+func (AppModule) ConsensusVersion() uint64 { return 4 }
 
 // BeginBlock contains the logic that is automatically triggered at the beginning of each block.
 // The begin block implementation is optional.
-func (am AppModule) BeginBlock(_ context.Context) error {
+func (am AppModule) BeginBlock(ctx context.Context) error {
+	am.keeper.ResetBlockCounts(ctx)
 	return nil
 }
 
 // EndBlock contains the logic that is automatically triggered at the end of each block.
-// The end block implementation is optional.
-func (am AppModule) EndBlock(_ context.Context) error {
-	return nil
+// It deactivates agents with stale heartbeats based on module params.
+func (am AppModule) EndBlock(ctx context.Context) error {
+	return am.keeper.EndBlock(ctx)
 }

@@ -3,6 +3,7 @@ package keeper
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"clawchain/x/agent/types"
 
@@ -31,9 +32,29 @@ func (k msgServer) AgentAction(ctx context.Context, msg *types.MsgAgentAction) (
 		return nil, errorsmod.Wrap(types.ErrAgentNotFound, "agent is deactivated")
 	}
 
+	// Enforce per-agent per-block anti-spam limits (in-memory rate limiter).
+	if err := k.IncrementActionCount(ctx, msg.Creator); err != nil {
+		return nil, err
+	}
+
+	// Enforce payload size limit.
+	if err := k.enforcePayloadSize(ctx, msg.Payload); err != nil {
+		return nil, err
+	}
+
 	// Validate that the action type is supported.
 	if !types.SupportedActionTypes[msg.ActionType] {
 		return nil, errorsmod.Wrapf(types.ErrUnsupportedAction, "action type %q is not supported; supported types: transfer, coordinate, query", msg.ActionType)
+	}
+
+	params, err := k.Params.Get(ctx)
+	if err != nil {
+		return nil, errorsmod.Wrap(err, "failed to load params for high-impact action policy")
+	}
+
+	// High-impact action deposit gate.
+	if err := enforceHighImpactActionDeposit(agent.DepositAmount, params.HighImpactMinDepositUclaw, msg.ActionType); err != nil {
+		return nil, err
 	}
 
 	// Get block info from SDK context.
@@ -68,6 +89,14 @@ func (k msgServer) AgentAction(ctx context.Context, msg *types.MsgAgentAction) (
 			sdk.NewAttribute("agent_address", msg.Creator),
 			sdk.NewAttribute("action_type", msg.ActionType),
 			sdk.NewAttribute("payload", msg.Payload),
+		),
+	)
+	sdkCtx.EventManager().EmitEvent(
+		sdk.NewEvent(
+			"high_impact_action_policy_applied",
+			sdk.NewAttribute("agent_address", msg.Creator),
+			sdk.NewAttribute("action_type", msg.ActionType),
+			sdk.NewAttribute("min_required_deposit_uclaw", fmt.Sprintf("%d", types.DefaultHighImpactMinDepositUClaw)),
 		),
 	)
 

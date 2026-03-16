@@ -10,4 +10,69 @@ option go_package = "clawchain/x/agent/types";
 message Params {
   option (amino.name) = "clawchain/x/agent/Params";
   option (gogoproto.equal) = true;
+
+  // max_heartbeat_gap_blocks is the maximum number of blocks an agent can
+  // go without a heartbeat before being auto-deactivated by EndBlock.
+  // Default: 200. Set to 0 to disable auto-deactivation.
+  int64 max_heartbeat_gap_blocks = 1;
+
+  // max_actions_per_block is the maximum number of agent actions allowed
+  // per agent per block. Default: 8.
+  uint64 max_actions_per_block = 2;
+
+  // min_heartbeat_interval_blocks is the minimum number of blocks between
+  // heartbeats from the same agent. Default: 10.
+  uint64 min_heartbeat_interval_blocks = 3;
+
+  // max_intents_per_block is the maximum number of intents an agent can
+  // submit per block. Default: 4.
+  uint64 max_intents_per_block = 4;
+
+  // max_tasks_per_block is the maximum number of tasks an agent can
+  // delegate per block. Default: 4.
+  uint64 max_tasks_per_block = 5;
+
+  // max_payload_bytes is the maximum size in bytes for free-form payload,
+  // description, metadata, and requirements fields. Default: 4096.
+  uint64 max_payload_bytes = 6;
+
+  // min_agent_deposit_uclaw is the minimum deposit in uclaw required to
+  // register an agent. Default: 1000000 (1 CLAW).
+  uint64 min_agent_deposit_uclaw = 7;
+
+  // deposit_slash_per_penalty_bps is the basis points of deposit slashed
+  // per SLA penalty event. Default: 100 (1%).
+  uint64 deposit_slash_per_penalty_bps = 8;
+
+  // min_task_budget_uclaw is the minimum task delegation budget in uclaw.
+  // Default: 1.
+  uint64 min_task_budget_uclaw = 9;
+
+  // high_impact_min_deposit_uclaw is the minimum locked agent deposit
+  // required to execute high-impact actions (e.g. transfer/coordinate).
+  uint64 high_impact_min_deposit_uclaw = 10;
+
+  // standard_task_min_budget_uclaw is the minimum budget required for
+  // deadline-bound (non-expedited) delegated tasks.
+  uint64 standard_task_min_budget_uclaw = 11;
+
+  // expedited_task_min_budget_uclaw is the minimum budget required for
+  // short-deadline delegated tasks (higher quality tier).
+  uint64 expedited_task_min_budget_uclaw = 12;
+
+  // expedited_task_max_deadline_blocks defines the max deadline window
+  // (in blocks) for a task to be classified as expedited quality tier.
+  uint64 expedited_task_max_deadline_blocks = 13;
+
+  // agent_reward_pool_fraction_bps is the fraction of inflation directed
+  // to the agent reward pool, in basis points. Default: 1000 (10%).
+  uint64 agent_reward_pool_fraction_bps = 14;
+
+  // min_reputation_for_reward_bps is the minimum reputation score (in bps
+  // of max) an agent must hold to be eligible for rewards. Default: 5000 (50%).
+  uint64 min_reputation_for_reward_bps = 15;
+
+  // reward_distribution_interval_blocks is how often (in blocks) the agent
+  // reward pool is distributed. Default: 100.
+  uint64 reward_distribution_interval_blocks = 16;
 }

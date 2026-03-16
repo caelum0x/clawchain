@@ -29,3 +29,52 @@ var AgentActionsKey = collections.NewPrefix("x_agent")
 
 // AgentActionCountKey is the prefix for the agent action count sequence (used for action IDs)
 var AgentActionCountKey = collections.NewPrefix("n_agent")
+
+// AgentStatsKey is the prefix for aggregate agent activity stats (Map[string, AgentStats])
+var AgentStatsKey = collections.NewPrefix("s_agent")
+
+// IntentsKey is the prefix for coordination intents (Map[uint64, CoordinationIntent])
+var IntentsKey = collections.NewPrefix("i_agent")
+
+// IntentResponsesKey is the prefix for intent responses (Map[string, IntentResponse])
+var IntentResponsesKey = collections.NewPrefix("r_agent")
+
+// IntentCountKey is the prefix for the intent count sequence (used for intent IDs)
+var IntentCountKey = collections.NewPrefix("ic_agent")
+
+// AgentLivenessKey is the prefix for agent heartbeat liveness records (Map[string, AgentLiveness])
+var AgentLivenessKey = collections.NewPrefix("l_agent")
+
+// TasksKey is the prefix for delegated tasks (Map[uint64, TaskRecord])
+var TasksKey = collections.NewPrefix("tk_agent")
+
+// TaskCountKey is the prefix for the task count sequence (used for task IDs)
+var TaskCountKey = collections.NewPrefix("tkc_agent")
+
+// AgentActionRateLimitKey tracks per-agent per-block action counts
+// (Map[string, uint64], key format: "<address>:<block_height>").
+var AgentActionRateLimitKey = collections.NewPrefix("arl_agent")
+
+// IntentRateLimitKey tracks per-agent per-block intent submission counts.
+var IntentRateLimitKey = collections.NewPrefix("irl_agent")
+
+// TaskRateLimitKey tracks per-agent per-block task delegation counts.
+var TaskRateLimitKey = collections.NewPrefix("trl_agent")
+
+// AgentRewardsKey is the prefix for cumulative agent rewards (Map[string, string]).
+var AgentRewardsKey = collections.NewPrefix("rw_agent")
+
+// RemoteAgentsKey is the prefix for remote agent registry (Map[string, string]).
+// Key format: "chainID:address", value: JSON-encoded RemoteAgentInfo.
+var RemoteAgentsKey = collections.NewPrefix("ra_agent")
+
+// NegotiationsKey is the prefix for agent-to-agent negotiations (Map[uint64, string]).
+// Key: negotiation ID, value: JSON-encoded Negotiation.
+var NegotiationsKey = collections.NewPrefix("ng_agent")
+
+// NegotiationCountKey is the prefix for the negotiation count sequence.
+var NegotiationCountKey = collections.NewPrefix("ngc_agent")
+
+// TaskCheckpointsKey is the prefix for task checkpoint data (Map[uint64, string]).
+// Key: task ID, value: JSON-encoded checkpoint data.
+var TaskCheckpointsKey = collections.NewPrefix("tcp_agent")

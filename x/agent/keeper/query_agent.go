@@ -34,9 +34,12 @@ func (q queryServer) Agent(ctx context.Context, req *types.QueryAgentRequest) (*
 	}
 
 	return &types.QueryAgentResponse{
-		Name:       agentInfo.Name,
-		Pubkey:     agentInfo.Pubkey,
-		Endpoint:   agentInfo.Endpoint,
-		Registered: agentInfo.Active,
+		Name:           agentInfo.Name,
+		Pubkey:         agentInfo.Pubkey,
+		Endpoint:       agentInfo.Endpoint,
+		Registered:     agentInfo.Active,
+		SupportedTools: agentInfo.SupportedTools,
+		PricingHint:    agentInfo.PricingHint,
+		Version:        agentInfo.Version,
 	}, nil
 }

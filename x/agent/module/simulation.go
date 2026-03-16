@@ -30,7 +30,7 @@ func (am AppModule) RegisterStoreDecoder(_ simtypes.StoreDecoderRegistry) {}
 func (am AppModule) WeightedOperations(simState module.SimulationState) []simtypes.WeightedOperation {
 	operations := make([]simtypes.WeightedOperation, 0)
 	const (
-		opWeightMsgRegisterAgent          = "op_weight_msg_agent"
+		opWeightMsgRegisterAgent          = "op_weight_msg_register_agent"
 		defaultWeightMsgRegisterAgent int = 100
 	)
 
@@ -45,7 +45,7 @@ func (am AppModule) WeightedOperations(simState module.SimulationState) []simtyp
 		agentsimulation.SimulateMsgRegisterAgent(am.authKeeper, am.bankKeeper, am.keeper, simState.TxConfig),
 	))
 	const (
-		opWeightMsgAgentAction          = "op_weight_msg_agent"
+		opWeightMsgAgentAction          = "op_weight_msg_agent_action"
 		defaultWeightMsgAgentAction int = 100
 	)
 

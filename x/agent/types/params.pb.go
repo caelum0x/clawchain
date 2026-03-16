@@ -5,13 +5,12 @@ package types
 
 import (
 	fmt "fmt"
-	io "io"
-	math "math"
-	math_bits "math/bits"
-
 	_ "github.com/cosmos/cosmos-sdk/types/tx/amino"
 	_ "github.com/cosmos/gogoproto/gogoproto"
 	proto "github.com/cosmos/gogoproto/proto"
+	io "io"
+	math "math"
+	math_bits "math/bits"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -27,6 +26,55 @@ const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 
 // Params defines the parameters for the module.
 type Params struct {
+	// max_heartbeat_gap_blocks is the maximum number of blocks an agent can
+	// go without a heartbeat before being auto-deactivated by EndBlock.
+	// Default: 200. Set to 0 to disable auto-deactivation.
+	MaxHeartbeatGapBlocks int64 `protobuf:"varint,1,opt,name=max_heartbeat_gap_blocks,json=maxHeartbeatGapBlocks,proto3" json:"max_heartbeat_gap_blocks,omitempty"`
+	// max_actions_per_block is the maximum number of agent actions allowed
+	// per agent per block. Default: 8.
+	MaxActionsPerBlock uint64 `protobuf:"varint,2,opt,name=max_actions_per_block,json=maxActionsPerBlock,proto3" json:"max_actions_per_block,omitempty"`
+	// min_heartbeat_interval_blocks is the minimum number of blocks between
+	// heartbeats from the same agent. Default: 10.
+	MinHeartbeatIntervalBlocks uint64 `protobuf:"varint,3,opt,name=min_heartbeat_interval_blocks,json=minHeartbeatIntervalBlocks,proto3" json:"min_heartbeat_interval_blocks,omitempty"`
+	// max_intents_per_block is the maximum number of intents an agent can
+	// submit per block. Default: 4.
+	MaxIntentsPerBlock uint64 `protobuf:"varint,4,opt,name=max_intents_per_block,json=maxIntentsPerBlock,proto3" json:"max_intents_per_block,omitempty"`
+	// max_tasks_per_block is the maximum number of tasks an agent can
+	// delegate per block. Default: 4.
+	MaxTasksPerBlock uint64 `protobuf:"varint,5,opt,name=max_tasks_per_block,json=maxTasksPerBlock,proto3" json:"max_tasks_per_block,omitempty"`
+	// max_payload_bytes is the maximum size in bytes for free-form payload,
+	// description, metadata, and requirements fields. Default: 4096.
+	MaxPayloadBytes uint64 `protobuf:"varint,6,opt,name=max_payload_bytes,json=maxPayloadBytes,proto3" json:"max_payload_bytes,omitempty"`
+	// min_agent_deposit_uclaw is the minimum deposit in uclaw required to
+	// register an agent. Default: 1000000 (1 CLAW).
+	MinAgentDepositUclaw uint64 `protobuf:"varint,7,opt,name=min_agent_deposit_uclaw,json=minAgentDepositUclaw,proto3" json:"min_agent_deposit_uclaw,omitempty"`
+	// deposit_slash_per_penalty_bps is the basis points of deposit slashed
+	// per SLA penalty event. Default: 100 (1%).
+	DepositSlashPerPenaltyBps uint64 `protobuf:"varint,8,opt,name=deposit_slash_per_penalty_bps,json=depositSlashPerPenaltyBps,proto3" json:"deposit_slash_per_penalty_bps,omitempty"`
+	// min_task_budget_uclaw is the minimum task delegation budget in uclaw.
+	// Default: 1.
+	MinTaskBudgetUclaw uint64 `protobuf:"varint,9,opt,name=min_task_budget_uclaw,json=minTaskBudgetUclaw,proto3" json:"min_task_budget_uclaw,omitempty"`
+	// high_impact_min_deposit_uclaw is the minimum locked agent deposit
+	// required to execute high-impact actions (e.g. transfer/coordinate).
+	HighImpactMinDepositUclaw uint64 `protobuf:"varint,10,opt,name=high_impact_min_deposit_uclaw,json=highImpactMinDepositUclaw,proto3" json:"high_impact_min_deposit_uclaw,omitempty"`
+	// standard_task_min_budget_uclaw is the minimum budget required for
+	// deadline-bound (non-expedited) delegated tasks.
+	StandardTaskMinBudgetUclaw uint64 `protobuf:"varint,11,opt,name=standard_task_min_budget_uclaw,json=standardTaskMinBudgetUclaw,proto3" json:"standard_task_min_budget_uclaw,omitempty"`
+	// expedited_task_min_budget_uclaw is the minimum budget required for
+	// short-deadline delegated tasks (higher quality tier).
+	ExpeditedTaskMinBudgetUclaw uint64 `protobuf:"varint,12,opt,name=expedited_task_min_budget_uclaw,json=expeditedTaskMinBudgetUclaw,proto3" json:"expedited_task_min_budget_uclaw,omitempty"`
+	// expedited_task_max_deadline_blocks defines the max deadline window
+	// (in blocks) for a task to be classified as expedited quality tier.
+	ExpeditedTaskMaxDeadlineBlocks uint64 `protobuf:"varint,13,opt,name=expedited_task_max_deadline_blocks,json=expeditedTaskMaxDeadlineBlocks,proto3" json:"expedited_task_max_deadline_blocks,omitempty"`
+	// agent_reward_pool_fraction_bps is the fraction of inflation directed
+	// to the agent reward pool, in basis points. Default: 1000 (10%).
+	AgentRewardPoolFractionBps uint64 `protobuf:"varint,14,opt,name=agent_reward_pool_fraction_bps,json=agentRewardPoolFractionBps,proto3" json:"agent_reward_pool_fraction_bps,omitempty"`
+	// min_reputation_for_reward_bps is the minimum reputation score (in bps
+	// of max) an agent must hold to be eligible for rewards. Default: 5000 (50%).
+	MinReputationForRewardBps uint64 `protobuf:"varint,15,opt,name=min_reputation_for_reward_bps,json=minReputationForRewardBps,proto3" json:"min_reputation_for_reward_bps,omitempty"`
+	// reward_distribution_interval_blocks is how often (in blocks) the agent
+	// reward pool is distributed. Default: 100.
+	RewardDistributionIntervalBlocks uint64 `protobuf:"varint,16,opt,name=reward_distribution_interval_blocks,json=rewardDistributionIntervalBlocks,proto3" json:"reward_distribution_interval_blocks,omitempty"`
 }
 
 func (m *Params) Reset()         { *m = Params{} }
@@ -62,6 +110,118 @@ func (m *Params) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_Params proto.InternalMessageInfo
 
+func (m *Params) GetMaxHeartbeatGapBlocks() int64 {
+	if m != nil {
+		return m.MaxHeartbeatGapBlocks
+	}
+	return 0
+}
+
+func (m *Params) GetMaxActionsPerBlock() uint64 {
+	if m != nil {
+		return m.MaxActionsPerBlock
+	}
+	return 0
+}
+
+func (m *Params) GetMinHeartbeatIntervalBlocks() uint64 {
+	if m != nil {
+		return m.MinHeartbeatIntervalBlocks
+	}
+	return 0
+}
+
+func (m *Params) GetMaxIntentsPerBlock() uint64 {
+	if m != nil {
+		return m.MaxIntentsPerBlock
+	}
+	return 0
+}
+
+func (m *Params) GetMaxTasksPerBlock() uint64 {
+	if m != nil {
+		return m.MaxTasksPerBlock
+	}
+	return 0
+}
+
+func (m *Params) GetMaxPayloadBytes() uint64 {
+	if m != nil {
+		return m.MaxPayloadBytes
+	}
+	return 0
+}
+
+func (m *Params) GetMinAgentDepositUclaw() uint64 {
+	if m != nil {
+		return m.MinAgentDepositUclaw
+	}
+	return 0
+}
+
+func (m *Params) GetDepositSlashPerPenaltyBps() uint64 {
+	if m != nil {
+		return m.DepositSlashPerPenaltyBps
+	}
+	return 0
+}
+
+func (m *Params) GetMinTaskBudgetUclaw() uint64 {
+	if m != nil {
+		return m.MinTaskBudgetUclaw
+	}
+	return 0
+}
+
+func (m *Params) GetHighImpactMinDepositUclaw() uint64 {
+	if m != nil {
+		return m.HighImpactMinDepositUclaw
+	}
+	return 0
+}
+
+func (m *Params) GetStandardTaskMinBudgetUclaw() uint64 {
+	if m != nil {
+		return m.StandardTaskMinBudgetUclaw
+	}
+	return 0
+}
+
+func (m *Params) GetExpeditedTaskMinBudgetUclaw() uint64 {
+	if m != nil {
+		return m.ExpeditedTaskMinBudgetUclaw
+	}
+	return 0
+}
+
+func (m *Params) GetExpeditedTaskMaxDeadlineBlocks() uint64 {
+	if m != nil {
+		return m.ExpeditedTaskMaxDeadlineBlocks
+	}
+	return 0
+}
+
+func (m *Params) GetAgentRewardPoolFractionBps() uint64 {
+	if m != nil {
+		return m.AgentRewardPoolFractionBps
+	}
+	return 0
+}
+
+func (m *Params) GetMinReputationForRewardBps() uint64 {
+	if m != nil {
+		return m.MinReputationForRewardBps
+	}
+	return 0
+}
+
+func (m *Params) GetRewardDistributionIntervalBlocks() uint64 {
+	if m != nil {
+		return m.RewardDistributionIntervalBlocks
+	}
+	return 0
+}
+
 func init() {
 	proto.RegisterType((*Params)(nil), "clawchain.agent.v1.Params")
 }
@@ -69,17 +229,46 @@ func init() {
 func init() { proto.RegisterFile("clawchain/agent/v1/params.proto", fileDescriptor_fb4ac75308fa7c18) }
 
 var fileDescriptor_fb4ac75308fa7c18 = []byte{
-	// 159 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe2, 0x92, 0x4f, 0xce, 0x49, 0x2c,
-	0x4f, 0xce, 0x48, 0xcc, 0xcc, 0xd3, 0x4f, 0x4c, 0x4f, 0xcd, 0x2b, 0xd1, 0x2f, 0x33, 0xd4, 0x2f,
-	0x48, 0x2c, 0x4a, 0xcc, 0x2d, 0xd6, 0x2b, 0x28, 0xca, 0x2f, 0xc9, 0x17, 0x12, 0x82, 0x2b, 0xd0,
-	0x03, 0x2b, 0xd0, 0x2b, 0x33, 0x94, 0x12, 0x4c, 0xcc, 0xcd, 0xcc, 0xcb, 0xd7, 0x07, 0x93, 0x10,
-	0x65, 0x52, 0x22, 0xe9, 0xf9, 0xe9, 0xf9, 0x60, 0xa6, 0x3e, 0x88, 0x05, 0x11, 0x55, 0xd2, 0xe6,
-	0x62, 0x0b, 0x00, 0x1b, 0x66, 0xa5, 0xf8, 0x62, 0x81, 0x3c, 0x63, 0xd7, 0xf3, 0x0d, 0x5a, 0x12,
-	0x08, 0x0b, 0x2b, 0xa0, 0x56, 0x42, 0x94, 0x38, 0x19, 0x9e, 0x78, 0x24, 0xc7, 0x78, 0xe1, 0x91,
-	0x1c, 0xe3, 0x83, 0x47, 0x72, 0x8c, 0x13, 0x1e, 0xcb, 0x31, 0x5c, 0x78, 0x2c, 0xc7, 0x70, 0xe3,
-	0xb1, 0x1c, 0x43, 0x94, 0x38, 0xa6, 0x9e, 0x92, 0xca, 0x82, 0xd4, 0xe2, 0x24, 0x36, 0xb0, 0x35,
-	0xc6, 0x80, 0x00, 0x00, 0x00, 0xff, 0xff, 0x4d, 0x63, 0x1c, 0x41, 0xc6, 0x00, 0x00, 0x00,
+	// 620 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x74, 0x94, 0xcf, 0x6e, 0xd4, 0x3c,
+	0x14, 0xc5, 0x9b, 0xaf, 0xfd, 0x4a, 0x31, 0x7f, 0xda, 0x86, 0xa2, 0x86, 0xa2, 0xa6, 0xa5, 0x6c,
+	0xaa, 0x4a, 0x74, 0x34, 0x42, 0x08, 0x89, 0x55, 0x1b, 0x8d, 0x0a, 0x45, 0xaa, 0x34, 0x1a, 0x60,
+	0xc3, 0xc6, 0xba, 0x99, 0xb8, 0x33, 0x56, 0x13, 0xdb, 0xb2, 0x3d, 0x6d, 0x66, 0xc9, 0x96, 0x15,
+	0x8f, 0xc0, 0x23, 0xf0, 0x18, 0x2c, 0xbb, 0x64, 0x89, 0x3a, 0x0b, 0x78, 0x0c, 0xe4, 0xeb, 0x24,
+	0xcc, 0x14, 0xd8, 0x44, 0x91, 0xef, 0xef, 0x9c, 0x63, 0xfb, 0xda, 0x26, 0x5b, 0xfd, 0x1c, 0x2e,
+	0xfa, 0x43, 0xe0, 0xa2, 0x05, 0x03, 0x26, 0x6c, 0xeb, 0xbc, 0xdd, 0x52, 0xa0, 0xa1, 0x30, 0xfb,
+	0x4a, 0x4b, 0x2b, 0xc3, 0xb0, 0x01, 0xf6, 0x11, 0xd8, 0x3f, 0x6f, 0x6f, 0xac, 0x42, 0xc1, 0x85,
+	0x6c, 0xe1, 0xd7, 0x63, 0x1b, 0x6b, 0x03, 0x39, 0x90, 0xf8, 0xdb, 0x72, 0x7f, 0x7e, 0x74, 0xe7,
+	0xc3, 0x12, 0x59, 0xec, 0xa2, 0x5b, 0xf8, 0x9c, 0x44, 0x05, 0x94, 0x74, 0xc8, 0x40, 0xdb, 0x94,
+	0x81, 0xa5, 0x03, 0x50, 0x34, 0xcd, 0x65, 0xff, 0xcc, 0x44, 0xc1, 0x76, 0xb0, 0x3b, 0xdf, 0xbb,
+	0x5f, 0x40, 0xf9, 0xaa, 0x2e, 0xbf, 0x04, 0x95, 0x60, 0x31, 0x6c, 0x13, 0x57, 0xa0, 0xd0, 0xb7,
+	0x5c, 0x0a, 0x43, 0x15, 0xd3, 0x5e, 0x16, 0xfd, 0xb7, 0x1d, 0xec, 0x2e, 0xf4, 0xc2, 0x02, 0xca,
+	0x43, 0x5f, 0xeb, 0x32, 0x8d, 0x9a, 0xf0, 0x90, 0x6c, 0x16, 0x5c, 0x4c, 0x65, 0x71, 0x61, 0x99,
+	0x3e, 0x87, 0xbc, 0x0e, 0x9c, 0x47, 0xe9, 0x46, 0xc1, 0x45, 0x13, 0x78, 0x5c, 0x21, 0xb3, 0xa9,
+	0x4e, 0x28, 0xec, 0x74, 0xea, 0x42, 0x93, 0x7a, 0xec, 0x6b, 0x4d, 0xea, 0x13, 0x72, 0xcf, 0x49,
+	0x2c, 0x98, 0xb3, 0x69, 0xc1, 0xff, 0x28, 0x58, 0x29, 0xa0, 0x7c, 0xeb, 0x2a, 0x0d, 0xbe, 0x47,
+	0x56, 0x1d, 0xae, 0x60, 0x9c, 0x4b, 0xc8, 0x68, 0x3a, 0xb6, 0xcc, 0x44, 0x8b, 0x08, 0x2f, 0x17,
+	0x50, 0x76, 0xfd, 0x78, 0xe2, 0x86, 0xc3, 0x67, 0x64, 0xdd, 0x2d, 0x08, 0x1b, 0x40, 0x33, 0xa6,
+	0xa4, 0xe1, 0x96, 0x8e, 0x5c, 0x67, 0xa2, 0x1b, 0xa8, 0x58, 0x2b, 0xb8, 0x38, 0x74, 0xd5, 0x8e,
+	0x2f, 0xbe, 0x73, 0xb5, 0xf0, 0x80, 0x6c, 0xd6, 0xb0, 0xc9, 0xc1, 0x0c, 0x71, 0x56, 0x8a, 0x09,
+	0xc8, 0xed, 0x98, 0xa6, 0xca, 0x44, 0x4b, 0x28, 0x7e, 0x50, 0x41, 0x6f, 0x1c, 0xd3, 0x65, 0xba,
+	0xeb, 0x89, 0x44, 0xf9, 0x6d, 0xe0, 0x02, 0xd7, 0x44, 0xd3, 0x51, 0x36, 0x60, 0x75, 0xec, 0xcd,
+	0x6a, 0x1b, 0xb8, 0x70, 0xab, 0x4a, 0xb0, 0xd4, 0x84, 0x0e, 0xf9, 0x60, 0x48, 0x79, 0xa1, 0xa0,
+	0x6f, 0xa9, 0x93, 0xcf, 0xce, 0x98, 0xf8, 0x50, 0x07, 0x1d, 0x23, 0x73, 0xc2, 0xc5, 0xcc, 0xb4,
+	0x13, 0x12, 0x1b, 0x0b, 0x22, 0x03, 0x9d, 0xf9, 0x64, 0xe7, 0x31, 0x93, 0x7e, 0xcb, 0xf7, 0xaf,
+	0xa6, 0xdc, 0x14, 0x4e, 0xb8, 0x98, 0x9e, 0x45, 0x87, 0x6c, 0xb1, 0x52, 0xb1, 0x8c, 0x5b, 0xf6,
+	0x2f, 0x93, 0xdb, 0x68, 0xf2, 0xb0, 0xc1, 0xfe, 0xe2, 0xf2, 0x9a, 0xec, 0x5c, 0x77, 0x81, 0x92,
+	0x66, 0x0c, 0xb2, 0x9c, 0x0b, 0x56, 0x9f, 0xa6, 0x3b, 0x68, 0x14, 0xcf, 0x1a, 0x41, 0xd9, 0xa9,
+	0xb0, 0xea, 0x44, 0x25, 0x24, 0xf6, 0xfd, 0xd3, 0xec, 0xc2, 0xad, 0x4c, 0x49, 0x99, 0xd3, 0x53,
+	0xed, 0xcf, 0x35, 0x76, 0xe3, 0xae, 0x5f, 0x15, 0x52, 0x3d, 0x84, 0xba, 0x52, 0xe6, 0x47, 0x15,
+	0xe2, 0xda, 0x71, 0xe0, 0x0f, 0xb6, 0x66, 0x6a, 0x64, 0x01, 0x75, 0xa7, 0x52, 0xd7, 0x86, 0xce,
+	0x62, 0xd9, 0xef, 0x6d, 0xc1, 0x45, 0xaf, 0x61, 0x8e, 0xa4, 0xf6, 0x6e, 0xce, 0xe1, 0x84, 0x3c,
+	0xae, 0xf0, 0x8c, 0x1b, 0xab, 0x79, 0x3a, 0x42, 0x9b, 0xeb, 0x17, 0x64, 0x05, 0x7d, 0xb6, 0x3d,
+	0xda, 0x99, 0x22, 0x67, 0xaf, 0xc9, 0x8b, 0x47, 0x3f, 0x3f, 0x6f, 0x05, 0x1f, 0x7f, 0x7c, 0xd9,
+	0x8b, 0x7e, 0xbf, 0x23, 0x65, 0xf5, 0x92, 0xf8, 0x8b, 0x9f, 0xb4, 0xbf, 0x5e, 0xc5, 0xc1, 0xe5,
+	0x55, 0x1c, 0x7c, 0xbf, 0x8a, 0x83, 0x4f, 0x93, 0x78, 0xee, 0x72, 0x12, 0xcf, 0x7d, 0x9b, 0xc4,
+	0x73, 0xef, 0xd7, 0xff, 0xd4, 0xd8, 0xb1, 0x62, 0x26, 0x5d, 0xc4, 0xd7, 0xe3, 0xe9, 0xaf, 0x00,
+	0x00, 0x00, 0xff, 0xff, 0x2b, 0x7b, 0xa5, 0x7c, 0x9d, 0x04, 0x00, 0x00,
 }
 
 func (this *Params) Equal(that interface{}) bool {
@@ -99,6 +288,54 @@ func (this *Params) Equal(that interface{}) bool {
 	if that1 == nil {
 		return this == nil
 	} else if this == nil {
+		return false
+	}
+	if this.MaxHeartbeatGapBlocks != that1.MaxHeartbeatGapBlocks {
+		return false
+	}
+	if this.MaxActionsPerBlock != that1.MaxActionsPerBlock {
+		return false
+	}
+	if this.MinHeartbeatIntervalBlocks != that1.MinHeartbeatIntervalBlocks {
+		return false
+	}
+	if this.MaxIntentsPerBlock != that1.MaxIntentsPerBlock {
+		return false
+	}
+	if this.MaxTasksPerBlock != that1.MaxTasksPerBlock {
+		return false
+	}
+	if this.MaxPayloadBytes != that1.MaxPayloadBytes {
+		return false
+	}
+	if this.MinAgentDepositUclaw != that1.MinAgentDepositUclaw {
+		return false
+	}
+	if this.DepositSlashPerPenaltyBps != that1.DepositSlashPerPenaltyBps {
+		return false
+	}
+	if this.MinTaskBudgetUclaw != that1.MinTaskBudgetUclaw {
+		return false
+	}
+	if this.HighImpactMinDepositUclaw != that1.HighImpactMinDepositUclaw {
+		return false
+	}
+	if this.StandardTaskMinBudgetUclaw != that1.StandardTaskMinBudgetUclaw {
+		return false
+	}
+	if this.ExpeditedTaskMinBudgetUclaw != that1.ExpeditedTaskMinBudgetUclaw {
+		return false
+	}
+	if this.ExpeditedTaskMaxDeadlineBlocks != that1.ExpeditedTaskMaxDeadlineBlocks {
+		return false
+	}
+	if this.AgentRewardPoolFractionBps != that1.AgentRewardPoolFractionBps {
+		return false
+	}
+	if this.MinReputationForRewardBps != that1.MinReputationForRewardBps {
+		return false
+	}
+	if this.RewardDistributionIntervalBlocks != that1.RewardDistributionIntervalBlocks {
 		return false
 	}
 	return true
@@ -123,6 +360,88 @@ func (m *Params) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	_ = i
 	var l int
 	_ = l
+	if m.RewardDistributionIntervalBlocks != 0 {
+		i = encodeVarintParams(dAtA, i, uint64(m.RewardDistributionIntervalBlocks))
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0x80
+	}
+	if m.MinReputationForRewardBps != 0 {
+		i = encodeVarintParams(dAtA, i, uint64(m.MinReputationForRewardBps))
+		i--
+		dAtA[i] = 0x78
+	}
+	if m.AgentRewardPoolFractionBps != 0 {
+		i = encodeVarintParams(dAtA, i, uint64(m.AgentRewardPoolFractionBps))
+		i--
+		dAtA[i] = 0x70
+	}
+	if m.ExpeditedTaskMaxDeadlineBlocks != 0 {
+		i = encodeVarintParams(dAtA, i, uint64(m.ExpeditedTaskMaxDeadlineBlocks))
+		i--
+		dAtA[i] = 0x68
+	}
+	if m.ExpeditedTaskMinBudgetUclaw != 0 {
+		i = encodeVarintParams(dAtA, i, uint64(m.ExpeditedTaskMinBudgetUclaw))
+		i--
+		dAtA[i] = 0x60
+	}
+	if m.StandardTaskMinBudgetUclaw != 0 {
+		i = encodeVarintParams(dAtA, i, uint64(m.StandardTaskMinBudgetUclaw))
+		i--
+		dAtA[i] = 0x58
+	}
+	if m.HighImpactMinDepositUclaw != 0 {
+		i = encodeVarintParams(dAtA, i, uint64(m.HighImpactMinDepositUclaw))
+		i--
+		dAtA[i] = 0x50
+	}
+	if m.MinTaskBudgetUclaw != 0 {
+		i = encodeVarintParams(dAtA, i, uint64(m.MinTaskBudgetUclaw))
+		i--
+		dAtA[i] = 0x48
+	}
+	if m.DepositSlashPerPenaltyBps != 0 {
+		i = encodeVarintParams(dAtA, i, uint64(m.DepositSlashPerPenaltyBps))
+		i--
+		dAtA[i] = 0x40
+	}
+	if m.MinAgentDepositUclaw != 0 {
+		i = encodeVarintParams(dAtA, i, uint64(m.MinAgentDepositUclaw))
+		i--
+		dAtA[i] = 0x38
+	}
+	if m.MaxPayloadBytes != 0 {
+		i = encodeVarintParams(dAtA, i, uint64(m.MaxPayloadBytes))
+		i--
+		dAtA[i] = 0x30
+	}
+	if m.MaxTasksPerBlock != 0 {
+		i = encodeVarintParams(dAtA, i, uint64(m.MaxTasksPerBlock))
+		i--
+		dAtA[i] = 0x28
+	}
+	if m.MaxIntentsPerBlock != 0 {
+		i = encodeVarintParams(dAtA, i, uint64(m.MaxIntentsPerBlock))
+		i--
+		dAtA[i] = 0x20
+	}
+	if m.MinHeartbeatIntervalBlocks != 0 {
+		i = encodeVarintParams(dAtA, i, uint64(m.MinHeartbeatIntervalBlocks))
+		i--
+		dAtA[i] = 0x18
+	}
+	if m.MaxActionsPerBlock != 0 {
+		i = encodeVarintParams(dAtA, i, uint64(m.MaxActionsPerBlock))
+		i--
+		dAtA[i] = 0x10
+	}
+	if m.MaxHeartbeatGapBlocks != 0 {
+		i = encodeVarintParams(dAtA, i, uint64(m.MaxHeartbeatGapBlocks))
+		i--
+		dAtA[i] = 0x8
+	}
 	return len(dAtA) - i, nil
 }
 
@@ -143,6 +462,54 @@ func (m *Params) Size() (n int) {
 	}
 	var l int
 	_ = l
+	if m.MaxHeartbeatGapBlocks != 0 {
+		n += 1 + sovParams(uint64(m.MaxHeartbeatGapBlocks))
+	}
+	if m.MaxActionsPerBlock != 0 {
+		n += 1 + sovParams(uint64(m.MaxActionsPerBlock))
+	}
+	if m.MinHeartbeatIntervalBlocks != 0 {
+		n += 1 + sovParams(uint64(m.MinHeartbeatIntervalBlocks))
+	}
+	if m.MaxIntentsPerBlock != 0 {
+		n += 1 + sovParams(uint64(m.MaxIntentsPerBlock))
+	}
+	if m.MaxTasksPerBlock != 0 {
+		n += 1 + sovParams(uint64(m.MaxTasksPerBlock))
+	}
+	if m.MaxPayloadBytes != 0 {
+		n += 1 + sovParams(uint64(m.MaxPayloadBytes))
+	}
+	if m.MinAgentDepositUclaw != 0 {
+		n += 1 + sovParams(uint64(m.MinAgentDepositUclaw))
+	}
+	if m.DepositSlashPerPenaltyBps != 0 {
+		n += 1 + sovParams(uint64(m.DepositSlashPerPenaltyBps))
+	}
+	if m.MinTaskBudgetUclaw != 0 {
+		n += 1 + sovParams(uint64(m.MinTaskBudgetUclaw))
+	}
+	if m.HighImpactMinDepositUclaw != 0 {
+		n += 1 + sovParams(uint64(m.HighImpactMinDepositUclaw))
+	}
+	if m.StandardTaskMinBudgetUclaw != 0 {
+		n += 1 + sovParams(uint64(m.StandardTaskMinBudgetUclaw))
+	}
+	if m.ExpeditedTaskMinBudgetUclaw != 0 {
+		n += 1 + sovParams(uint64(m.ExpeditedTaskMinBudgetUclaw))
+	}
+	if m.ExpeditedTaskMaxDeadlineBlocks != 0 {
+		n += 1 + sovParams(uint64(m.ExpeditedTaskMaxDeadlineBlocks))
+	}
+	if m.AgentRewardPoolFractionBps != 0 {
+		n += 1 + sovParams(uint64(m.AgentRewardPoolFractionBps))
+	}
+	if m.MinReputationForRewardBps != 0 {
+		n += 1 + sovParams(uint64(m.MinReputationForRewardBps))
+	}
+	if m.RewardDistributionIntervalBlocks != 0 {
+		n += 2 + sovParams(uint64(m.RewardDistributionIntervalBlocks))
+	}
 	return n
 }
 
@@ -181,6 +548,310 @@ func (m *Params) Unmarshal(dAtA []byte) error {
 			return fmt.Errorf("proto: Params: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field MaxHeartbeatGapBlocks", wireType)
+			}
+			m.MaxHeartbeatGapBlocks = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowParams
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.MaxHeartbeatGapBlocks |= int64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 2:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field MaxActionsPerBlock", wireType)
+			}
+			m.MaxActionsPerBlock = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowParams
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.MaxActionsPerBlock |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 3:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field MinHeartbeatIntervalBlocks", wireType)
+			}
+			m.MinHeartbeatIntervalBlocks = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowParams
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.MinHeartbeatIntervalBlocks |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 4:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field MaxIntentsPerBlock", wireType)
+			}
+			m.MaxIntentsPerBlock = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowParams
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.MaxIntentsPerBlock |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 5:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field MaxTasksPerBlock", wireType)
+			}
+			m.MaxTasksPerBlock = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowParams
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.MaxTasksPerBlock |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 6:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field MaxPayloadBytes", wireType)
+			}
+			m.MaxPayloadBytes = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowParams
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.MaxPayloadBytes |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 7:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field MinAgentDepositUclaw", wireType)
+			}
+			m.MinAgentDepositUclaw = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowParams
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.MinAgentDepositUclaw |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 8:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DepositSlashPerPenaltyBps", wireType)
+			}
+			m.DepositSlashPerPenaltyBps = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowParams
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.DepositSlashPerPenaltyBps |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 9:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field MinTaskBudgetUclaw", wireType)
+			}
+			m.MinTaskBudgetUclaw = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowParams
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.MinTaskBudgetUclaw |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 10:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field HighImpactMinDepositUclaw", wireType)
+			}
+			m.HighImpactMinDepositUclaw = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowParams
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.HighImpactMinDepositUclaw |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 11:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field StandardTaskMinBudgetUclaw", wireType)
+			}
+			m.StandardTaskMinBudgetUclaw = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowParams
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.StandardTaskMinBudgetUclaw |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 12:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ExpeditedTaskMinBudgetUclaw", wireType)
+			}
+			m.ExpeditedTaskMinBudgetUclaw = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowParams
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.ExpeditedTaskMinBudgetUclaw |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 13:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ExpeditedTaskMaxDeadlineBlocks", wireType)
+			}
+			m.ExpeditedTaskMaxDeadlineBlocks = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowParams
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.ExpeditedTaskMaxDeadlineBlocks |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 14:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field AgentRewardPoolFractionBps", wireType)
+			}
+			m.AgentRewardPoolFractionBps = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowParams
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.AgentRewardPoolFractionBps |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 15:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field MinReputationForRewardBps", wireType)
+			}
+			m.MinReputationForRewardBps = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowParams
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.MinReputationForRewardBps |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 16:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field RewardDistributionIntervalBlocks", wireType)
+			}
+			m.RewardDistributionIntervalBlocks = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowParams
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.RewardDistributionIntervalBlocks |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
 		default:
 			iNdEx = preIndex
 			skippy, err := skipParams(dAtA[iNdEx:])

@@ -23,6 +23,30 @@ service Msg {
 
   // AgentAction defines the AgentAction RPC.
   rpc AgentAction(MsgAgentAction) returns (MsgAgentActionResponse);
+
+  // SubmitIntent defines the SubmitIntent RPC for multi-agent coordination.
+  rpc SubmitIntent(MsgSubmitIntent) returns (MsgSubmitIntentResponse);
+
+  // RespondToIntent defines the RespondToIntent RPC.
+  rpc RespondToIntent(MsgRespondToIntent) returns (MsgRespondToIntentResponse);
+
+  // FinalizeIntent defines the FinalizeIntent RPC.
+  rpc FinalizeIntent(MsgFinalizeIntent) returns (MsgFinalizeIntentResponse);
+
+  // AgentHeartbeat defines the AgentHeartbeat RPC for on-chain liveness signals.
+  rpc AgentHeartbeat(MsgAgentHeartbeat) returns (MsgAgentHeartbeatResponse);
+
+  // DelegateTask creates a structured task delegation from one agent to another.
+  rpc DelegateTask(MsgDelegateTask) returns (MsgDelegateTaskResponse);
+
+  // AcceptTask marks a delegated task as accepted by the assignee.
+  rpc AcceptTask(MsgAcceptTask) returns (MsgAcceptTaskResponse);
+
+  // CompleteTask marks an accepted task as completed with a result payload.
+  rpc CompleteTask(MsgCompleteTask) returns (MsgCompleteTaskResponse);
+
+  // DeregisterAgent removes an agent from the registry and returns its deposit.
+  rpc DeregisterAgent(MsgDeregisterAgent) returns (MsgDeregisterAgentResponse);
 }
 
 // MsgUpdateParams is the Msg/UpdateParams request type.
@@ -53,6 +77,13 @@ message MsgRegisterAgent {
   string pubkey = 2;
   string endpoint = 3;
   string name = 4;
+  // supported_tools must be deterministic sorted-unique.
+  // Keeper normalizes declared capability tool IDs before storing.
+  repeated string supported_tools = 5;
+  // Optional pricing hint metadata (free-form, typically JSON).
+  string pricing_hint = 6;
+  // Agent runtime/version identifier.
+  string version = 7;
 }
 
 // MsgRegisterAgentResponse defines the MsgRegisterAgentResponse message.
@@ -69,3 +100,110 @@ message MsgAgentAction {
 
 // MsgAgentActionResponse defines the MsgAgentActionResponse message.
 message MsgAgentActionResponse {}
+
+// MsgSubmitIntent defines the message for submitting a coordination intent.
+message MsgSubmitIntent {
+  option (cosmos.msg.v1.signer) = "creator";
+  string creator = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  string intent_type = 2;
+  string description = 3;
+  string payload = 4;
+  uint64 min_responses = 5;
+}
+
+// MsgSubmitIntentResponse defines the response for MsgSubmitIntent.
+message MsgSubmitIntentResponse {
+  uint64 intent_id = 1;
+}
+
+// MsgRespondToIntent defines the message for responding to a coordination intent.
+message MsgRespondToIntent {
+  option (cosmos.msg.v1.signer) = "creator";
+  string creator = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  uint64 intent_id = 2;
+  bool accepted = 3;
+  string payload = 4;
+}
+
+// MsgRespondToIntentResponse defines the response for MsgRespondToIntent.
+message MsgRespondToIntentResponse {}
+
+// MsgFinalizeIntent defines the message for finalizing/cancelling a coordination intent.
+message MsgFinalizeIntent {
+  option (cosmos.msg.v1.signer) = "creator";
+  string creator = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  uint64 intent_id = 2;
+  bool cancel = 3;
+}
+
+// MsgFinalizeIntentResponse defines the response for MsgFinalizeIntent.
+message MsgFinalizeIntentResponse {}
+
+// MsgAgentHeartbeat defines the on-chain liveness signal from an agent runtime.
+message MsgAgentHeartbeat {
+  option (cosmos.msg.v1.signer) = "creator";
+  string creator = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  // Current block height observed by the agent's local node.
+  int64 node_height = 2;
+  // Agent's RPC endpoint for peer discovery.
+  string endpoint = 3;
+  // Free-form metadata (JSON) – node mode, version, etc.
+  string metadata = 4;
+}
+
+// MsgAgentHeartbeatResponse defines the response for MsgAgentHeartbeat.
+message MsgAgentHeartbeatResponse {}
+
+// MsgDelegateTask creates a new task delegation from creator (delegator) to assignee.
+message MsgDelegateTask {
+  option (cosmos.msg.v1.signer) = "creator";
+  string creator = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  // Bech32 address of the agent the task is assigned to.
+  string assignee = 2 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  // Human-readable description of the task.
+  string description = 3;
+  // Structured requirements (JSON).
+  string requirements = 4;
+  // Reference to a marketplace skill ID (0 = no skill reference).
+  uint64 skill_id = 5;
+  // Payment budget in uclaw (string for large numbers).
+  string budget = 6;
+  // Number of blocks until the task expires (0 = no deadline).
+  int64 deadline_blocks = 7;
+}
+
+// MsgDelegateTaskResponse returns the ID of the newly created task.
+message MsgDelegateTaskResponse {
+  uint64 task_id = 1;
+}
+
+// MsgAcceptTask marks a pending task as accepted by the assignee.
+message MsgAcceptTask {
+  option (cosmos.msg.v1.signer) = "creator";
+  string creator = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  uint64 task_id = 2;
+}
+
+// MsgAcceptTaskResponse defines the response for MsgAcceptTask.
+message MsgAcceptTaskResponse {}
+
+// MsgCompleteTask marks an accepted task as completed with a result.
+message MsgCompleteTask {
+  option (cosmos.msg.v1.signer) = "creator";
+  string creator = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  uint64 task_id = 2;
+  // Result payload (JSON) delivered by the assignee.
+  string result = 3;
+}
+
+// MsgCompleteTaskResponse defines the response for MsgCompleteTask.
+message MsgCompleteTaskResponse {}
+
+// MsgDeregisterAgent removes an agent from the registry and returns its deposit.
+message MsgDeregisterAgent {
+  option (cosmos.msg.v1.signer) = "creator";
+  string creator = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+}
+
+// MsgDeregisterAgentResponse defines the response for MsgDeregisterAgent.
+message MsgDeregisterAgentResponse {}

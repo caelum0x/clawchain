@@ -20,9 +20,9 @@ func TestGenesisState_Validate(t *testing.T) {
 			valid:    true,
 		},
 		{
-			desc:     "valid genesis state",
+			desc:     "zero params genesis is invalid",
 			genState: &types.GenesisState{},
-			valid:    true,
+			valid:    false,
 		},
 	}
 	for _, tc := range tests {

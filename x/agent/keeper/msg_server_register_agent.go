@@ -3,6 +3,8 @@ package keeper
 import (
 	"context"
 	"errors"
+	"fmt"
+	"sort"
 
 	"clawchain/x/agent/types"
 
@@ -38,14 +40,35 @@ func (k msgServer) RegisterAgent(ctx context.Context, msg *types.MsgRegisterAgen
 	sdkCtx := sdk.UnwrapSDKContext(ctx)
 	blockHeight := sdkCtx.BlockHeight()
 
+	// Read deposit requirement from governance params.
+	params, err := k.Params.Get(ctx)
+	if err != nil {
+		return nil, errorsmod.Wrap(err, "failed to load params")
+	}
+	minDeposit := params.MinAgentDepositUclaw
+	depositAmount := fmt.Sprintf("%d", minDeposit)
+
+	// Lock deposit into the agent module account.
+	if minDeposit > 0 {
+		senderAddr, _ := k.addressCodec.StringToBytes(msg.Creator)
+		depositCoins := sdk.NewCoins(sdk.NewInt64Coin("uclaw", int64(minDeposit)))
+		if err := k.bankKeeper.SendCoinsFromAccountToModule(ctx, senderAddr, types.ModuleName, depositCoins); err != nil {
+			return nil, errorsmod.Wrapf(types.ErrInsufficientDeposit, "failed to lock deposit: %v", err)
+		}
+	}
+
 	// Create the AgentInfo record.
 	agentInfo := types.AgentInfo{
-		Address:      msg.Creator,
-		Pubkey:       msg.Pubkey,
-		Endpoint:     msg.Endpoint,
-		Name:         msg.Name,
-		RegisteredAt: blockHeight,
-		Active:       true,
+		Address:        msg.Creator,
+		Pubkey:         msg.Pubkey,
+		Endpoint:       msg.Endpoint,
+		Name:           msg.Name,
+		RegisteredAt:   blockHeight,
+		Active:         true,
+		SupportedTools: normalizeSupportedTools(msg.SupportedTools),
+		PricingHint:    msg.PricingHint,
+		Version:        msg.Version,
+		DepositAmount:  depositAmount,
 	}
 
 	// Store in the Agents collection.
@@ -65,8 +88,29 @@ func (k msgServer) RegisterAgent(ctx context.Context, msg *types.MsgRegisterAgen
 			sdk.NewAttribute("address", msg.Creator),
 			sdk.NewAttribute("name", msg.Name),
 			sdk.NewAttribute("pubkey", msg.Pubkey),
+			sdk.NewAttribute("deposit_uclaw", depositAmount),
 		),
 	)
 
 	return &types.MsgRegisterAgentResponse{}, nil
+}
+
+func normalizeSupportedTools(tools []string) []string {
+	if len(tools) == 0 {
+		return nil
+	}
+	uniq := make(map[string]struct{}, len(tools))
+	out := make([]string, 0, len(tools))
+	for _, tool := range tools {
+		if tool == "" {
+			continue
+		}
+		if _, exists := uniq[tool]; exists {
+			continue
+		}
+		uniq[tool] = struct{}{}
+		out = append(out, tool)
+	}
+	sort.Strings(out)
+	return out
 }

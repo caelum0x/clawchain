@@ -21,6 +21,77 @@ service Query {
   rpc Agent(QueryAgentRequest) returns (QueryAgentResponse) {
     option (google.api.http).get = "/clawchain/agent/v1/agent/{address}";
   }
+
+  // Intent queries a coordination intent by ID.
+  rpc Intent(QueryIntentRequest) returns (QueryIntentResponse) {
+    option (google.api.http).get = "/clawchain/agent/v1/intent/{intent_id}";
+  }
+
+  // AgentActivity queries activity events for one agent.
+  rpc AgentActivity(QueryAgentActivityRequest) returns (QueryAgentActivityResponse) {
+    option (google.api.http).get = "/clawchain/agent/v1/activity/{address}/{limit}";
+  }
+
+  // AgentStats queries aggregate stats for one agent.
+  rpc AgentStats(QueryAgentStatsRequest) returns (QueryAgentStatsResponse) {
+    option (google.api.http).get = "/clawchain/agent/v1/stats/{address}";
+  }
+
+  // RecentActivity queries recent global activity.
+  rpc RecentActivity(QueryRecentActivityRequest) returns (QueryRecentActivityResponse) {
+    option (google.api.http).get = "/clawchain/agent/v1/activity/recent/{limit}";
+  }
+
+  // AgentLiveness queries the liveness status of a registered agent.
+  rpc AgentLiveness(QueryAgentLivenessRequest) returns (QueryAgentLivenessResponse) {
+    option (google.api.http).get = "/clawchain/agent/v1/liveness/{address}";
+  }
+
+  // LiveAgents returns all agents that have sent a heartbeat within the
+  // configured max_heartbeat_gap_blocks window (i.e. currently "live").
+  rpc LiveAgents(QueryLiveAgentsRequest) returns (QueryLiveAgentsResponse) {
+    option (google.api.http).get = "/clawchain/agent/v1/live";
+  }
+
+  // Task queries one delegated task by ID.
+  rpc Task(QueryTaskRequest) returns (QueryTaskResponse) {
+    option (google.api.http).get = "/clawchain/agent/v1/task/{task_id}";
+  }
+
+  // TasksByDelegator queries tasks created by the given delegator.
+  rpc TasksByDelegator(QueryTasksByDelegatorRequest) returns (QueryTasksByDelegatorResponse) {
+    option (google.api.http).get = "/clawchain/agent/v1/tasks/delegator/{address}";
+  }
+
+  // TasksByAssignee queries tasks assigned to the given assignee.
+  rpc TasksByAssignee(QueryTasksByAssigneeRequest) returns (QueryTasksByAssigneeResponse) {
+    option (google.api.http).get = "/clawchain/agent/v1/tasks/assignee/{address}";
+  }
+
+  // AgentRewards queries cumulative rewards for an agent.
+  rpc AgentRewards(QueryAgentRewardsRequest) returns (QueryAgentRewardsResponse) {
+    option (google.api.http).get = "/clawchain/agent/v1/rewards/{address}";
+  }
+
+  // RemoteAgents returns all known remote agents discovered via IBC.
+  rpc RemoteAgents(QueryRemoteAgentsRequest) returns (QueryRemoteAgentsResponse) {
+    option (google.api.http).get = "/clawchain/agent/v1/remote_agents";
+  }
+
+  // Negotiations queries negotiations, optionally filtered by address.
+  rpc Negotiations(QueryNegotiationsRequest) returns (QueryNegotiationsResponse) {
+    option (google.api.http).get = "/clawchain/agent/v1/negotiations";
+  }
+
+  // NegotiationsByAddress queries negotiations for a specific address.
+  rpc NegotiationsByAddress(QueryNegotiationsByAddressRequest) returns (QueryNegotiationsByAddressResponse) {
+    option (google.api.http).get = "/clawchain/agent/v1/negotiations/{address}";
+  }
+
+  // Negotiation queries a single negotiation by ID.
+  rpc Negotiation(QueryNegotiationRequest) returns (QueryNegotiationResponse) {
+    option (google.api.http).get = "/clawchain/agent/v1/negotiation/{id}";
+  }
 }
 
 // QueryParamsRequest is request type for the Query/Params RPC method.
@@ -46,4 +117,227 @@ message QueryAgentResponse {
   string pubkey = 2;
   string endpoint = 3;
   bool registered = 4;
+  repeated string supported_tools = 5;
+  string pricing_hint = 6;
+  string version = 7;
+}
+
+message QueryIntentRequest {
+  uint64 intent_id = 1;
+}
+
+message QueryIntentResponse {
+  bool found = 1;
+  uint64 id = 2;
+  string creator_address = 3;
+  string description = 4;
+  string intent_type = 5;
+  string payload = 6;
+  string status = 7;
+  uint64 min_responses = 8;
+}
+
+message AgentActionRecord {
+  string agent_address = 1;
+  string action_type = 2;
+  string payload = 3;
+  int64 block_height = 4;
+  int64 timestamp = 5;
+}
+
+message AgentStats {
+  string agent_address = 1;
+  uint64 intents_submitted = 2;
+  uint64 intents_responded = 3;
+  uint64 intents_finalized = 4;
+  uint64 intents_cancelled = 5;
+  int64 last_active_height = 6;
+  int64 last_active_time = 7;
+}
+
+message QueryAgentActivityRequest {
+  string address = 1;
+  uint64 limit = 2;
+}
+
+message QueryAgentActivityResponse {
+  repeated AgentActionRecord activities = 1 [(gogoproto.nullable) = false];
+}
+
+message QueryAgentStatsRequest {
+  string address = 1;
+}
+
+message QueryAgentStatsResponse {
+  AgentStats stats = 1 [(gogoproto.nullable) = false];
+}
+
+message QueryRecentActivityRequest {
+  uint64 limit = 1;
+}
+
+message QueryRecentActivityResponse {
+  repeated AgentActionRecord activities = 1 [(gogoproto.nullable) = false];
+}
+
+// AgentLiveness holds the on-chain liveness state for one agent.
+message AgentLiveness {
+  string agent_address = 1;
+  // Block height at which the last heartbeat was recorded.
+  int64 last_heartbeat_height = 2;
+  // Unix timestamp of the last heartbeat.
+  int64 last_heartbeat_time = 3;
+  // Block height the agent's local node reported.
+  int64 reported_node_height = 4;
+  // Agent's RPC endpoint from the last heartbeat.
+  string endpoint = 5;
+  // Free-form metadata from the last heartbeat.
+  string metadata = 6;
+  // Total number of heartbeats received from this agent.
+  uint64 heartbeat_count = 7;
+}
+
+message QueryAgentLivenessRequest {
+  string address = 1;
+}
+
+message QueryAgentLivenessResponse {
+  bool found = 1;
+  AgentLiveness liveness = 2 [(gogoproto.nullable) = false];
+}
+
+// LiveAgentEntry combines agent info with its liveness data.
+message LiveAgentEntry {
+  string address = 1;
+  string name = 2;
+  string endpoint = 3;
+  AgentLiveness liveness = 4 [(gogoproto.nullable) = false];
+}
+
+message QueryLiveAgentsRequest {
+  cosmos.base.query.v1beta1.PageRequest pagination = 1;
+}
+
+message QueryLiveAgentsResponse {
+  repeated LiveAgentEntry agents = 1 [(gogoproto.nullable) = false];
+  cosmos.base.query.v1beta1.PageResponse pagination = 2;
+}
+
+// TaskRecord is a delegated task lifecycle record.
+message TaskRecord {
+  uint64 task_id = 1;
+  string delegator_address = 2;
+  string assignee_address = 3;
+  string description = 4;
+  string requirements = 5;
+  uint64 skill_id = 6;
+  string budget = 7;
+  int64 deadline_blocks = 8;
+  int64 created_at = 9;
+  string status = 10;
+  string result = 11;
+  int64 completed_at = 12;
+}
+
+message QueryTaskRequest {
+  uint64 task_id = 1;
+}
+
+message QueryTaskResponse {
+  bool found = 1;
+  uint64 task_id = 2;
+  string delegator_address = 3;
+  string assignee_address = 4;
+  string description = 5;
+  string requirements = 6;
+  uint64 skill_id = 7;
+  string budget = 8;
+  int64 deadline_blocks = 9;
+  string status = 10;
+  string result = 11;
+  int64 created_at = 12;
+  int64 completed_at = 13;
+}
+
+message QueryTasksByDelegatorRequest {
+  string address = 1;
+}
+
+message QueryTasksByDelegatorResponse {
+  repeated TaskRecord tasks = 1 [(gogoproto.nullable) = false];
+}
+
+message QueryTasksByAssigneeRequest {
+  string address = 1;
+}
+
+message QueryTasksByAssigneeResponse {
+  repeated TaskRecord tasks = 1 [(gogoproto.nullable) = false];
+}
+
+message QueryAgentRewardsRequest {
+  string address = 1;
+}
+
+message QueryAgentRewardsResponse {
+  string address = 1;
+  string cumulative_rewards = 2;
+  string denom = 3;
+}
+
+message QueryRemoteAgentsRequest {}
+
+message QueryRemoteAgentsResponse {
+  repeated string agents = 1;
+}
+
+// Negotiation types
+message NegotiationRoundRecord {
+  uint32 round     = 1;
+  string proposer  = 2;
+  string budget    = 3;
+  int64  deadline  = 4;
+  string message   = 5;
+  int64  height    = 6;
+}
+
+message NegotiationRecord {
+  uint64 id                = 1;
+  string initiator         = 2;
+  string counterparty      = 3;
+  string description       = 4;
+  string requirements      = 5;
+  uint64 skill_id          = 6;
+  string proposed_budget   = 7;
+  int64  proposed_deadline = 8;
+  string status            = 9;
+  uint32 round             = 10;
+  uint32 max_rounds        = 11;
+  string last_proposer     = 12;
+  int64  created_at        = 13;
+  int64  updated_at        = 14;
+  int64  expires_at        = 15;
+  repeated NegotiationRoundRecord history = 16 [(gogoproto.nullable) = false];
+}
+
+message QueryNegotiationsRequest {}
+
+message QueryNegotiationsResponse {
+  repeated NegotiationRecord negotiations = 1 [(gogoproto.nullable) = false];
+}
+
+message QueryNegotiationsByAddressRequest {
+  string address = 1;
+}
+
+message QueryNegotiationsByAddressResponse {
+  repeated NegotiationRecord negotiations = 1 [(gogoproto.nullable) = false];
+}
+
+message QueryNegotiationRequest {
+  uint64 id = 1;
+}
+
+message QueryNegotiationResponse {
+  NegotiationRecord negotiation = 1 [(gogoproto.nullable) = false];
 }
