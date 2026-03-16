@@ -36,6 +36,15 @@ func TestMsgUpdateParams(t *testing.T) {
 			expErrMsg: "invalid authority",
 		},
 		{
+			name: "unauthorized authority",
+			input: &types.MsgUpdateParams{
+				Authority: "cosmos1qypqxpq9qcrsszg2pvxq6rs0zqg3yyc5lzv7xu",
+				Params:    params,
+			},
+			expErr:    true,
+			expErrMsg: "invalid authority",
+		},
+		{
 			name: "send enabled param",
 			input: &types.MsgUpdateParams{
 				Authority: authorityStr,

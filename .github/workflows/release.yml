@@ -1,22 +1,24 @@
-# This workflow is useful if you want to automate the process of:
+# ClawChain Release Workflow
 #
-# a) Creating a new prelease when you push a new tag with a "v" prefix (version).
+# Triggers:
+# a) Push a tag with "v" prefix (e.g., v1.0.0-alpha) — creates a prerelease with binaries
+# b) Push to main — updates the "latest" prerelease with bleeding-edge binaries
 #
-#    This type of prerelease is meant to be used for production: alpha, beta, rc, etc. types of releases.
-#    After the prerelease is created, you need to make your changes on the release page at the relevant
-#    Github page and publish your release.
-#
-# b) Creating/updating the "latest" prerelease when you push to your default branch.
-#
-#    This type of prelease is useful to make your bleeding-edge binaries available to advanced users.
-#
-# The workflow will not run if there is no tag pushed with a "v" prefix and no change pushed to your
-# default branch.
+# Artifacts:
+# - clawchaind + clawproof binaries (linux/amd64, darwin/amd64, darwin/arm64)
+# - Go backend service binaries
+# - SHA256SUMS.txt for all artifacts
+
 on: push
 
+permissions:
+  contents: write
+
 jobs:
-  might_release:
+  chain-release:
+    name: Build Chain Binaries
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -36,6 +38,52 @@ jobs:
           DO_NOT_TRACK: 1
           GOFLAGS: "-buildvcs=false"
 
+      - name: Build additional Go services
+        if: ${{ steps.vars.outputs.should_release == 'true' }}
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+
+      - name: Compile service binaries
+        if: ${{ steps.vars.outputs.should_release == 'true' }}
+        run: |
+          mkdir -p release/services
+          for svc in claw-faucet claw-eventsd claw-notifyd claw-inference-sidecar claw-gpu-provider claw-txhistoryd clawproof; do
+            echo "Building $svc..."
+            go build -o release/services/$svc ./cmd/$svc
+          done
+
+      - name: Generate SHA-256 checksums
+        if: ${{ steps.vars.outputs.should_release == 'true' }}
+        run: |
+          cd release
+          sha256sum * services/* 2>/dev/null > SHA256SUMS.txt || true
+          cat SHA256SUMS.txt
+
+      - name: Generate release notes
+        if: ${{ steps.vars.outputs.should_release == 'true' }}
+        run: |
+          cat > release/RELEASE_NOTES.md << 'NOTES'
+          ## ClawChain Release
+
+          ### Binaries
+          - `clawchaind` — Chain node binary (CometBFT + Cosmos SDK + CosmWasm)
+          - `clawproof` — ZK proof generator (Groth16/BN254)
+
+          ### Backend Services
+          - `claw-faucet` — Token faucet service
+          - `claw-eventsd` — WebSocket event proxy
+          - `claw-notifyd` — Notification service
+          - `claw-inference-sidecar` — AI model inference proxy
+          - `claw-gpu-provider` — GPU compute provider daemon
+          - `claw-txhistoryd` — Transaction history indexer
+
+          ### Verify checksums
+          ```bash
+          sha256sum -c SHA256SUMS.txt
+          ```
+          NOTES
+
       - name: Delete the "latest" Release
         uses: dev-drprasad/delete-tag-and-release@v0.2.1
         if: ${{ steps.vars.outputs.is_release_type_latest == 'true' }}
@@ -50,7 +98,10 @@ jobs:
         if: ${{ steps.vars.outputs.should_release == 'true' }}
         with:
           tag_name: ${{ steps.vars.outputs.tag_name }}
-          files: release/*
+          files: |
+            release/*
+            release/services/*
+          body_path: release/RELEASE_NOTES.md
           prerelease: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

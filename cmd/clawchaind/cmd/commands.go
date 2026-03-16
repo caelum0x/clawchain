@@ -24,6 +24,8 @@ import (
 	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 	genutilcli "github.com/cosmos/cosmos-sdk/x/genutil/client/cli"
 
+	wasmcli "github.com/CosmWasm/wasmd/x/wasm/client/cli"
+
 	"clawchain/app"
 )
 
@@ -78,6 +80,7 @@ func queryCommand() *cobra.Command {
 		server.QueryBlocksCmd(),
 		authcmd.QueryTxCmd(),
 		server.QueryBlockResultsCmd(),
+		wasmcli.GetQueryCmd(),
 	)
 
 	return cmd
@@ -103,6 +106,7 @@ func txCommand() *cobra.Command {
 		authcmd.GetEncodeCommand(),
 		authcmd.GetDecodeCommand(),
 		authcmd.GetSimulateCmd(),
+		wasmcli.GetTxCmd(),
 	)
 
 	return cmd

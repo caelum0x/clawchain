@@ -19,4 +19,7 @@ func TestParamsQuery(t *testing.T) {
 	response, err := qs.Params(f.ctx, &types.QueryParamsRequest{})
 	require.NoError(t, err)
 	require.Equal(t, &types.QueryParamsResponse{Params: params}, response)
+
+	_, err = qs.Params(f.ctx, nil)
+	require.Error(t, err)
 }

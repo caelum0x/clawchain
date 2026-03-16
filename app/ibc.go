@@ -9,6 +9,11 @@ import (
 	"github.com/cosmos/cosmos-sdk/types/module"
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types"
+	"github.com/CosmWasm/wasmd/x/wasm"
+	wasmtypes "github.com/CosmWasm/wasmd/x/wasm/types"
+
+	agentibc "clawchain/x/agent/ibc"
+	privacyibc "clawchain/x/privacy/ibc"
 	icamodule "github.com/cosmos/ibc-go/v10/modules/apps/27-interchain-accounts"
 	icacontroller "github.com/cosmos/ibc-go/v10/modules/apps/27-interchain-accounts/controller"
 	icacontrollerkeeper "github.com/cosmos/ibc-go/v10/modules/apps/27-interchain-accounts/controller/keeper"
@@ -100,18 +105,36 @@ func (app *App) registerIBCModules(appOpts servertypes.AppOptions) error {
 	)
 
 	// create IBC module from bottom to top of stack
+	var transferIBCModule porttypes.IBCModule = ibctransfer.NewIBCModule(app.TransferKeeper)
+
+	// Wrap the transfer module with the privacy middleware for auto-shielding
+	// incoming IBC tokens when the memo contains {"clawchain_privacy":{"auto_shield":true}}.
 	var (
-		transferStack      porttypes.IBCModule = ibctransfer.NewIBCModule(app.TransferKeeper)
+		transferStack      porttypes.IBCModule = agentibc.NewAgentIBCMiddleware(privacyibc.NewIBCMiddleware(transferIBCModule, app.PrivacyKeeper), app.AgentKeeper)
 		transferStackV2    ibcapi.IBCModule    = ibctransferv2.NewIBCModule(app.TransferKeeper)
 		icaControllerStack porttypes.IBCModule = icacontroller.NewIBCMiddleware(app.ICAControllerKeeper)
 		icaHostStack       porttypes.IBCModule = icahost.NewIBCModule(app.ICAHostKeeper)
+	)
+
+	// Initialize CosmWasm keeper (must happen before IBC router is sealed)
+	if err := app.initWasmKeeper(appOpts); err != nil {
+		return err
+	}
+
+	// Create wasm IBC handler
+	wasmIBCHandler := wasm.NewIBCHandler(
+		app.WasmKeeper,
+		app.IBCKeeper.ChannelKeeper,
+		app.TransferKeeper,
+		app.IBCKeeper.ChannelKeeper,
 	)
 
 	// create IBC v1 router, add transfer route, then set it on the keeper
 	ibcRouter := porttypes.NewRouter().
 		AddRoute(ibctransfertypes.ModuleName, transferStack).
 		AddRoute(icacontrollertypes.SubModuleName, icaControllerStack).
-		AddRoute(icahosttypes.SubModuleName, icaHostStack)
+		AddRoute(icahosttypes.SubModuleName, icaHostStack).
+		AddRoute(wasmtypes.ModuleName, wasmIBCHandler)
 
 	// create IBC v2 router, add transfer route, then set it on the keeper
 	ibcv2Router := ibcapi.NewRouter().
@@ -170,4 +193,18 @@ func RegisterIBC(cdc codec.Codec) map[string]appmodule.AppModule {
 // Used for supply with IBC keeper getter for the IBC modules with App Wiring.
 func (app *App) GetIBCKeeper() *ibckeeper.Keeper {
 	return app.IBCKeeper
+}
+
+// RegisterWasm registers the CosmWasm module on the client side.
+// This is needed since wasm doesn't support dependency injection.
+func RegisterWasm(cdc codec.Codec) map[string]appmodule.AppModule {
+	modules := map[string]appmodule.AppModule{
+		wasmtypes.ModuleName: wasm.NewAppModule(cdc, nil, nil, nil, nil, nil, nil),
+	}
+	for _, m := range modules {
+		if mr, ok := m.(module.AppModuleBasic); ok {
+			mr.RegisterInterfaces(cdc.InterfaceRegistry())
+		}
+	}
+	return modules
 }

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 
 	"cosmossdk.io/client/v2/autocli"
@@ -82,10 +83,20 @@ func NewRootCmd() *cobra.Command {
 		autoCliOpts.Modules[name] = mod
 	}
 
+	// Register CosmWasm module on the client side (same pattern as IBC).
+	wasmModules := app.RegisterWasm(clientCtx.Codec)
+	for name, mod := range wasmModules {
+		moduleBasicManager[name] = module.CoreAppModuleBasicAdaptor(name, mod)
+		autoCliOpts.Modules[name] = mod
+	}
+
 	initRootCmd(rootCmd, clientCtx.TxConfig, moduleBasicManager)
 
 	if err := autoCliOpts.EnhanceRootCommand(rootCmd); err != nil {
-		panic(err)
+		// Some custom modules currently use hand-written protobuf stubs that
+		// do not expose complete descriptor metadata required by AutoCLI.
+		// Degrade gracefully so the daemon remains operable.
+		fmt.Fprintf(os.Stderr, "warning: AutoCLI enhancement skipped: %v\n", err)
 	}
 
 	return rootCmd
