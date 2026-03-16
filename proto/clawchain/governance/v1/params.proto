@@ -1,0 +1,25 @@
+syntax = "proto3";
+package clawchain.governance.v1;
+
+import "amino/amino.proto";
+import "gogoproto/gogo.proto";
+
+option go_package = "clawchain/x/governance/types";
+
+// Params defines the governance module parameters.
+message GovParams {
+  option (amino.name) = "clawchain/x/governance/Params";
+  option (gogoproto.equal) = true;
+
+  // voting_period_blocks is the number of blocks proposals remain open for voting.
+  int64 voting_period_blocks = 1;
+
+  // min_deposit_uclaw is the minimum deposit required to submit a proposal.
+  uint64 min_deposit_uclaw = 2;
+
+  // quorum_bps is the minimum participation in basis points (e.g., 3300 = 33%).
+  uint64 quorum_bps = 3;
+
+  // threshold_bps is the yes vote percentage in basis points needed to pass (e.g., 5000 = 50%).
+  uint64 threshold_bps = 4;
+}

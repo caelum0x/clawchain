@@ -1,0 +1,61 @@
+syntax = "proto3";
+package clawchain.governance.v1;
+
+import "google/api/annotations.proto";
+import "clawchain/governance/v1/types.proto";
+import "clawchain/governance/v1/params.proto";
+
+option go_package = "clawchain/x/governance/types";
+
+// Query defines the governance gRPC query service.
+service Query {
+  // Proposal returns a single proposal by ID.
+  rpc Proposal(QueryProposalRequest) returns (QueryProposalResponse) {
+    option (google.api.http).get = "/clawchain/governance/v1/proposal/{proposal_id}";
+  }
+
+  // Proposals returns all proposals, optionally filtered by status.
+  rpc Proposals(QueryProposalsRequest) returns (QueryProposalsResponse) {
+    option (google.api.http).get = "/clawchain/governance/v1/proposals";
+  }
+
+  // Votes returns all votes for a given proposal.
+  rpc Votes(QueryVotesRequest) returns (QueryVotesResponse) {
+    option (google.api.http).get = "/clawchain/governance/v1/proposal/{proposal_id}/votes";
+  }
+
+  // Params returns the governance module parameters.
+  rpc Params(QueryParamsRequest) returns (QueryParamsResponse) {
+    option (google.api.http).get = "/clawchain/governance/v1/params";
+  }
+}
+
+message QueryProposalRequest {
+  uint64 proposal_id = 1;
+}
+
+message QueryProposalResponse {
+  Proposal proposal = 1;
+}
+
+message QueryProposalsRequest {
+  string status = 1;
+}
+
+message QueryProposalsResponse {
+  repeated Proposal proposals = 1;
+}
+
+message QueryVotesRequest {
+  uint64 proposal_id = 1;
+}
+
+message QueryVotesResponse {
+  repeated Vote votes = 1;
+}
+
+message QueryParamsRequest {}
+
+message QueryParamsResponse {
+  GovParams params = 1;
+}

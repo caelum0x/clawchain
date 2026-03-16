@@ -1,0 +1,49 @@
+syntax = "proto3";
+package clawchain.governance.v1;
+
+import "cosmos/msg/v1/msg.proto";
+import "cosmos_proto/cosmos.proto";
+import "gogoproto/gogo.proto";
+
+option go_package = "clawchain/x/governance/types";
+
+// Msg defines the governance Msg service.
+service Msg {
+  option (cosmos.msg.v1.service) = true;
+
+  // SubmitProposal submits a parameter change proposal.
+  rpc SubmitProposal(MsgSubmitProposal) returns (MsgSubmitProposalResponse);
+
+  // Vote casts a vote on an active proposal.
+  rpc Vote(MsgVote) returns (MsgVoteResponse);
+}
+
+// MsgSubmitProposal defines the message for submitting a governance proposal.
+message MsgSubmitProposal {
+  option (cosmos.msg.v1.signer) = "proposer";
+
+  string proposer = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  string title = 2;
+  string description = 3;
+  string module = 4;
+  string param_key = 5;
+  string proposed_value = 6;
+  string deposit_amount = 7;
+}
+
+// MsgSubmitProposalResponse defines the response for MsgSubmitProposal.
+message MsgSubmitProposalResponse {
+  uint64 proposal_id = 1;
+}
+
+// MsgVote defines the message for casting a vote on a proposal.
+message MsgVote {
+  option (cosmos.msg.v1.signer) = "voter";
+
+  string voter = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  uint64 proposal_id = 2;
+  string option = 3;
+}
+
+// MsgVoteResponse defines the response for MsgVote.
+message MsgVoteResponse {}

@@ -1,0 +1,16 @@
+syntax = "proto3";
+package clawchain.governance.v1;
+
+import "gogoproto/gogo.proto";
+import "clawchain/governance/v1/types.proto";
+import "clawchain/governance/v1/params.proto";
+
+option go_package = "clawchain/x/governance/types";
+
+// GenesisState defines the governance module's genesis state.
+message GovGenesisState {
+  GovParams params = 1 [(gogoproto.nullable) = false];
+  repeated Proposal proposals = 2 [(gogoproto.nullable) = false];
+  repeated Vote votes = 3 [(gogoproto.nullable) = false];
+  uint64 proposal_count = 4;
+}
