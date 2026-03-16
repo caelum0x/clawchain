@@ -1,0 +1,5 @@
+vk_type=groth16
+circuit=TransferCircuit
+curve=BN254
+generated_at_utc=2026-02-14T21:29:10Z
+source_transcript=artifacts/ceremony/transfer-circuit-transcript-20260214.json

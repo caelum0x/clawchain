@@ -35,6 +35,9 @@ func CompileUnshieldCircuit() (constraint.ConstraintSystem, error) {
 
 // SetupTransfer runs the Groth16 trusted setup for the transfer circuit.
 // Returns the proving key, verifying key, and compiled constraint system.
+//
+// WARNING: This uses single-party groth16.Setup() which is NOT safe for production.
+// For mainnet, use SetupFromArtifacts() with MPC ceremony keys instead.
 func SetupTransfer() (groth16.ProvingKey, groth16.VerifyingKey, constraint.ConstraintSystem, error) {
 	cs, err := CompileTransferCircuit()
 	if err != nil {
@@ -49,8 +52,17 @@ func SetupTransfer() (groth16.ProvingKey, groth16.VerifyingKey, constraint.Const
 	return pk, vk, cs, nil
 }
 
+// SetupTransferFromArtifacts loads MPC ceremony keys for the transfer circuit.
+// This is the production-safe alternative to SetupTransfer().
+func SetupTransferFromArtifacts(artifactsDir string) (groth16.ProvingKey, groth16.VerifyingKey, constraint.ConstraintSystem, error) {
+	return SetupFromMPCOrFallback(artifactsDir, "transfer", CompileTransferCircuit)
+}
+
 // SetupUnshield runs the Groth16 trusted setup for the unshield circuit.
 // Returns the proving key, verifying key, and compiled constraint system.
+//
+// WARNING: This uses single-party groth16.Setup() which is NOT safe for production.
+// For mainnet, use SetupFromArtifacts() with MPC ceremony keys instead.
 func SetupUnshield() (groth16.ProvingKey, groth16.VerifyingKey, constraint.ConstraintSystem, error) {
 	cs, err := CompileUnshieldCircuit()
 	if err != nil {
@@ -63,6 +75,12 @@ func SetupUnshield() (groth16.ProvingKey, groth16.VerifyingKey, constraint.Const
 	}
 
 	return pk, vk, cs, nil
+}
+
+// SetupUnshieldFromArtifacts loads MPC ceremony keys for the unshield circuit.
+// This is the production-safe alternative to SetupUnshield().
+func SetupUnshieldFromArtifacts(artifactsDir string) (groth16.ProvingKey, groth16.VerifyingKey, constraint.ConstraintSystem, error) {
+	return SetupFromMPCOrFallback(artifactsDir, "unshield", CompileUnshieldCircuit)
 }
 
 // SerializeProvingKey serializes a Groth16 proving key to bytes.
@@ -176,6 +194,56 @@ func VerifyUnshieldProof(
 	return groth16.Verify(proof, vk, publicWitness)
 }
 
+// BatchVerifyTransferProofs verifies multiple transfer proofs concurrently.
+// Returns the first error encountered, or nil if all proofs are valid.
+func BatchVerifyTransferProofs(vk groth16.VerifyingKey, proofs []groth16.Proof, witnesses []witness.Witness) error {
+	if len(proofs) != len(witnesses) {
+		return fmt.Errorf("mismatched proof and witness count: %d proofs, %d witnesses", len(proofs), len(witnesses))
+	}
+	if len(proofs) == 0 {
+		return fmt.Errorf("no proofs to verify")
+	}
+
+	errCh := make(chan error, len(proofs))
+	for i := range proofs {
+		go func(idx int) {
+			errCh <- groth16.Verify(proofs[idx], vk, witnesses[idx])
+		}(i)
+	}
+
+	for range proofs {
+		if err := <-errCh; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// BatchVerifyUnshieldProofs verifies multiple unshield proofs concurrently.
+// Returns the first error encountered, or nil if all proofs are valid.
+func BatchVerifyUnshieldProofs(vk groth16.VerifyingKey, proofs []groth16.Proof, witnesses []witness.Witness) error {
+	if len(proofs) != len(witnesses) {
+		return fmt.Errorf("mismatched proof and witness count: %d proofs, %d witnesses", len(proofs), len(witnesses))
+	}
+	if len(proofs) == 0 {
+		return fmt.Errorf("no proofs to verify")
+	}
+
+	errCh := make(chan error, len(proofs))
+	for i := range proofs {
+		go func(idx int) {
+			errCh <- groth16.Verify(proofs[idx], vk, witnesses[idx])
+		}(i)
+	}
+
+	for range proofs {
+		if err := <-errCh; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // ReadVerifyingKey reads a verifying key from a reader.
 func ReadVerifyingKey(r io.Reader) (groth16.VerifyingKey, error) {
 	vk := groth16.NewVerifyingKey(ecc.BN254)
@@ -183,4 +251,66 @@ func ReadVerifyingKey(r io.Reader) (groth16.VerifyingKey, error) {
 		return nil, fmt.Errorf("failed to read verifying key: %w", err)
 	}
 	return vk, nil
+}
+
+// CompileViewKeyCircuit compiles the ViewKeyCircuit into an R1CS constraint system.
+func CompileViewKeyCircuit() (constraint.ConstraintSystem, error) {
+	var circuit ViewKeyCircuit
+	cs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to compile view key circuit: %w", err)
+	}
+	return cs, nil
+}
+
+// SetupViewKey runs the Groth16 trusted setup for the view key circuit.
+//
+// WARNING: This uses single-party groth16.Setup() which is NOT safe for production.
+// For mainnet, use SetupFromArtifacts() with MPC ceremony keys instead.
+func SetupViewKey() (groth16.ProvingKey, groth16.VerifyingKey, constraint.ConstraintSystem, error) {
+	cs, err := CompileViewKeyCircuit()
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	pk, vk, err := groth16.Setup(cs)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to setup view key circuit: %w", err)
+	}
+
+	return pk, vk, cs, nil
+}
+
+// SetupViewKeyFromArtifacts loads MPC ceremony keys for the view key circuit.
+// This is the production-safe alternative to SetupViewKey().
+func SetupViewKeyFromArtifacts(artifactsDir string) (groth16.ProvingKey, groth16.VerifyingKey, constraint.ConstraintSystem, error) {
+	return SetupFromMPCOrFallback(artifactsDir, "viewkey", CompileViewKeyCircuit)
+}
+
+// GenerateViewKeyProof creates a Groth16 proof for a view key disclosure.
+func GenerateViewKeyProof(
+	cs constraint.ConstraintSystem,
+	pk groth16.ProvingKey,
+	assignment *ViewKeyCircuit,
+) (groth16.Proof, error) {
+	w, err := frontend.NewWitness(assignment, ecc.BN254.ScalarField())
+	if err != nil {
+		return nil, fmt.Errorf("failed to create witness: %w", err)
+	}
+
+	proof, err := groth16.Prove(cs, pk, w)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate proof: %w", err)
+	}
+
+	return proof, nil
+}
+
+// VerifyViewKeyProof verifies a Groth16 proof for a view key disclosure.
+func VerifyViewKeyProof(
+	vk groth16.VerifyingKey,
+	proof groth16.Proof,
+	publicWitness witness.Witness,
+) error {
+	return groth16.Verify(proof, vk, publicWitness)
 }

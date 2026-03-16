@@ -30,6 +30,12 @@ func (am AppModule) AutoCLIOptions() *autocliv1.ModuleOptions {
 					Short:          "Query nullifier-exists",
 					PositionalArgs: []*autocliv1.PositionalArgDescriptor{{ProtoField: "nullifier"}},
 				},
+				{
+					RpcMethod:      "RootHistory",
+					Use:            "root-history [offset] [limit]",
+					Short:          "Query paginated merkle root history",
+					PositionalArgs: []*autocliv1.PositionalArgDescriptor{{ProtoField: "offset"}, {ProtoField: "limit"}},
+				},
 
 				// this line is used by ignite scaffolding # autocli/query
 			},

@@ -18,6 +18,11 @@ import (
 )
 
 func (k msgServer) Unshield(ctx context.Context, msg *types.MsgUnshield) (*types.MsgUnshieldResponse, error) {
+	// Enforce per-block privacy transaction rate limit.
+	if err := k.CheckAndIncrementPrivacyTxCount(ctx); err != nil {
+		return nil, err
+	}
+
 	if _, err := k.addressCodec.StringToBytes(msg.Creator); err != nil {
 		return nil, errorsmod.Wrap(types.ErrInvalidAddress, "invalid creator address")
 	}
@@ -37,26 +42,36 @@ func (k msgServer) Unshield(ctx context.Context, msg *types.MsgUnshield) (*types
 	}
 
 	// Verify nullifier has not been spent.
-	nullifierHex := strings.TrimSpace(msg.Nullifier)
-	if nullifierHex == "" {
-		return nil, errorsmod.Wrap(types.ErrInvalidProof, "nullifier is empty")
-	}
-	exists, err := k.Nullifiers.Has(ctx, nullifierHex)
+	nullifierHex, _, err := k.NormalizeHex(msg.Nullifier)
 	if err != nil {
-		return nil, errorsmod.Wrap(types.ErrInvalidProof, "failed to check nullifier")
-	}
-	if exists {
-		return nil, errorsmod.Wrapf(types.ErrNullifierAlreadyUsed, "nullifier %s", nullifierHex)
+		return nil, errorsmod.Wrap(types.ErrInvalidProof, "invalid nullifier hex")
 	}
 
-	// Verify the Merkle root is valid.
-	// For unshield, we need to figure out which root to validate against.
-	// The root is embedded in the proof's public inputs. We retrieve the current root.
-	currentRoot, err := k.computeRootFromState(ctx)
-	if err != nil {
-		return nil, errorsmod.Wrap(types.ErrInvalidMerkleRoot, "failed to get current merkle root")
+	// Resolve Merkle root: if the message carries an explicit root, validate it
+	// against root history; otherwise fall back to the latest computed root.
+	var root *big.Int
+	var rootHex string
+	if msg.Root != "" {
+		rootHex = strings.ToLower(strings.TrimSpace(msg.Root))
+		has, err := k.Keeper.MerkleRoots.Has(ctx, rootHex)
+		if err != nil {
+			return nil, errorsmod.Wrap(types.ErrInvalidMerkleRoot, "failed to check root history")
+		}
+		if !has {
+			return nil, errorsmod.Wrap(types.ErrInvalidMerkleRoot, "root is not recognized in root history")
+		}
+		rootBytes, err := hex.DecodeString(rootHex)
+		if err != nil {
+			return nil, errorsmod.Wrap(types.ErrInvalidMerkleRoot, "invalid root hex")
+		}
+		root = new(big.Int).SetBytes(rootBytes)
+	} else {
+		root, err = k.computeRootFromState(ctx)
+		if err != nil {
+			return nil, err
+		}
+		rootHex = hex.EncodeToString(root.Bytes())
 	}
-	currentRootHex := hex.EncodeToString(currentRoot.Bytes())
 
 	// Deserialize the proof.
 	proofBytes, err := hex.DecodeString(msg.Proof)
@@ -69,7 +84,7 @@ func (k msgServer) Unshield(ctx context.Context, msg *types.MsgUnshield) (*types
 	}
 
 	// Parse commitment and nullifier.
-	commitmentHex := strings.TrimSpace(msg.Commitment)
+	commitmentHex := strings.ToLower(strings.TrimSpace(msg.Commitment))
 	commitmentBytes, err := hex.DecodeString(commitmentHex)
 	if err != nil {
 		return nil, errorsmod.Wrap(types.ErrInvalidCommitment, "invalid commitment hex")
@@ -85,7 +100,7 @@ func (k msgServer) Unshield(ctx context.Context, msg *types.MsgUnshield) (*types
 	publicAssignment.Nullifier = new(big.Int).SetBytes(nullifierBytes)
 	publicAssignment.Commitment = new(big.Int).SetBytes(commitmentBytes)
 	publicAssignment.Amount = new(big.Int).SetUint64(msg.Amount)
-	publicAssignment.MerkleRoot = new(big.Int).SetBytes(currentRoot.Bytes())
+	publicAssignment.MerkleRoot = root
 
 	publicWitness, err := frontend.NewWitness(&publicAssignment, ecc.BN254.ScalarField(), frontend.PublicOnly())
 	if err != nil {
@@ -93,17 +108,17 @@ func (k msgServer) Unshield(ctx context.Context, msg *types.MsgUnshield) (*types
 	}
 
 	// Verify the Groth16 proof.
-	if k.UnshieldVerifyingKey == nil {
+	if k.VKs.UnshieldVK == nil {
 		return nil, errorsmod.Wrap(types.ErrInvalidProof, "unshield verifying key not initialized")
 	}
 
-	if err := circuit.VerifyUnshieldProof(k.UnshieldVerifyingKey, proof, publicWitness); err != nil {
+	if err := circuit.VerifyUnshieldProof(k.VKs.UnshieldVK, proof, publicWitness); err != nil {
 		return nil, errorsmod.Wrap(types.ErrInvalidProof, fmt.Sprintf("proof verification failed: %v", err))
 	}
 
 	// Proof is valid. Mark nullifier as spent.
-	if err := k.Nullifiers.Set(ctx, nullifierHex, true); err != nil {
-		return nil, errorsmod.Wrap(types.ErrInvalidProof, "failed to store nullifier")
+	if err := k.ConsumeNullifiers(ctx, []string{nullifierHex}); err != nil {
+		return nil, err
 	}
 
 	// Send coins from the module account to the recipient.
@@ -121,7 +136,7 @@ func (k msgServer) Unshield(ctx context.Context, msg *types.MsgUnshield) (*types
 			sdk.NewAttribute("recipient", recipientStr),
 			sdk.NewAttribute("amount", fmt.Sprintf("%d", msg.Amount)),
 			sdk.NewAttribute("nullifier", nullifierHex),
-			sdk.NewAttribute("merkle_root", currentRootHex),
+			sdk.NewAttribute("merkle_root", rootHex),
 		),
 	)
 

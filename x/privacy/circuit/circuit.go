@@ -55,6 +55,12 @@ func (c *TransferCircuit) Define(api frontend.API) error {
 	newSum := api.Add(c.NewAmounts[0], c.NewAmounts[1])
 	api.AssertIsEqual(oldSum, newSum)
 
+	// Range proofs: constrain all amounts to [0, 2^64)
+	for i := 0; i < 2; i++ {
+		api.ToBinary(c.OldAmounts[i], 64)
+		api.ToBinary(c.NewAmounts[i], 64)
+	}
+
 	// Process each old UTXO
 	for i := 0; i < 2; i++ {
 		// 2. Recompute old commitment = MiMC(amount, blinding)
@@ -140,6 +146,9 @@ type UnshieldCircuit struct {
 
 // Define implements the gnark frontend.Circuit interface for unshielding.
 func (c *UnshieldCircuit) Define(api frontend.API) error {
+	// Range proof: constrain amount to [0, 2^64)
+	api.ToBinary(c.Amount, 64)
+
 	// 1. Verify commitment = MiMC(amount, blinding)
 	hCommit, err := mimc.NewMiMC(api)
 	if err != nil {
@@ -175,6 +184,43 @@ func (c *UnshieldCircuit) Define(api frontend.API) error {
 		current = hLevel.Sum()
 	}
 	api.AssertIsEqual(current, c.MerkleRoot)
+
+	return nil
+}
+
+// ViewKeyCircuit proves that a commitment was correctly formed from
+// a known amount and blinding factor. This enables selective disclosure:
+// a holder can prove the amount inside a commitment to an auditor
+// without revealing the blinding factor publicly.
+//
+// Public inputs:
+//   - Commitment: the Pedersen-like commitment (MiMC hash)
+//   - Amount: the disclosed amount
+//
+// Private inputs:
+//   - Blinding: the blinding factor
+type ViewKeyCircuit struct {
+	// Public inputs
+	Commitment frontend.Variable `gnark:",public"`
+	Amount     frontend.Variable `gnark:",public"`
+
+	// Private inputs
+	Blinding frontend.Variable
+}
+
+// Define implements the gnark frontend.Circuit interface for view key proofs.
+func (c *ViewKeyCircuit) Define(api frontend.API) error {
+	// Range proof: constrain amount to [0, 2^64)
+	api.ToBinary(c.Amount, 64)
+
+	// Verify commitment == MiMC(amount, blinding)
+	hCommit, err := mimc.NewMiMC(api)
+	if err != nil {
+		return err
+	}
+	hCommit.Write(c.Amount, c.Blinding)
+	computedCommitment := hCommit.Sum()
+	api.AssertIsEqual(computedCommitment, c.Commitment)
 
 	return nil
 }

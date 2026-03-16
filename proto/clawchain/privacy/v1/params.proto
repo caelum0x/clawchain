@@ -10,4 +10,8 @@ option go_package = "clawchain/x/privacy/types";
 message Params {
   option (amino.name) = "clawchain/x/privacy/Params";
   option (gogoproto.equal) = true;
+
+  // max_privacy_tx_per_block is the maximum number of privacy transactions
+  // (shield, unshield, private_transfer) allowed per block. 0 means unlimited.
+  uint64 max_privacy_tx_per_block = 1;
 }

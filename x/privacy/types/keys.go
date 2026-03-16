@@ -34,4 +34,20 @@ var (
 
 	// MerkleTreeKey is the prefix for Merkle tree nodes (keyed by "level:index" -> node bytes).
 	MerkleTreeKey = collections.NewPrefix("merkle_tree")
+
+	// ViewKeysKey is the prefix for view keys (commitment hex -> encrypted note bytes).
+	ViewKeysKey = collections.NewPrefix("view_keys")
+
+	// CommitmentIndexKey is the prefix for the commitment reverse index (commitment hex -> leaf index).
+	CommitmentIndexKey = collections.NewPrefix("commitment_index")
+
+	// RootHistoryKey is the prefix for ordered Merkle root history (index -> root hex).
+	RootHistoryKey = collections.NewPrefix("h_privacy")
+
+	// RootHistoryCountKey is the prefix for the root history sequence counter.
+	RootHistoryCountKey = collections.NewPrefix("z_privacy")
+
+	// PrivacyTxCountKey is the prefix for the per-block privacy transaction counter.
+	// Key: int64 (block height), Value: uint64 (count of privacy txs in that block).
+	PrivacyTxCountKey = collections.NewPrefix("ptx_count")
 )

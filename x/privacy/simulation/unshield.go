@@ -25,8 +25,9 @@ func SimulateMsgUnshield(
 			Creator: simAccount.Address.String(),
 		}
 
-		// TODO: Handle the Unshield simulation
+		// Unshield simulation requires a valid proof and an unspent shielded note.
+		// These values are generated off-chain and cannot be synthesized here.
 
-		return simtypes.NoOpMsg(types.ModuleName, sdk.MsgTypeURL(msg), "Unshield simulation not implemented"), nil, nil
+		return simtypes.NoOpMsg(types.ModuleName, sdk.MsgTypeURL(msg), "unshield requires off-chain zk proof inputs"), nil, nil
 	}
 }

@@ -25,8 +25,10 @@ func SimulateMsgPrivateTransfer(
 			Creator: simAccount.Address.String(),
 		}
 
-		// TODO: Handle the PrivateTransfer simulation
+		// Private transfer simulation requires valid proof material and existing
+		// shielded notes/nullifiers. Those are generated off-chain and are not
+		// available in generic simulation mode, so keep this operation as a no-op.
 
-		return simtypes.NoOpMsg(types.ModuleName, sdk.MsgTypeURL(msg), "PrivateTransfer simulation not implemented"), nil, nil
+		return simtypes.NoOpMsg(types.ModuleName, sdk.MsgTypeURL(msg), "private transfer requires off-chain zk proof inputs"), nil, nil
 	}
 }

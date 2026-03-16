@@ -17,6 +17,11 @@ import (
 )
 
 func (k msgServer) PrivateTransfer(ctx context.Context, msg *types.MsgPrivateTransfer) (*types.MsgPrivateTransferResponse, error) {
+	// Enforce per-block privacy transaction rate limit.
+	if err := k.CheckAndIncrementPrivacyTxCount(ctx); err != nil {
+		return nil, err
+	}
+
 	if _, err := k.addressCodec.StringToBytes(msg.Creator); err != nil {
 		return nil, errorsmod.Wrap(types.ErrInvalidAddress, "invalid creator address")
 	}
@@ -27,26 +32,10 @@ func (k msgServer) PrivateTransfer(ctx context.Context, msg *types.MsgPrivateTra
 		return nil, errorsmod.Wrap(types.ErrInvalidProof, "expected exactly 2 nullifiers")
 	}
 
-	// Check that nullifiers have not been used (double-spend check).
-	for _, nfHex := range nullifierHexes {
-		nfHex = strings.TrimSpace(nfHex)
-		exists, err := k.Nullifiers.Has(ctx, nfHex)
-		if err != nil {
-			return nil, errorsmod.Wrap(types.ErrInvalidProof, "failed to check nullifier")
-		}
-		if exists {
-			return nil, errorsmod.Wrapf(types.ErrNullifierAlreadyUsed, "nullifier %s", nfHex)
-		}
-	}
-
 	// Verify the Merkle root is valid.
-	rootHex := strings.TrimSpace(msg.Root)
-	rootValid, err := k.MerkleRoots.Has(ctx, rootHex)
+	rootHex, err := k.ValidateKnownRoot(ctx, msg.Root)
 	if err != nil {
-		return nil, errorsmod.Wrap(types.ErrInvalidMerkleRoot, "failed to check merkle root")
-	}
-	if !rootValid {
-		return nil, errorsmod.Wrapf(types.ErrInvalidMerkleRoot, "root %s not recognized", rootHex)
+		return nil, err
 	}
 
 	// Deserialize the Groth16 proof.
@@ -70,7 +59,7 @@ func (k msgServer) PrivateTransfer(ctx context.Context, msg *types.MsgPrivateTra
 	var publicAssignment circuit.TransferCircuit
 
 	for i, nfHex := range nullifierHexes {
-		nfHex = strings.TrimSpace(nfHex)
+		nfHex = strings.ToLower(strings.TrimSpace(nfHex))
 		nfBytes, err := hex.DecodeString(nfHex)
 		if err != nil {
 			return nil, errorsmod.Wrapf(types.ErrInvalidProof, "invalid nullifier hex: %s", nfHex)
@@ -79,7 +68,7 @@ func (k msgServer) PrivateTransfer(ctx context.Context, msg *types.MsgPrivateTra
 	}
 
 	for i, cmHex := range newCommitmentHexes {
-		cmHex = strings.TrimSpace(cmHex)
+		cmHex = strings.ToLower(strings.TrimSpace(cmHex))
 		cmBytes, err := hex.DecodeString(cmHex)
 		if err != nil {
 			return nil, errorsmod.Wrapf(types.ErrInvalidCommitment, "invalid commitment hex: %s", cmHex)
@@ -100,50 +89,29 @@ func (k msgServer) PrivateTransfer(ctx context.Context, msg *types.MsgPrivateTra
 	}
 
 	// Verify the Groth16 proof.
-	if k.TransferVerifyingKey == nil {
+	if k.VKs.TransferVK == nil {
 		return nil, errorsmod.Wrap(types.ErrInvalidProof, "transfer verifying key not initialized")
 	}
 
-	if err := circuit.VerifyTransferProof(k.TransferVerifyingKey, proof, publicWitness); err != nil {
+	if err := circuit.VerifyTransferProof(k.VKs.TransferVK, proof, publicWitness); err != nil {
 		return nil, errorsmod.Wrap(types.ErrInvalidProof, fmt.Sprintf("proof verification failed: %v", err))
 	}
 
 	// Proof is valid. Store nullifiers as spent.
-	for _, nfHex := range nullifierHexes {
-		nfHex = strings.TrimSpace(nfHex)
-		if err := k.Nullifiers.Set(ctx, nfHex, true); err != nil {
-			return nil, errorsmod.Wrap(types.ErrInvalidProof, "failed to store nullifier")
-		}
+	if err := k.ConsumeNullifiers(ctx, nullifierHexes); err != nil {
+		return nil, err
 	}
 
 	// Add new commitments to the Merkle tree.
+	lastRootHex := rootHex
 	for i, cmHex := range newCommitmentHexes {
-		cmHex = strings.TrimSpace(cmHex)
+		cmHex = strings.ToLower(strings.TrimSpace(cmHex))
 		cmBytes, _ := hex.DecodeString(cmHex)
-		commitmentVal := new(big.Int).SetBytes(cmBytes)
-
-		leafIndex, err := k.CommitmentCount.Next(ctx)
+		_, _, newRootHex, err := k.AppendCommitment(ctx, cmBytes)
 		if err != nil {
-			return nil, errorsmod.Wrapf(types.ErrInvalidCommitment, "failed to get next index for commitment %d", i)
+			return nil, errorsmod.Wrapf(err, "failed to append commitment %d", i)
 		}
-
-		if err := k.Commitments.Set(ctx, leafIndex, cmBytes); err != nil {
-			return nil, errorsmod.Wrapf(types.ErrInvalidCommitment, "failed to store commitment %d", i)
-		}
-
-		if err := k.insertLeafAndUpdateTree(ctx, leafIndex, commitmentVal); err != nil {
-			return nil, errorsmod.Wrapf(types.ErrMerkleTreeFull, "failed to insert commitment %d into tree", i)
-		}
-	}
-
-	// Compute and store the new Merkle root.
-	newRoot, err := k.computeRootFromState(ctx)
-	if err != nil {
-		return nil, errorsmod.Wrap(types.ErrInvalidCommitment, "failed to compute new merkle root")
-	}
-	newRootHex := hex.EncodeToString(newRoot.Bytes())
-	if err := k.MerkleRoots.Set(ctx, newRootHex, true); err != nil {
-		return nil, errorsmod.Wrap(types.ErrInvalidCommitment, "failed to store new merkle root")
+		lastRootHex = newRootHex
 	}
 
 	// Emit event.
@@ -154,7 +122,7 @@ func (k msgServer) PrivateTransfer(ctx context.Context, msg *types.MsgPrivateTra
 			sdk.NewAttribute("creator", msg.Creator),
 			sdk.NewAttribute("nullifiers", msg.Nullifiers),
 			sdk.NewAttribute("new_commitments", msg.NewCommitments),
-			sdk.NewAttribute("new_merkle_root", newRootHex),
+			sdk.NewAttribute("new_merkle_root", lastRootHex),
 		),
 	)
 

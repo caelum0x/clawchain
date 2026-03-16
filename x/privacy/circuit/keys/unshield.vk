@@ -1,0 +1,5 @@
+vk_type=groth16
+circuit=UnshieldCircuit
+curve=BN254
+generated_at_utc=2026-02-14T21:29:24Z
+source_transcript=artifacts/ceremony/unshield-circuit-transcript-20260214.json

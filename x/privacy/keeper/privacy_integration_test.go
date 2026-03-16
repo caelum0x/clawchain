@@ -1,9 +1,13 @@
+//go:build integration
+// +build integration
+
 package keeper_test
 
 import (
 	"context"
 	"encoding/hex"
 	"math/big"
+	"strings"
 	"testing"
 
 	storetypes "cosmossdk.io/store/types"
@@ -18,6 +22,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/mimc"
 	"github.com/consensys/gnark/backend/groth16"
+	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/frontend"
 	"github.com/stretchr/testify/require"
 
@@ -52,6 +57,15 @@ func offChainMiMCHash(left, right *big.Int) *big.Int {
 	var out big.Int
 	result.BigInt(&out)
 	return &out
+}
+
+// fixedBlinding32 returns a deterministic 32-byte blinding value for tests.
+func fixedBlinding32(seed uint64) []byte {
+	b := make([]byte, 32)
+	for i := 0; i < 8; i++ {
+		b[31-i] = byte(seed >> (8 * i))
+	}
+	return b
 }
 
 // mockBankKeeper implements types.BankKeeper for tests that exercise the
@@ -304,9 +318,10 @@ func TestShieldHandler(t *testing.T) {
 
 	// Shield 100 tokens.
 	resp, err := msgServer.Shield(f.ctx, &types.MsgShield{
-		Creator: creatorAddr,
-		Amount:  100,
-		Coins:   "stake",
+		Creator:  creatorAddr,
+		Amount:   100,
+		Coins:    "stake",
+		Blinding: fixedBlinding32(1),
 	})
 	require.NoError(t, err)
 	require.NotNil(t, resp)
@@ -337,9 +352,10 @@ func TestShieldHandlerZeroAmount(t *testing.T) {
 
 	// Shielding zero tokens should fail.
 	_, err = msgServer.Shield(f.ctx, &types.MsgShield{
-		Creator: creatorAddr,
-		Amount:  0,
-		Coins:   "stake",
+		Creator:  creatorAddr,
+		Amount:   0,
+		Coins:    "stake",
+		Blinding: fixedBlinding32(2),
 	})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "amount must be greater than zero")
@@ -354,9 +370,10 @@ func TestShieldHandlerMultiple(t *testing.T) {
 
 	// Shield twice and verify both commitments are stored with different roots.
 	_, err = msgServer.Shield(f.ctx, &types.MsgShield{
-		Creator: creatorAddr,
-		Amount:  100,
-		Coins:   "stake",
+		Creator:  creatorAddr,
+		Amount:   100,
+		Coins:    "stake",
+		Blinding: fixedBlinding32(3),
 	})
 	require.NoError(t, err)
 
@@ -365,9 +382,10 @@ func TestShieldHandlerMultiple(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = msgServer.Shield(f.ctx, &types.MsgShield{
-		Creator: creatorAddr,
-		Amount:  200,
-		Coins:   "stake",
+		Creator:  creatorAddr,
+		Amount:   200,
+		Coins:    "stake",
+		Blinding: fixedBlinding32(4),
 	})
 	require.NoError(t, err)
 
@@ -625,9 +643,10 @@ func TestMerkleRootQueryAfterShield(t *testing.T) {
 
 	// Shield tokens.
 	_, err = msgServer.Shield(f.ctx, &types.MsgShield{
-		Creator: creatorAddr,
-		Amount:  50,
-		Coins:   "stake",
+		Creator:  creatorAddr,
+		Amount:   50,
+		Coins:    "stake",
+		Blinding: fixedBlinding32(5),
 	})
 	require.NoError(t, err)
 
@@ -650,12 +669,12 @@ func TestMerkleRootConsistencyOnAndOffChain(t *testing.T) {
 	creatorAddr, err := f.addressCodec.BytesToString([]byte("cosmos1testcreator00000"))
 	require.NoError(t, err)
 
-	// Shield operation: the keeper computes commitment = MiMC(amount, blinding)
-	// where blinding = commitmentCount + 1 = 0 + 1 = 1 for the first shield.
+	// Shield operation: commitment = MiMC(amount, blinding) with test blinding.
 	_, err = msgServer.Shield(f.ctx, &types.MsgShield{
-		Creator: creatorAddr,
-		Amount:  100,
-		Coins:   "stake",
+		Creator:  creatorAddr,
+		Amount:   100,
+		Coins:    "stake",
+		Blinding: fixedBlinding32(6),
 	})
 	require.NoError(t, err)
 
@@ -665,8 +684,7 @@ func TestMerkleRootConsistencyOnAndOffChain(t *testing.T) {
 	onChainCommitment := new(big.Int).SetBytes(commitBytes)
 
 	// Compute the same commitment off-chain.
-	// From msg_server_shield.go: amount=100, blinding=commitCount+1=1
-	expectedCommitment := merkle.MiMCHashPair(big.NewInt(100), big.NewInt(1))
+	expectedCommitment := merkle.MiMCHashPair(big.NewInt(100), new(big.Int).SetUint64(6))
 	require.Equal(t, 0, expectedCommitment.Cmp(onChainCommitment),
 		"on-chain commitment should match off-chain computation")
 
@@ -751,6 +769,166 @@ func TestMerkleRootQueryNilRequest(t *testing.T) {
 // Additional: multiple nullifiers tracked independently
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// End-to-end: Shield → generate proof → Unshield (on-chain verification)
+// ---------------------------------------------------------------------------
+
+// TestUnshieldHandlerE2E exercises the full on-chain unshield flow:
+// 1. Trusted setup (generate VK/PK)
+// 2. Inject VKs into keeper via SetVerifyingKeys
+// 3. Shield tokens (creates a commitment in the on-chain Merkle tree)
+// 4. Build off-chain Merkle tree matching on-chain state
+// 5. Generate a Groth16 unshield proof
+// 6. Submit an Unshield message and verify it succeeds on-chain
+func TestUnshieldHandlerE2E(t *testing.T) {
+	f := initFixtureWithBank(t)
+
+	// --- 1. Trusted setup ---
+	_, transferVK, _, err := circuit.SetupTransfer()
+	require.NoError(t, err)
+	unshieldPK, unshieldVK, unshieldCS, err := circuit.SetupUnshield()
+	require.NoError(t, err)
+
+	// --- 2. Inject VKs into the keeper ---
+	f.keeper.SetVerifyingKeys(transferVK, unshieldVK)
+
+	msgServer := keeper.NewMsgServerImpl(f.keeper)
+
+	creatorAddr, err := f.addressCodec.BytesToString([]byte("cosmos1testcreator00000"))
+	require.NoError(t, err)
+
+	// --- 3. Shield 500 tokens ---
+	shieldAmount := uint64(500)
+	_, err = msgServer.Shield(f.ctx, &types.MsgShield{
+		Creator:  creatorAddr,
+		Amount:   shieldAmount,
+		Coins:    "stake",
+		Blinding: fixedBlinding32(7),
+	})
+	require.NoError(t, err)
+
+	// Read back the commitment stored on-chain.
+	commitBytes, err := f.keeper.Commitments.Get(f.ctx, 0)
+	require.NoError(t, err)
+	onChainCommitment := new(big.Int).SetBytes(commitBytes)
+
+	// Keep assignment blinding aligned with the test shield input.
+	amount := new(big.Int).SetUint64(shieldAmount)
+	blinding := big.NewInt(7)
+	expectedCommitment := merkle.MiMCHashPair(amount, blinding)
+	require.Equal(t, 0, expectedCommitment.Cmp(onChainCommitment), "commitment mismatch")
+
+	// --- 4. Build off-chain Merkle tree matching on-chain state ---
+	offChainTree := merkle.NewTree()
+	_, err = offChainTree.Insert(onChainCommitment)
+	require.NoError(t, err)
+
+	root := offChainTree.Root()
+	mProof, err := offChainTree.GetProof(0)
+	require.NoError(t, err)
+
+	// Verify root matches on-chain.
+	queryServer := keeper.NewQueryServerImpl(f.keeper)
+	rootResp, err := queryServer.MerkleRoot(f.ctx, &types.QueryMerkleRootRequest{})
+	require.NoError(t, err)
+	offChainRootHex := hex.EncodeToString(root.Bytes())
+	require.Equal(t, offChainRootHex, rootResp.Root, "off-chain and on-chain roots must match")
+
+	// --- 5. Generate the unshield proof ---
+	secret := big.NewInt(67890) // arbitrary secret the owner knows
+	nullifier := merkle.MiMCHashPair(secret, onChainCommitment)
+
+	var assignment circuit.UnshieldCircuit
+	assignment.Nullifier = nullifier
+	assignment.Commitment = onChainCommitment
+	assignment.Amount = amount
+	assignment.MerkleRoot = root
+	assignment.Blinding = blinding
+	assignment.Secret = secret
+	for i := 0; i < circuit.MerkleTreeDepth; i++ {
+		assignment.MerklePath[i] = mProof.Path[i]
+		assignment.MerkleIndices[i] = mProof.Indices[i]
+	}
+
+	proof, err := circuit.GenerateUnshieldProof(unshieldCS, unshieldPK, &assignment)
+	require.NoError(t, err)
+
+	proofBytes, err := circuit.SerializeProof(proof)
+	require.NoError(t, err)
+
+	// --- 6. Submit Unshield message ---
+	_, err = msgServer.Unshield(f.ctx, &types.MsgUnshield{
+		Creator:    creatorAddr,
+		Amount:     shieldAmount,
+		Proof:      hex.EncodeToString(proofBytes),
+		Nullifier:  hex.EncodeToString(nullifier.Bytes()),
+		Commitment: hex.EncodeToString(onChainCommitment.Bytes()),
+		Root:       offChainRootHex,
+	})
+	require.NoError(t, err, "unshield should succeed with a valid proof")
+
+	// Verify the nullifier was marked as spent.
+	exists, err := f.keeper.Nullifiers.Has(f.ctx, hex.EncodeToString(nullifier.Bytes()))
+	require.NoError(t, err)
+	require.True(t, exists, "nullifier should be marked spent after unshield")
+
+	// Attempting to re-use the same nullifier should fail (double-spend).
+	_, err = msgServer.Unshield(f.ctx, &types.MsgUnshield{
+		Creator:    creatorAddr,
+		Amount:     shieldAmount,
+		Proof:      hex.EncodeToString(proofBytes),
+		Nullifier:  hex.EncodeToString(nullifier.Bytes()),
+		Commitment: hex.EncodeToString(onChainCommitment.Bytes()),
+		Root:       offChainRootHex,
+	})
+	require.Error(t, err, "double-spend should be rejected")
+	require.Contains(t, err.Error(), "nullifier")
+}
+
+// ---------------------------------------------------------------------------
+// 10. Test range proof enforcement
+// ---------------------------------------------------------------------------
+
+// TestRangeProofEnforcement verifies that the UnshieldCircuit rejects amounts
+// that exceed 2^64. This confirms the range proof constraints are active.
+func TestRangeProofEnforcement(t *testing.T) {
+	// Setup keys for the unshield circuit (includes range proof constraints).
+	pk, _, cs, err := circuit.SetupUnshield()
+	require.NoError(t, err)
+
+	// Use an amount that exceeds 2^64 (2^65).
+	overflowAmount := new(big.Int).Lsh(big.NewInt(1), 65)
+	blinding := big.NewInt(12345)
+	secret := big.NewInt(67890)
+
+	commitment := merkle.MiMCHashPair(overflowAmount, blinding)
+	nullifier := merkle.MiMCHashPair(secret, commitment)
+
+	tree := merkle.NewTree()
+	leafIdx, err := tree.Insert(commitment)
+	require.NoError(t, err)
+
+	root := tree.Root()
+	mProof, err := tree.GetProof(leafIdx)
+	require.NoError(t, err)
+
+	var assignment circuit.UnshieldCircuit
+	assignment.Nullifier = nullifier
+	assignment.Commitment = commitment
+	assignment.Amount = overflowAmount
+	assignment.MerkleRoot = root
+	assignment.Blinding = blinding
+	assignment.Secret = secret
+	for i := 0; i < circuit.MerkleTreeDepth; i++ {
+		assignment.MerklePath[i] = mProof.Path[i]
+		assignment.MerkleIndices[i] = mProof.Indices[i]
+	}
+
+	// Proof generation should fail because the amount exceeds 2^64.
+	_, err = circuit.GenerateUnshieldProof(cs, pk, &assignment)
+	require.Error(t, err, "proof generation should fail for amount exceeding 2^64")
+}
+
 func TestMultipleNullifiersTrackedIndependently(t *testing.T) {
 	f := initFixture(t)
 	queryServer := keeper.NewQueryServerImpl(f.keeper)
@@ -777,4 +955,991 @@ func TestMultipleNullifiersTrackedIndependently(t *testing.T) {
 	resp, err = queryServer.NullifierExists(f.ctx, &types.QueryNullifierExistsRequest{Nullifier: nf3})
 	require.NoError(t, err)
 	require.False(t, resp.Exists)
+}
+
+// ---------------------------------------------------------------------------
+// 11. Test Unshield with historical root (root changes between proof gen and submission)
+// ---------------------------------------------------------------------------
+
+// TestUnshieldWithHistoricalRoot verifies that an unshield proof generated
+// against root1 still succeeds even after the on-chain root has moved to root2
+// (because of a subsequent shield), as long as root1 is in the historical
+// MerkleRoots store.
+func TestUnshieldWithHistoricalRoot(t *testing.T) {
+	f := initFixtureWithBank(t)
+
+	// --- 1. Trusted setup ---
+	_, transferVK, _, err := circuit.SetupTransfer()
+	require.NoError(t, err)
+	unshieldPK, unshieldVK, unshieldCS, err := circuit.SetupUnshield()
+	require.NoError(t, err)
+
+	f.keeper.SetVerifyingKeys(transferVK, unshieldVK)
+
+	msgServer := keeper.NewMsgServerImpl(f.keeper)
+
+	creatorAddr, err := f.addressCodec.BytesToString([]byte("cosmos1testcreator00000"))
+	require.NoError(t, err)
+
+	// --- 2. Shield 500 tokens → root1 ---
+	shieldAmount := uint64(500)
+	_, err = msgServer.Shield(f.ctx, &types.MsgShield{
+		Creator:  creatorAddr,
+		Amount:   shieldAmount,
+		Coins:    "stake",
+		Blinding: fixedBlinding32(8),
+	})
+	require.NoError(t, err)
+
+	// Capture root1 (the root after the first shield).
+	queryServer := keeper.NewQueryServerImpl(f.keeper)
+	rootResp1, err := queryServer.MerkleRoot(f.ctx, &types.QueryMerkleRootRequest{})
+	require.NoError(t, err)
+	root1Hex := rootResp1.Root
+
+	// Read back commitment from on-chain.
+	commitBytes, err := f.keeper.Commitments.Get(f.ctx, 0)
+	require.NoError(t, err)
+	onChainCommitment := new(big.Int).SetBytes(commitBytes)
+
+	// Build off-chain tree matching root1.
+	offChainTree := merkle.NewTree()
+	_, err = offChainTree.Insert(onChainCommitment)
+	require.NoError(t, err)
+	root1 := offChainTree.Root()
+	offChainRoot1Hex := hex.EncodeToString(root1.Bytes())
+	require.Equal(t, root1Hex, offChainRoot1Hex)
+
+	mProof, err := offChainTree.GetProof(0)
+	require.NoError(t, err)
+
+	// --- 3. Generate unshield proof against root1 ---
+	amount := new(big.Int).SetUint64(shieldAmount)
+	blinding := big.NewInt(8)
+	secret := big.NewInt(67890)
+	nullifier := merkle.MiMCHashPair(secret, onChainCommitment)
+
+	var assignment circuit.UnshieldCircuit
+	assignment.Nullifier = nullifier
+	assignment.Commitment = onChainCommitment
+	assignment.Amount = amount
+	assignment.MerkleRoot = root1
+	assignment.Blinding = blinding
+	assignment.Secret = secret
+	for i := 0; i < circuit.MerkleTreeDepth; i++ {
+		assignment.MerklePath[i] = mProof.Path[i]
+		assignment.MerkleIndices[i] = mProof.Indices[i]
+	}
+
+	proof, err := circuit.GenerateUnshieldProof(unshieldCS, unshieldPK, &assignment)
+	require.NoError(t, err)
+
+	proofBytes, err := circuit.SerializeProof(proof)
+	require.NoError(t, err)
+
+	// --- 4. Shield 200 more tokens → root changes to root2 ---
+	_, err = msgServer.Shield(f.ctx, &types.MsgShield{
+		Creator:  creatorAddr,
+		Amount:   200,
+		Coins:    "stake",
+		Blinding: fixedBlinding32(9),
+	})
+	require.NoError(t, err)
+
+	// Verify the current root is now different from root1.
+	rootResp2, err := queryServer.MerkleRoot(f.ctx, &types.QueryMerkleRootRequest{})
+	require.NoError(t, err)
+	require.NotEqual(t, root1Hex, rootResp2.Root, "current root should differ from root1 after second shield")
+
+	// --- 5. Submit Unshield with Root: root1 → should succeed ---
+	_, err = msgServer.Unshield(f.ctx, &types.MsgUnshield{
+		Creator:    creatorAddr,
+		Amount:     shieldAmount,
+		Proof:      hex.EncodeToString(proofBytes),
+		Nullifier:  hex.EncodeToString(nullifier.Bytes()),
+		Commitment: hex.EncodeToString(onChainCommitment.Bytes()),
+		Root:       root1Hex,
+	})
+	require.NoError(t, err, "unshield with historical root1 should succeed")
+
+	// Verify nullifier is spent.
+	exists, err := f.keeper.Nullifiers.Has(f.ctx, hex.EncodeToString(nullifier.Bytes()))
+	require.NoError(t, err)
+	require.True(t, exists, "nullifier should be marked spent")
+}
+
+// ---------------------------------------------------------------------------
+// 12. Test Unshield rejects empty root
+// ---------------------------------------------------------------------------
+
+func TestUnshieldRejectsEmptyRoot(t *testing.T) {
+	f := initFixtureWithBank(t)
+
+	_, transferVK, _, err := circuit.SetupTransfer()
+	require.NoError(t, err)
+	_, unshieldVK, _, err := circuit.SetupUnshield()
+	require.NoError(t, err)
+
+	f.keeper.SetVerifyingKeys(transferVK, unshieldVK)
+
+	msgServer := keeper.NewMsgServerImpl(f.keeper)
+
+	creatorAddr, err := f.addressCodec.BytesToString([]byte("cosmos1testcreator00000"))
+	require.NoError(t, err)
+
+	// Empty root falls through to latest computed root; with a bad proof the
+	// handler will fail at proof deserialization since "aabbccdd" is too short.
+	_, err = msgServer.Unshield(f.ctx, &types.MsgUnshield{
+		Creator:    creatorAddr,
+		Amount:     100,
+		Proof:      "aabbccdd",
+		Nullifier:  "11223344",
+		Commitment: "55667788",
+		Root:       "",
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "deserialize proof")
+}
+
+// ---------------------------------------------------------------------------
+// 13. Test Unshield rejects unknown root
+// ---------------------------------------------------------------------------
+
+func TestUnshieldRejectsUnknownRoot(t *testing.T) {
+	f := initFixtureWithBank(t)
+
+	_, transferVK, _, err := circuit.SetupTransfer()
+	require.NoError(t, err)
+	_, unshieldVK, _, err := circuit.SetupUnshield()
+	require.NoError(t, err)
+
+	f.keeper.SetVerifyingKeys(transferVK, unshieldVK)
+
+	msgServer := keeper.NewMsgServerImpl(f.keeper)
+
+	creatorAddr, err := f.addressCodec.BytesToString([]byte("cosmos1testcreator00000"))
+	require.NoError(t, err)
+
+	_, err = msgServer.Unshield(f.ctx, &types.MsgUnshield{
+		Creator:    creatorAddr,
+		Amount:     100,
+		Proof:      "aabbccdd",
+		Nullifier:  "11223344",
+		Commitment: "55667788",
+		Root:       "deadbeefdeadbeefdeadbeefdeadbeef",
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "not recognized in root history")
+}
+
+// ---------------------------------------------------------------------------
+// View Key / Selective Disclosure tests
+// ---------------------------------------------------------------------------
+
+func TestViewKeyCircuitCompile(t *testing.T) {
+	cs, err := circuit.CompileViewKeyCircuit()
+	require.NoError(t, err)
+	require.NotNil(t, cs)
+	t.Logf("ViewKeyCircuit compiled: %d constraints", cs.GetNbConstraints())
+}
+
+func TestViewKeyProofGenAndVerify(t *testing.T) {
+	// 1. Setup the view key circuit.
+	pk, vk, cs, err := circuit.SetupViewKey()
+	require.NoError(t, err)
+
+	// 2. Choose amount and blinding, compute commitment = MiMC(amount, blinding).
+	amount := big.NewInt(500)
+	blinding := big.NewInt(999999)
+
+	// Compute MiMC commitment off-chain.
+	commitment := offChainMiMCHash(amount, blinding)
+	t.Logf("Commitment = %s", commitment.String())
+
+	// 3. Create assignment and generate proof.
+	assignment := &circuit.ViewKeyCircuit{
+		Commitment: commitment,
+		Amount:     amount,
+		Blinding:   blinding,
+	}
+	proof, err := circuit.GenerateViewKeyProof(cs, pk, assignment)
+	require.NoError(t, err)
+
+	// 4. Build public witness and verify.
+	publicAssignment := &circuit.ViewKeyCircuit{
+		Commitment: commitment,
+		Amount:     amount,
+	}
+	publicWitness, err := frontend.NewWitness(publicAssignment, ecc.BN254.ScalarField(), frontend.PublicOnly())
+	require.NoError(t, err)
+
+	err = circuit.VerifyViewKeyProof(vk, proof, publicWitness)
+	require.NoError(t, err, "valid proof should verify")
+
+	// 5. Tamper amount → verify should fail.
+	tamperedAssignment := &circuit.ViewKeyCircuit{
+		Commitment: commitment,
+		Amount:     big.NewInt(501), // wrong amount
+	}
+	tamperedWitness, err := frontend.NewWitness(tamperedAssignment, ecc.BN254.ScalarField(), frontend.PublicOnly())
+	require.NoError(t, err)
+
+	err = circuit.VerifyViewKeyProof(vk, proof, tamperedWitness)
+	require.Error(t, err, "tampered amount should fail verification")
+}
+
+func TestRegisterViewKeySuccess(t *testing.T) {
+	f := initFixtureWithBank(t)
+	msgServer := keeper.NewMsgServerImpl(f.keeper)
+	queryServer := keeper.NewQueryServerImpl(f.keeper)
+
+	creatorAddr, err := f.addressCodec.BytesToString([]byte("cosmos1testcreator00000"))
+	require.NoError(t, err)
+
+	commitmentHex := "abcdef1234567890"
+	encryptedNote := "encrypted_note_data_here"
+
+	// Register view key.
+	resp, err := msgServer.RegisterViewKey(f.ctx, &types.MsgRegisterViewKey{
+		Creator:       creatorAddr,
+		CommitmentHex: commitmentHex,
+		EncryptedNote: encryptedNote,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+
+	// Query it back.
+	qResp, err := queryServer.ViewKey(f.ctx, &types.QueryViewKeyRequest{
+		CommitmentHex: commitmentHex,
+	})
+	require.NoError(t, err)
+	require.True(t, qResp.Found)
+	require.Equal(t, encryptedNote, qResp.EncryptedNote)
+}
+
+func TestRegisterViewKeyDuplicate(t *testing.T) {
+	f := initFixtureWithBank(t)
+	msgServer := keeper.NewMsgServerImpl(f.keeper)
+
+	creatorAddr, err := f.addressCodec.BytesToString([]byte("cosmos1testcreator00000"))
+	require.NoError(t, err)
+
+	msg := &types.MsgRegisterViewKey{
+		Creator:       creatorAddr,
+		CommitmentHex: "abcdef1234567890",
+		EncryptedNote: "note1",
+	}
+
+	// First registration succeeds.
+	_, err = msgServer.RegisterViewKey(f.ctx, msg)
+	require.NoError(t, err)
+
+	// Second registration fails.
+	_, err = msgServer.RegisterViewKey(f.ctx, msg)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "view key already exists")
+}
+
+// ---------------------------------------------------------------------------
+// Merkle tree refinement tests
+// ---------------------------------------------------------------------------
+
+func TestCommitmentIndexAfterShield(t *testing.T) {
+	f := initFixtureWithBank(t)
+	msgServer := keeper.NewMsgServerImpl(f.keeper)
+	queryServer := keeper.NewQueryServerImpl(f.keeper)
+
+	creatorAddr, err := f.addressCodec.BytesToString([]byte("cosmos1testcreator00000"))
+	require.NoError(t, err)
+
+	// Shield tokens.
+	_, err = msgServer.Shield(f.ctx, &types.MsgShield{
+		Creator:  creatorAddr,
+		Amount:   100,
+		Coins:    "stake",
+		Blinding: fixedBlinding32(10),
+	})
+	require.NoError(t, err)
+
+	// Read back the commitment hex.
+	commitBytes, err := f.keeper.Commitments.Get(f.ctx, 0)
+	require.NoError(t, err)
+	commitmentHex := hex.EncodeToString(commitBytes)
+
+	// Query CommitmentIndex.
+	resp, err := queryServer.CommitmentIndex(f.ctx, &types.QueryCommitmentIndexRequest{
+		CommitmentHex: commitmentHex,
+	})
+	require.NoError(t, err)
+	require.True(t, resp.Found)
+	require.Equal(t, uint64(0), resp.LeafIndex)
+}
+
+func TestCommitmentIndexNotFound(t *testing.T) {
+	f := initFixtureWithBank(t)
+	queryServer := keeper.NewQueryServerImpl(f.keeper)
+
+	resp, err := queryServer.CommitmentIndex(f.ctx, &types.QueryCommitmentIndexRequest{
+		CommitmentHex: "deadbeef12345678",
+	})
+	require.NoError(t, err)
+	require.False(t, resp.Found)
+}
+
+func TestMerkleProofAfterShield(t *testing.T) {
+	f := initFixtureWithBank(t)
+	msgServer := keeper.NewMsgServerImpl(f.keeper)
+	queryServer := keeper.NewQueryServerImpl(f.keeper)
+
+	creatorAddr, err := f.addressCodec.BytesToString([]byte("cosmos1testcreator00000"))
+	require.NoError(t, err)
+
+	// Shield tokens.
+	_, err = msgServer.Shield(f.ctx, &types.MsgShield{
+		Creator:  creatorAddr,
+		Amount:   100,
+		Coins:    "stake",
+		Blinding: fixedBlinding32(11),
+	})
+	require.NoError(t, err)
+
+	// Read back the commitment hex.
+	commitBytes, err := f.keeper.Commitments.Get(f.ctx, 0)
+	require.NoError(t, err)
+	commitmentHex := hex.EncodeToString(commitBytes)
+
+	// Query MerkleProof.
+	resp, err := queryServer.MerkleProof(f.ctx, &types.QueryMerkleProofRequest{
+		CommitmentHex: commitmentHex,
+	})
+	require.NoError(t, err)
+	require.True(t, resp.Found)
+	require.Equal(t, uint64(0), resp.LeafIndex)
+	require.Len(t, resp.Path, 32, "Merkle proof path should have 32 elements")
+	require.Len(t, resp.Indices, 32, "Merkle proof indices should have 32 elements")
+	require.NotEmpty(t, resp.Root)
+
+	// Verify the root matches the on-chain root.
+	rootResp, err := queryServer.MerkleRoot(f.ctx, &types.QueryMerkleRootRequest{})
+	require.NoError(t, err)
+	require.Equal(t, rootResp.Root, resp.Root)
+
+	// Verify the proof off-chain: reconstruct root from leaf + proof.
+	leaf := new(big.Int).SetBytes(commitBytes)
+	current := leaf
+	for level := 0; level < 32; level++ {
+		siblingBytes, err := hex.DecodeString(resp.Path[level])
+		require.NoError(t, err)
+		sibling := new(big.Int).SetBytes(siblingBytes)
+		if resp.Indices[level] == 0 {
+			// current is left, sibling is right
+			current = merkle.MiMCHashPair(current, sibling)
+		} else {
+			// current is right, sibling is left
+			current = merkle.MiMCHashPair(sibling, current)
+		}
+	}
+	reconstructedRootHex := hex.EncodeToString(current.Bytes())
+	require.Equal(t, resp.Root, reconstructedRootHex, "reconstructed root should match")
+}
+
+func TestMerkleProofNotFound(t *testing.T) {
+	f := initFixtureWithBank(t)
+	queryServer := keeper.NewQueryServerImpl(f.keeper)
+
+	resp, err := queryServer.MerkleProof(f.ctx, &types.QueryMerkleProofRequest{
+		CommitmentHex: "deadbeef12345678",
+	})
+	require.NoError(t, err)
+	require.False(t, resp.Found)
+}
+
+func TestTreeStatsEmpty(t *testing.T) {
+	f := initFixtureWithBank(t)
+	queryServer := keeper.NewQueryServerImpl(f.keeper)
+
+	resp, err := queryServer.TreeStats(f.ctx, &types.QueryTreeStatsRequest{})
+	require.NoError(t, err)
+	require.Equal(t, uint64(0), resp.LeafCount)
+	require.Equal(t, uint32(32), resp.TreeDepth)
+	require.NotEmpty(t, resp.CurrentRoot)
+}
+
+func TestTreeStatsAfterShields(t *testing.T) {
+	f := initFixtureWithBank(t)
+	msgServer := keeper.NewMsgServerImpl(f.keeper)
+	queryServer := keeper.NewQueryServerImpl(f.keeper)
+
+	creatorAddr, err := f.addressCodec.BytesToString([]byte("cosmos1testcreator00000"))
+	require.NoError(t, err)
+
+	// Shield twice.
+	_, err = msgServer.Shield(f.ctx, &types.MsgShield{Creator: creatorAddr, Amount: 100, Coins: "stake", Blinding: fixedBlinding32(12)})
+	require.NoError(t, err)
+	_, err = msgServer.Shield(f.ctx, &types.MsgShield{Creator: creatorAddr, Amount: 200, Coins: "stake", Blinding: fixedBlinding32(13)})
+	require.NoError(t, err)
+
+	resp, err := queryServer.TreeStats(f.ctx, &types.QueryTreeStatsRequest{})
+	require.NoError(t, err)
+	require.Equal(t, uint64(2), resp.LeafCount)
+	require.Equal(t, uint32(32), resp.TreeDepth)
+	require.NotEmpty(t, resp.CurrentRoot)
+}
+
+// ---------------------------------------------------------------------------
+// Batch verification tests
+// ---------------------------------------------------------------------------
+
+// TestBatchVerifyProofs tests the circuit-level batch verify function directly.
+func TestBatchVerifyProofs(t *testing.T) {
+	// Setup transfer circuit keys.
+	transferPK, transferVK, transferCS, err := circuit.SetupTransfer()
+	require.NoError(t, err)
+
+	// Create two valid transfer proofs.
+	tree := merkle.NewTree()
+
+	// Create 4 UTXOs (2 per transfer) with matching amounts.
+	type utxo struct {
+		amount, blinding, secret *big.Int
+		commitment               *big.Int
+		leafIdx                  uint64
+	}
+
+	createUTXO := func(amount, blinding, secret int64) utxo {
+		a := big.NewInt(amount)
+		b := big.NewInt(blinding)
+		s := big.NewInt(secret)
+		c := merkle.MiMCHashPair(a, b)
+		idx, err := tree.Insert(c)
+		require.NoError(t, err)
+		return utxo{a, b, s, c, idx}
+	}
+
+	// UTXOs for transfer 1: spend u0+u1 (300+200=500) → create new (250+250)
+	u0 := createUTXO(300, 1001, 2001)
+	u1 := createUTXO(200, 1002, 2002)
+	// UTXOs for transfer 2: spend u2+u3 (400+100=500) → create new (350+150)
+	u2 := createUTXO(400, 1003, 2003)
+	u3 := createUTXO(100, 1004, 2004)
+
+	root := tree.Root()
+
+	makeProof := func(old0, old1 utxo, newAmt0, newAmt1 int64) (groth16.Proof, witness.Witness) {
+		newBlinding0 := big.NewInt(5001)
+		newBlinding1 := big.NewInt(5002)
+		newCommit0 := merkle.MiMCHashPair(big.NewInt(newAmt0), newBlinding0)
+		newCommit1 := merkle.MiMCHashPair(big.NewInt(newAmt1), newBlinding1)
+		null0 := merkle.MiMCHashPair(old0.secret, old0.commitment)
+		null1 := merkle.MiMCHashPair(old1.secret, old1.commitment)
+
+		var assignment circuit.TransferCircuit
+		assignment.OldNullifiers[0] = null0
+		assignment.OldNullifiers[1] = null1
+		assignment.NewCommitments[0] = newCommit0
+		assignment.NewCommitments[1] = newCommit1
+		assignment.MerkleRoot = root
+		assignment.OldAmounts[0] = old0.amount
+		assignment.OldAmounts[1] = old1.amount
+		assignment.OldBlindings[0] = old0.blinding
+		assignment.OldBlindings[1] = old1.blinding
+		assignment.OldSecrets[0] = old0.secret
+		assignment.OldSecrets[1] = old1.secret
+		assignment.NewAmounts[0] = big.NewInt(newAmt0)
+		assignment.NewAmounts[1] = big.NewInt(newAmt1)
+		assignment.NewBlindings[0] = newBlinding0
+		assignment.NewBlindings[1] = newBlinding1
+
+		for i, u := range []utxo{old0, old1} {
+			proof, err := tree.GetProof(u.leafIdx)
+			require.NoError(t, err)
+			for j := 0; j < circuit.MerkleTreeDepth; j++ {
+				assignment.MerklePaths[i][j] = proof.Path[j]
+				assignment.MerkleIndices[i][j] = proof.Indices[j]
+			}
+		}
+
+		proof, err := circuit.GenerateTransferProof(transferCS, transferPK, &assignment)
+		require.NoError(t, err)
+
+		var pubAssignment circuit.TransferCircuit
+		pubAssignment.OldNullifiers[0] = null0
+		pubAssignment.OldNullifiers[1] = null1
+		pubAssignment.NewCommitments[0] = newCommit0
+		pubAssignment.NewCommitments[1] = newCommit1
+		pubAssignment.MerkleRoot = root
+
+		pubWitness, err := frontend.NewWitness(&pubAssignment, ecc.BN254.ScalarField(), frontend.PublicOnly())
+		require.NoError(t, err)
+		return proof, pubWitness
+	}
+
+	proof1, wit1 := makeProof(u0, u1, 250, 250)
+	proof2, wit2 := makeProof(u2, u3, 350, 150)
+
+	// Batch verify both valid proofs should succeed.
+	err = circuit.BatchVerifyTransferProofs(transferVK, []groth16.Proof{proof1, proof2}, []witness.Witness{wit1, wit2})
+	require.NoError(t, err, "batch verify with valid proofs should succeed")
+
+	// Tamper one witness → batch verify should fail.
+	// Create a bad witness with wrong root.
+	var badAssignment circuit.TransferCircuit
+	badAssignment.OldNullifiers[0] = big.NewInt(999)
+	badAssignment.OldNullifiers[1] = big.NewInt(998)
+	badAssignment.NewCommitments[0] = big.NewInt(997)
+	badAssignment.NewCommitments[1] = big.NewInt(996)
+	badAssignment.MerkleRoot = big.NewInt(1) // wrong root
+	badWit, err := frontend.NewWitness(&badAssignment, ecc.BN254.ScalarField(), frontend.PublicOnly())
+	require.NoError(t, err)
+
+	err = circuit.BatchVerifyTransferProofs(transferVK, []groth16.Proof{proof1, proof2}, []witness.Witness{wit1, badWit})
+	require.Error(t, err, "batch verify with tampered witness should fail")
+}
+
+// TestPrivateTransferSuccess exercises the single-transfer handler end-to-end.
+func TestPrivateTransferSuccess(t *testing.T) {
+	f := initFixtureWithBank(t)
+
+	transferPK, transferVK, transferCS, err := circuit.SetupTransfer()
+	require.NoError(t, err)
+	_, unshieldVK, _, err := circuit.SetupUnshield()
+	require.NoError(t, err)
+	f.keeper.SetVerifyingKeys(transferVK, unshieldVK)
+
+	msgServer := keeper.NewMsgServerImpl(f.keeper)
+	creatorAddr, err := f.addressCodec.BytesToString([]byte("cosmos1testcreator00000"))
+	require.NoError(t, err)
+
+	require.NoError(t, f.keeper.Params.Set(f.ctx, types.DefaultParams()))
+
+	// Shield two UTXOs that will be consumed by the private transfer.
+	_, err = msgServer.Shield(f.ctx, &types.MsgShield{
+		Creator:  creatorAddr,
+		Amount:   250,
+		Coins:    "stake",
+		Blinding: fixedBlinding32(41),
+	})
+	require.NoError(t, err)
+	_, err = msgServer.Shield(f.ctx, &types.MsgShield{
+		Creator:  creatorAddr,
+		Amount:   350,
+		Coins:    "stake",
+		Blinding: fixedBlinding32(42),
+	})
+	require.NoError(t, err)
+
+	type utxoInfo struct {
+		amount, blinding *big.Int
+		commitment       *big.Int
+		leafIdx          uint64
+	}
+
+	offChainTree := merkle.NewTree()
+	utxos := make([]utxoInfo, 2)
+	for i := uint64(0); i < 2; i++ {
+		commitBytes, getErr := f.keeper.Commitments.Get(f.ctx, i)
+		require.NoError(t, getErr)
+		commit := new(big.Int).SetBytes(commitBytes)
+		idx, insErr := offChainTree.Insert(commit)
+		require.NoError(t, insErr)
+		utxos[i] = utxoInfo{
+			amount:     new(big.Int).SetUint64([]uint64{250, 350}[i]),
+			blinding:   new(big.Int).SetUint64([]uint64{41, 42}[i]),
+			commitment: commit,
+			leafIdx:    idx,
+		}
+	}
+
+	root := offChainTree.Root()
+	secret0 := big.NewInt(11001)
+	secret1 := big.NewInt(11002)
+	newBlinding0 := big.NewInt(12001)
+	newBlinding1 := big.NewInt(12002)
+	newAmount0 := big.NewInt(300)
+	newAmount1 := big.NewInt(300)
+	newCommit0 := merkle.MiMCHashPair(newAmount0, newBlinding0)
+	newCommit1 := merkle.MiMCHashPair(newAmount1, newBlinding1)
+	null0 := merkle.MiMCHashPair(secret0, utxos[0].commitment)
+	null1 := merkle.MiMCHashPair(secret1, utxos[1].commitment)
+
+	var assignment circuit.TransferCircuit
+	assignment.OldNullifiers[0] = null0
+	assignment.OldNullifiers[1] = null1
+	assignment.NewCommitments[0] = newCommit0
+	assignment.NewCommitments[1] = newCommit1
+	assignment.MerkleRoot = root
+	assignment.OldAmounts[0] = utxos[0].amount
+	assignment.OldAmounts[1] = utxos[1].amount
+	assignment.OldBlindings[0] = utxos[0].blinding
+	assignment.OldBlindings[1] = utxos[1].blinding
+	assignment.OldSecrets[0] = secret0
+	assignment.OldSecrets[1] = secret1
+	assignment.NewAmounts[0] = newAmount0
+	assignment.NewAmounts[1] = newAmount1
+	assignment.NewBlindings[0] = newBlinding0
+	assignment.NewBlindings[1] = newBlinding1
+
+	for i, u := range utxos {
+		proof, proofErr := offChainTree.GetProof(u.leafIdx)
+		require.NoError(t, proofErr)
+		for j := 0; j < circuit.MerkleTreeDepth; j++ {
+			assignment.MerklePaths[i][j] = proof.Path[j]
+			assignment.MerkleIndices[i][j] = proof.Indices[j]
+		}
+	}
+
+	proof, err := circuit.GenerateTransferProof(transferCS, transferPK, &assignment)
+	require.NoError(t, err)
+	proofBytes, err := circuit.SerializeProof(proof)
+	require.NoError(t, err)
+
+	_, err = msgServer.PrivateTransfer(f.ctx, &types.MsgPrivateTransfer{
+		Creator:        creatorAddr,
+		Nullifiers:     hex.EncodeToString(null0.Bytes()) + "," + hex.EncodeToString(null1.Bytes()),
+		Root:           hex.EncodeToString(root.Bytes()),
+		Proof:          hex.EncodeToString(proofBytes),
+		NewCommitments: hex.EncodeToString(newCommit0.Bytes()) + "," + hex.EncodeToString(newCommit1.Bytes()),
+	})
+	require.NoError(t, err)
+
+	// Nullifiers should be marked as spent.
+	exists, err := f.keeper.Nullifiers.Has(f.ctx, hex.EncodeToString(null0.Bytes()))
+	require.NoError(t, err)
+	require.True(t, exists)
+	exists, err = f.keeper.Nullifiers.Has(f.ctx, hex.EncodeToString(null1.Bytes()))
+	require.NoError(t, err)
+	require.True(t, exists)
+
+	// 2 original commitments + 2 new commitments.
+	queryServer := keeper.NewQueryServerImpl(f.keeper)
+	statsResp, err := queryServer.TreeStats(f.ctx, &types.QueryTreeStatsRequest{})
+	require.NoError(t, err)
+	require.Equal(t, uint64(4), statsResp.LeafCount)
+}
+
+// TestBatchPrivateTransferSuccess tests a successful batch transfer via the handler.
+func TestBatchPrivateTransferSuccess(t *testing.T) {
+	f := initFixtureWithBank(t)
+
+	// Setup keys.
+	transferPK, transferVK, transferCS, err := circuit.SetupTransfer()
+	require.NoError(t, err)
+	_, unshieldVK, _, err := circuit.SetupUnshield()
+	require.NoError(t, err)
+	f.keeper.SetVerifyingKeys(transferVK, unshieldVK)
+
+	msgServer := keeper.NewMsgServerImpl(f.keeper)
+	creatorAddr, err := f.addressCodec.BytesToString([]byte("cosmos1testcreator00000"))
+	require.NoError(t, err)
+
+	// Shield 4 UTXOs.
+	for i := 0; i < 4; i++ {
+		_, err = msgServer.Shield(f.ctx, &types.MsgShield{
+			Creator:  creatorAddr,
+			Amount:   uint64(100 * (i + 1)), // 100, 200, 300, 400
+			Coins:    "stake",
+			Blinding: fixedBlinding32(uint64(20 + i)),
+		})
+		require.NoError(t, err)
+	}
+
+	// Build off-chain tree matching on-chain state.
+	offChainTree := merkle.NewTree()
+	type utxoInfo struct {
+		amount, blinding *big.Int
+		commitment       *big.Int
+		leafIdx          uint64
+	}
+	utxos := make([]utxoInfo, 4)
+	for i := uint64(0); i < 4; i++ {
+		commitBytes, err := f.keeper.Commitments.Get(f.ctx, i)
+		require.NoError(t, err)
+		commit := new(big.Int).SetBytes(commitBytes)
+		idx, err := offChainTree.Insert(commit)
+		require.NoError(t, err)
+		utxos[i] = utxoInfo{
+			amount:     new(big.Int).SetUint64(uint64(100 * (i + 1))),
+			blinding:   new(big.Int).SetUint64(uint64(20 + i)),
+			commitment: commit,
+			leafIdx:    idx,
+		}
+	}
+
+	root := offChainTree.Root()
+	queryServer := keeper.NewQueryServerImpl(f.keeper)
+	rootResp, err := queryServer.MerkleRoot(f.ctx, &types.QueryMerkleRootRequest{})
+	require.NoError(t, err)
+	require.Equal(t, hex.EncodeToString(root.Bytes()), rootResp.Root)
+
+	// Build 2 transfers:
+	// Transfer 1: spend utxos[0]+utxos[1] (100+200=300) → create 150+150
+	// Transfer 2: spend utxos[2]+utxos[3] (300+400=700) → create 400+300
+	buildTransferEntry := func(old0, old1 utxoInfo, newAmt0, newAmt1 int64, secret0, secret1 *big.Int, newBl0, newBl1 *big.Int) *types.BatchTransferEntry {
+		newCommit0 := merkle.MiMCHashPair(big.NewInt(newAmt0), newBl0)
+		newCommit1 := merkle.MiMCHashPair(big.NewInt(newAmt1), newBl1)
+		null0 := merkle.MiMCHashPair(secret0, old0.commitment)
+		null1 := merkle.MiMCHashPair(secret1, old1.commitment)
+
+		var assignment circuit.TransferCircuit
+		assignment.OldNullifiers[0] = null0
+		assignment.OldNullifiers[1] = null1
+		assignment.NewCommitments[0] = newCommit0
+		assignment.NewCommitments[1] = newCommit1
+		assignment.MerkleRoot = root
+		assignment.OldAmounts[0] = old0.amount
+		assignment.OldAmounts[1] = old1.amount
+		assignment.OldBlindings[0] = old0.blinding
+		assignment.OldBlindings[1] = old1.blinding
+		assignment.OldSecrets[0] = secret0
+		assignment.OldSecrets[1] = secret1
+		assignment.NewAmounts[0] = big.NewInt(newAmt0)
+		assignment.NewAmounts[1] = big.NewInt(newAmt1)
+		assignment.NewBlindings[0] = newBl0
+		assignment.NewBlindings[1] = newBl1
+
+		for i, u := range []utxoInfo{old0, old1} {
+			proof, err := offChainTree.GetProof(u.leafIdx)
+			require.NoError(t, err)
+			for j := 0; j < circuit.MerkleTreeDepth; j++ {
+				assignment.MerklePaths[i][j] = proof.Path[j]
+				assignment.MerkleIndices[i][j] = proof.Indices[j]
+			}
+		}
+
+		proof, err := circuit.GenerateTransferProof(transferCS, transferPK, &assignment)
+		require.NoError(t, err)
+		proofBytes, err := circuit.SerializeProof(proof)
+		require.NoError(t, err)
+
+		return &types.BatchTransferEntry{
+			OldCommitments: hex.EncodeToString(old0.commitment.Bytes()) + "," + hex.EncodeToString(old1.commitment.Bytes()),
+			NewCommitments: hex.EncodeToString(newCommit0.Bytes()) + "," + hex.EncodeToString(newCommit1.Bytes()),
+			Nullifiers:     hex.EncodeToString(null0.Bytes()) + "," + hex.EncodeToString(null1.Bytes()),
+			Root:           hex.EncodeToString(root.Bytes()),
+			Proof:          hex.EncodeToString(proofBytes),
+		}
+	}
+
+	entry1 := buildTransferEntry(utxos[0], utxos[1], 150, 150, big.NewInt(9001), big.NewInt(9002), big.NewInt(6001), big.NewInt(6002))
+	entry2 := buildTransferEntry(utxos[2], utxos[3], 400, 300, big.NewInt(9003), big.NewInt(9004), big.NewInt(6003), big.NewInt(6004))
+
+	// Submit batch.
+	_, err = msgServer.BatchPrivateTransfer(f.ctx, &types.MsgBatchPrivateTransfer{
+		Creator:   creatorAddr,
+		Transfers: []types.BatchTransferEntry{*entry1, *entry2},
+	})
+	require.NoError(t, err, "batch private transfer should succeed")
+
+	// Verify nullifiers are spent.
+	for _, entry := range []*types.BatchTransferEntry{entry1, entry2} {
+		for _, nfHex := range strings.Split(entry.Nullifiers, ",") {
+			exists, err := f.keeper.Nullifiers.Has(f.ctx, strings.TrimSpace(nfHex))
+			require.NoError(t, err)
+			require.True(t, exists, "nullifier should be spent")
+		}
+	}
+
+	// Verify new commitments were added (4 original + 4 new = 8 total).
+	statsResp, err := queryServer.TreeStats(f.ctx, &types.QueryTreeStatsRequest{})
+	require.NoError(t, err)
+	require.Equal(t, uint64(8), statsResp.LeafCount)
+}
+
+// TestBatchPrivateTransferDuplicateNullifier tests that duplicate nullifiers within a batch are rejected.
+func TestBatchPrivateTransferDuplicateNullifier(t *testing.T) {
+	f := initFixtureWithBank(t)
+
+	transferPK, transferVK, transferCS, err := circuit.SetupTransfer()
+	require.NoError(t, err)
+	_, unshieldVK, _, err := circuit.SetupUnshield()
+	require.NoError(t, err)
+	f.keeper.SetVerifyingKeys(transferVK, unshieldVK)
+
+	msgServer := keeper.NewMsgServerImpl(f.keeper)
+	creatorAddr, err := f.addressCodec.BytesToString([]byte("cosmos1testcreator00000"))
+	require.NoError(t, err)
+
+	// Shield 2 UTXOs.
+	for i := 0; i < 2; i++ {
+		_, err = msgServer.Shield(f.ctx, &types.MsgShield{
+			Creator:  creatorAddr,
+			Amount:   uint64(200),
+			Coins:    "stake",
+			Blinding: fixedBlinding32(uint64(30 + i)),
+		})
+		require.NoError(t, err)
+	}
+
+	// Build off-chain tree.
+	offChainTree := merkle.NewTree()
+	type utxoInfo struct {
+		amount, blinding *big.Int
+		commitment       *big.Int
+		leafIdx          uint64
+	}
+	utxos := make([]utxoInfo, 2)
+	for i := uint64(0); i < 2; i++ {
+		commitBytes, err := f.keeper.Commitments.Get(f.ctx, i)
+		require.NoError(t, err)
+		commit := new(big.Int).SetBytes(commitBytes)
+		idx, err := offChainTree.Insert(commit)
+		require.NoError(t, err)
+		utxos[i] = utxoInfo{
+			amount:     big.NewInt(200),
+			blinding:   new(big.Int).SetUint64(uint64(30 + i)),
+			commitment: commit,
+			leafIdx:    idx,
+		}
+	}
+	root := offChainTree.Root()
+
+	// Build a valid transfer entry.
+	secret0 := big.NewInt(7001)
+	secret1 := big.NewInt(7002)
+	null0 := merkle.MiMCHashPair(secret0, utxos[0].commitment)
+	null1 := merkle.MiMCHashPair(secret1, utxos[1].commitment)
+	newBl0, newBl1 := big.NewInt(8001), big.NewInt(8002)
+	newCommit0 := merkle.MiMCHashPair(big.NewInt(200), newBl0)
+	newCommit1 := merkle.MiMCHashPair(big.NewInt(200), newBl1)
+
+	var assignment circuit.TransferCircuit
+	assignment.OldNullifiers[0] = null0
+	assignment.OldNullifiers[1] = null1
+	assignment.NewCommitments[0] = newCommit0
+	assignment.NewCommitments[1] = newCommit1
+	assignment.MerkleRoot = root
+	assignment.OldAmounts[0] = utxos[0].amount
+	assignment.OldAmounts[1] = utxos[1].amount
+	assignment.OldBlindings[0] = utxos[0].blinding
+	assignment.OldBlindings[1] = utxos[1].blinding
+	assignment.OldSecrets[0] = secret0
+	assignment.OldSecrets[1] = secret1
+	assignment.NewAmounts[0] = big.NewInt(200)
+	assignment.NewAmounts[1] = big.NewInt(200)
+	assignment.NewBlindings[0] = newBl0
+	assignment.NewBlindings[1] = newBl1
+
+	for i, u := range utxos {
+		proof, err := offChainTree.GetProof(u.leafIdx)
+		require.NoError(t, err)
+		for j := 0; j < circuit.MerkleTreeDepth; j++ {
+			assignment.MerklePaths[i][j] = proof.Path[j]
+			assignment.MerkleIndices[i][j] = proof.Indices[j]
+		}
+	}
+
+	proof, err := circuit.GenerateTransferProof(transferCS, transferPK, &assignment)
+	require.NoError(t, err)
+	proofBytes, err := circuit.SerializeProof(proof)
+	require.NoError(t, err)
+
+	// Create the same entry twice (same nullifiers) to trigger duplicate detection.
+	entry := &types.BatchTransferEntry{
+		OldCommitments: hex.EncodeToString(utxos[0].commitment.Bytes()) + "," + hex.EncodeToString(utxos[1].commitment.Bytes()),
+		NewCommitments: hex.EncodeToString(newCommit0.Bytes()) + "," + hex.EncodeToString(newCommit1.Bytes()),
+		Nullifiers:     hex.EncodeToString(null0.Bytes()) + "," + hex.EncodeToString(null1.Bytes()),
+		Root:           hex.EncodeToString(root.Bytes()),
+		Proof:          hex.EncodeToString(proofBytes),
+	}
+
+	_, err = msgServer.BatchPrivateTransfer(f.ctx, &types.MsgBatchPrivateTransfer{
+		Creator:   creatorAddr,
+		Transfers: []types.BatchTransferEntry{*entry, *entry},
+	})
+	require.Error(t, err, "duplicate nullifiers within batch should be rejected")
+	require.Contains(t, err.Error(), "duplicate nullifier")
+}
+
+// TestBatchPrivateTransferEmpty tests that an empty batch is rejected.
+func TestBatchPrivateTransferEmpty(t *testing.T) {
+	f := initFixtureWithBank(t)
+
+	_, transferVK, _, err := circuit.SetupTransfer()
+	require.NoError(t, err)
+	_, unshieldVK, _, err := circuit.SetupUnshield()
+	require.NoError(t, err)
+	f.keeper.SetVerifyingKeys(transferVK, unshieldVK)
+
+	msgServer := keeper.NewMsgServerImpl(f.keeper)
+	creatorAddr, err := f.addressCodec.BytesToString([]byte("cosmos1testcreator00000"))
+	require.NoError(t, err)
+
+	_, err = msgServer.BatchPrivateTransfer(f.ctx, &types.MsgBatchPrivateTransfer{
+		Creator:   creatorAddr,
+		Transfers: []types.BatchTransferEntry{},
+	})
+	require.Error(t, err, "empty batch should be rejected")
+	require.Contains(t, err.Error(), "at least 1 transfer")
+}
+
+// TestBatchPrivateTransferTooLarge tests that a batch exceeding the maximum size is rejected.
+func TestBatchPrivateTransferTooLarge(t *testing.T) {
+	f := initFixtureWithBank(t)
+
+	_, transferVK, _, err := circuit.SetupTransfer()
+	require.NoError(t, err)
+	_, unshieldVK, _, err := circuit.SetupUnshield()
+	require.NoError(t, err)
+	f.keeper.SetVerifyingKeys(transferVK, unshieldVK)
+
+	msgServer := keeper.NewMsgServerImpl(f.keeper)
+	creatorAddr, err := f.addressCodec.BytesToString([]byte("cosmos1testcreator00000"))
+	require.NoError(t, err)
+
+	// Create 17 dummy entries (exceeds max of 16).
+	entries := make([]types.BatchTransferEntry, 17)
+
+	_, err = msgServer.BatchPrivateTransfer(f.ctx, &types.MsgBatchPrivateTransfer{
+		Creator:   creatorAddr,
+		Transfers: entries,
+	})
+	require.Error(t, err, "batch exceeding max size should be rejected")
+	require.Contains(t, err.Error(), "exceeds maximum")
+}
+
+func TestVerifyAmountProofOnChain(t *testing.T) {
+	f := initFixtureWithBank(t)
+	queryServer := keeper.NewQueryServerImpl(f.keeper)
+
+	// Setup view key circuit and set VK on keeper.
+	pk, vk, cs, err := circuit.SetupViewKey()
+	require.NoError(t, err)
+	f.keeper.SetViewKeyVerifyingKey(vk)
+
+	// Compute commitment = MiMC(amount, blinding).
+	amount := big.NewInt(1000)
+	blinding := big.NewInt(777777)
+	commitment := offChainMiMCHash(amount, blinding)
+	commitmentHex := hex.EncodeToString(commitment.Bytes())
+
+	// Generate proof off-chain.
+	assignment := &circuit.ViewKeyCircuit{
+		Commitment: commitment,
+		Amount:     amount,
+		Blinding:   blinding,
+	}
+	proof, err := circuit.GenerateViewKeyProof(cs, pk, assignment)
+	require.NoError(t, err)
+
+	// Serialize proof.
+	proofBytes, err := circuit.SerializeProof(proof)
+	require.NoError(t, err)
+
+	// Verify via keeper query.
+	resp, err := queryServer.VerifyAmountProof(f.ctx, &types.QueryVerifyAmountProofRequest{
+		CommitmentHex: commitmentHex,
+		Amount:        1000,
+		Proof:         proofBytes,
+	})
+	require.NoError(t, err)
+	require.True(t, resp.Valid, "valid proof should be accepted")
+
+	// Verify with wrong amount fails.
+	resp, err = queryServer.VerifyAmountProof(f.ctx, &types.QueryVerifyAmountProofRequest{
+		CommitmentHex: commitmentHex,
+		Amount:        999, // wrong
+		Proof:         proofBytes,
+	})
+	require.NoError(t, err)
+	require.False(t, resp.Valid, "wrong amount should fail")
 }

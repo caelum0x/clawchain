@@ -26,6 +26,42 @@ service Query {
   rpc NullifierExists(QueryNullifierExistsRequest) returns (QueryNullifierExistsResponse) {
     option (google.api.http).get = "/clawchain/privacy/v1/nullifier_exists/{nullifier}";
   }
+
+  // RootHistory queries an ordered range of historical Merkle roots.
+  rpc RootHistory(QueryRootHistoryRequest) returns (QueryRootHistoryResponse) {
+    option (google.api.http) = {
+      get: "/clawchain/privacy/v1/root_history/{offset}/{limit}"
+      additional_bindings {
+        get: "/clawchain/privacy/v1/root_history"
+      }
+    };
+  }
+
+  // ViewKey queries an encrypted note by commitment.
+  rpc ViewKey(QueryViewKeyRequest) returns (QueryViewKeyResponse) {
+    option (google.api.http).get = "/clawchain/privacy/v1/view_key/{commitment_hex}";
+  }
+
+  // VerifyAmountProof verifies an amount disclosure proof for a commitment.
+  rpc VerifyAmountProof(QueryVerifyAmountProofRequest) returns (QueryVerifyAmountProofResponse) {
+    option (google.api.http).post = "/clawchain/privacy/v1/verify_amount_proof";
+    option (google.api.http).body = "*";
+  }
+
+  // MerkleProof queries a Merkle proof for a commitment.
+  rpc MerkleProof(QueryMerkleProofRequest) returns (QueryMerkleProofResponse) {
+    option (google.api.http).get = "/clawchain/privacy/v1/merkle_proof/{commitment_hex}";
+  }
+
+  // CommitmentIndex queries a commitment leaf index.
+  rpc CommitmentIndex(QueryCommitmentIndexRequest) returns (QueryCommitmentIndexResponse) {
+    option (google.api.http).get = "/clawchain/privacy/v1/commitment_index/{commitment_hex}";
+  }
+
+  // TreeStats queries Merkle tree statistics.
+  rpc TreeStats(QueryTreeStatsRequest) returns (QueryTreeStatsResponse) {
+    option (google.api.http).get = "/clawchain/privacy/v1/tree_stats";
+  }
 }
 
 // QueryParamsRequest is request type for the Query/Params RPC method.
@@ -56,4 +92,63 @@ message QueryNullifierExistsRequest {
 // QueryNullifierExistsResponse defines the QueryNullifierExistsResponse message.
 message QueryNullifierExistsResponse {
   bool exists = 1;
+}
+
+message QueryRootHistoryRequest {
+  uint64 offset = 1;
+  uint64 limit = 2;
+}
+
+message QueryRootHistoryResponse {
+  repeated string roots = 1;
+  uint64 next_offset = 2;
+  uint64 total = 3;
+}
+
+message QueryViewKeyRequest {
+  string commitment_hex = 1;
+}
+
+message QueryViewKeyResponse {
+  string encrypted_note = 1;
+  bool found = 2;
+}
+
+message QueryVerifyAmountProofRequest {
+  string commitment_hex = 1;
+  uint64 amount = 2;
+  bytes proof = 3;
+}
+
+message QueryVerifyAmountProofResponse {
+  bool valid = 1;
+}
+
+message QueryMerkleProofRequest {
+  string commitment_hex = 1;
+}
+
+message QueryMerkleProofResponse {
+  uint64 leaf_index = 1;
+  repeated string path = 2;
+  repeated uint64 indices = 3;
+  string root = 4;
+  bool found = 5;
+}
+
+message QueryCommitmentIndexRequest {
+  string commitment_hex = 1;
+}
+
+message QueryCommitmentIndexResponse {
+  uint64 leaf_index = 1;
+  bool found = 2;
+}
+
+message QueryTreeStatsRequest {}
+
+message QueryTreeStatsResponse {
+  uint64 leaf_count = 1;
+  string current_root = 2;
+  uint32 tree_depth = 3;
 }

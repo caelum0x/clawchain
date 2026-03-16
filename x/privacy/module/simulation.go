@@ -30,7 +30,7 @@ func (am AppModule) RegisterStoreDecoder(_ simtypes.StoreDecoderRegistry) {}
 func (am AppModule) WeightedOperations(simState module.SimulationState) []simtypes.WeightedOperation {
 	operations := make([]simtypes.WeightedOperation, 0)
 	const (
-		opWeightMsgPrivateTransfer          = "op_weight_msg_privacy"
+		opWeightMsgPrivateTransfer          = "op_weight_msg_private_transfer"
 		defaultWeightMsgPrivateTransfer int = 100
 	)
 
@@ -45,7 +45,7 @@ func (am AppModule) WeightedOperations(simState module.SimulationState) []simtyp
 		privacysimulation.SimulateMsgPrivateTransfer(am.authKeeper, am.bankKeeper, am.keeper, simState.TxConfig),
 	))
 	const (
-		opWeightMsgShield          = "op_weight_msg_privacy"
+		opWeightMsgShield          = "op_weight_msg_shield"
 		defaultWeightMsgShield int = 100
 	)
 
@@ -60,7 +60,7 @@ func (am AppModule) WeightedOperations(simState module.SimulationState) []simtyp
 		privacysimulation.SimulateMsgShield(am.authKeeper, am.bankKeeper, am.keeper, simState.TxConfig),
 	))
 	const (
-		opWeightMsgUnshield          = "op_weight_msg_privacy"
+		opWeightMsgUnshield          = "op_weight_msg_unshield"
 		defaultWeightMsgUnshield int = 100
 	)
 

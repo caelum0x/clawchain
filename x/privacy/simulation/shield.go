@@ -21,12 +21,18 @@ func SimulateMsgShield(
 	return func(r *rand.Rand, app *baseapp.BaseApp, ctx sdk.Context, accs []simtypes.Account, chainID string,
 	) (simtypes.OperationMsg, []simtypes.FutureOperation, error) {
 		simAccount, _ := simtypes.RandomAcc(r, accs)
+		msgSrv := keeper.NewMsgServerImpl(k)
 		msg := &types.MsgShield{
 			Creator: simAccount.Address.String(),
+			Amount:  uint64(r.Intn(10) + 1),
+			Coins:   "stake",
 		}
 
-		// TODO: Handle the Shield simulation
+		_, err := msgSrv.Shield(sdk.WrapSDKContext(ctx), msg)
+		if err != nil {
+			return simtypes.NewOperationMsg(msg, false, err.Error()), nil, nil
+		}
 
-		return simtypes.NoOpMsg(types.ModuleName, sdk.MsgTypeURL(msg), "Shield simulation not implemented"), nil, nil
+		return simtypes.NewOperationMsg(msg, true, ""), nil, nil
 	}
 }

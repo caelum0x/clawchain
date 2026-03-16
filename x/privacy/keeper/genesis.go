@@ -35,10 +35,10 @@ func (k Keeper) InitGenesis(ctx context.Context, genState types.GenesisState) er
 		return fmt.Errorf("failed to store initial merkle root node: %w", err)
 	}
 
-	// Store the initial root in the MerkleRoots valid set.
+	// Store the initial root in valid root set and ordered root history.
 	rootHex := hex.EncodeToString(zeroHashes[merkle.Depth].Bytes())
-	if err := k.MerkleRoots.Set(ctx, rootHex, true); err != nil {
-		return fmt.Errorf("failed to store initial merkle root: %w", err)
+	if err := k.recordRootTransition(ctx, rootHex); err != nil {
+		return fmt.Errorf("failed to store initial merkle root transition: %w", err)
 	}
 
 	return nil

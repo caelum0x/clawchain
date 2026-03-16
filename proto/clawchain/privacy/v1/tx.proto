@@ -26,6 +26,12 @@ service Msg {
 
   // Unshield defines the Unshield RPC.
   rpc Unshield(MsgUnshield) returns (MsgUnshieldResponse);
+
+  // RegisterViewKey defines the RegisterViewKey RPC.
+  rpc RegisterViewKey(MsgRegisterViewKey) returns (MsgRegisterViewKeyResponse);
+
+  // BatchPrivateTransfer defines the BatchPrivateTransfer RPC.
+  rpc BatchPrivateTransfer(MsgBatchPrivateTransfer) returns (MsgBatchPrivateTransferResponse);
 }
 
 // MsgUpdateParams is the Msg/UpdateParams request type.
@@ -69,6 +75,9 @@ message MsgShield {
   string creator = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
   uint64 amount = 2;
   string coins = 3;
+  // blinding is a 32-byte cryptographic random blinding factor provided by the client.
+  // This MUST be generated client-side using a CSPRNG. Empty blinding is rejected.
+  bytes blinding = 4;
 }
 
 // MsgShieldResponse defines the MsgShieldResponse message.
@@ -83,7 +92,38 @@ message MsgUnshield {
   string proof = 4;
   uint64 amount = 5;
   string recipient = 6;
+  string root = 7;
 }
 
 // MsgUnshieldResponse defines the MsgUnshieldResponse message.
 message MsgUnshieldResponse {}
+
+// MsgRegisterViewKey defines the message for registering an encrypted note view key.
+message MsgRegisterViewKey {
+  option (cosmos.msg.v1.signer) = "creator";
+  string creator = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  string commitment_hex = 2;
+  string encrypted_note = 3;
+}
+
+// MsgRegisterViewKeyResponse defines the response for MsgRegisterViewKey.
+message MsgRegisterViewKeyResponse {}
+
+// BatchTransferEntry represents a single transfer inside a batch submission.
+message BatchTransferEntry {
+  string old_commitments = 1;
+  string new_commitments = 2;
+  string nullifiers = 3;
+  string root = 4;
+  string proof = 5;
+}
+
+// MsgBatchPrivateTransfer defines the message for batched private transfers.
+message MsgBatchPrivateTransfer {
+  option (cosmos.msg.v1.signer) = "creator";
+  string creator = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  repeated BatchTransferEntry transfers = 2 [(gogoproto.nullable) = false];
+}
+
+// MsgBatchPrivateTransferResponse defines the response for MsgBatchPrivateTransfer.
+message MsgBatchPrivateTransferResponse {}

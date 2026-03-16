@@ -2,7 +2,6 @@ package keeper
 
 import (
 	"context"
-	"strings"
 
 	"clawchain/x/privacy/types"
 
@@ -15,9 +14,9 @@ func (q queryServer) NullifierExists(ctx context.Context, req *types.QueryNullif
 		return nil, status.Error(codes.InvalidArgument, "invalid request")
 	}
 
-	nullifierHex := strings.TrimSpace(req.Nullifier)
-	if nullifierHex == "" {
-		return nil, status.Error(codes.InvalidArgument, "nullifier is empty")
+	nullifierHex, _, err := q.k.NormalizeHex(req.Nullifier)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid nullifier hex")
 	}
 
 	// Check if the nullifier exists in the spent nullifier set.
