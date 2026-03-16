@@ -26,6 +26,7 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/types/module"
 	"github.com/cosmos/cosmos-sdk/x/auth"
+	ante "github.com/cosmos/cosmos-sdk/x/auth/ante"
 	authkeeper "github.com/cosmos/cosmos-sdk/x/auth/keeper"
 	authsims "github.com/cosmos/cosmos-sdk/x/auth/simulation"
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
@@ -46,7 +47,9 @@ import (
 	ibctransferkeeper "github.com/cosmos/ibc-go/v10/modules/apps/transfer/keeper"
 	ibckeeper "github.com/cosmos/ibc-go/v10/modules/core/keeper"
 
+	"github.com/CosmWasm/wasmd/x/wasm"
 	wasmkeeper "github.com/CosmWasm/wasmd/x/wasm/keeper"
+	wasmtypes "github.com/CosmWasm/wasmd/x/wasm/types"
 
 	"clawchain/docs"
 	tokenfactorykeeper "clawchain/x/tokenfactory/keeper"
@@ -264,6 +267,39 @@ func New(
 	if err := app.registerTokenFactoryModule(); err != nil {
 		panic(err)
 	}
+
+	// Read wasm node config for the ante handler simulation gas limit.
+	wasmConfig, err := wasm.ReadNodeConfig(appOpts)
+	if err != nil {
+		panic(err)
+	}
+
+	// Set up the custom ante handler chain with IBC, CosmWasm, and circuit breaker support.
+	anteHandlerOptions := HandlerOptions{
+		HandlerOptions: ante.HandlerOptions{
+			AccountKeeper:   app.AuthKeeper,
+			BankKeeper:      app.BankKeeper,
+			SignModeHandler: app.txConfig.SignModeHandler(),
+		},
+		IBCKeeper:             app.IBCKeeper,
+		WasmConfig:            &wasmConfig,
+		WasmKeeper:            &app.WasmKeeper,
+		TXCounterStoreService: runtime.NewKVStoreService(app.GetKey(wasmtypes.StoreKey)),
+		CircuitKeeper:         &app.CircuitBreakerKeeper,
+		StakingKeeper:         app.StakingKeeper,
+	}
+
+	anteHandler, err := NewAnteHandler(anteHandlerOptions)
+	if err != nil {
+		panic(err)
+	}
+	app.SetAnteHandler(anteHandler)
+
+	postHandler, err := NewPostHandler(anteHandlerOptions)
+	if err != nil {
+		panic(err)
+	}
+	app.SetPostHandler(postHandler)
 
 	/****  Module Options ****/
 
