@@ -794,7 +794,7 @@ These directories add nothing to ClawChain. They are unmodified forks with zero 
 | P18 Oracle Client Surface | `x/oracle`, `cmd/clawd`, `sdk/`, `web/` | **DONE** | Full gRPC QueryServer (6 RPCs) + MsgServer (4 RPCs) + REST gateway. clawd oracle: 8 subcommands. SDK: 6 client methods + 9 types + 6 constants. Web: Oracle dashboard page. tokenfactory tests added (8 tests). |
 | P19 Production Hardening | `app/` | **DONE** | Custom ante handler (18 decorators), params (46 msg weights), keepers (init docs, perms), genesis (state, validation, WASM import), tests (11 ante + 6 app + 5 security). app/ 2.2K → 3.7K lines. |
 | P20 Paradigm Integration | alloy, solar, data-portal | **DONE** | alloy-clawchain crate, solar-clawchain crate (Solidity↔CosmWasm mapping), 5 data-portal datasets |
-| P21 Completeness Pass | `x/`, `sdk/`, `monitoring/` | **IN PROGRESS** | tokenfactory autocli, missing migrations, SDK negotiate methods, Grafana dashboards, script permissions |
+| P21 Completeness Pass | `x/`, `sdk/`, `monitoring/` | **DONE** | tokenfactory autocli, 3 missing migrations, oracle whitelist param, SDK negotiate methods, 2 Grafana dashboards (agent-economy + marketplace-privacy), 162 scripts made executable, NATS in Docker, 6 GPU E2E tests |
 | Mobile Wallet | `claw-wallet-mobile/` | **DONE** | Rebranded Oko → Claw Wallet (101 files). Chain config injected (mainnet+testnet). Default enabled chain. |
 | ~~reth/~~ | ~~`reth/`~~ | **DELETE** | Completely unmodified Paradigm fork. Zero ClawChain code. Ethereum client, irrelevant to Cosmos SDK chain |
 | ~~claw-viem/, claw-wagmi/~~ | — | **DELETED** | Empty/unused packages removed |
