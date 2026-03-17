@@ -1,0 +1,404 @@
+# ClawChain Prometheus Alerting Rules
+# Phase 13 Track C - Production Observability
+#
+# These rules monitor CometBFT consensus, system resources, and chain health.
+# Metric names follow the standard CometBFT / Cosmos SDK naming conventions.
+
+groups:
+  # =========================================================
+  # Chain Health Alerts
+  # =========================================================
+  - name: clawchain_chain_health
+    rules:
+      # -------------------------------------------------------
+      # ChainHalted - No new blocks produced for over 60 seconds
+      # Severity: critical
+      # Runbook: docs/observability.md#chainhalted
+      # -------------------------------------------------------
+      - alert: ChainHalted
+        expr: |
+          increase(cometbft_consensus_height[2m]) == 0
+        for: 60s
+        labels:
+          severity: critical
+          chain_id: "clawchain-1"
+        annotations:
+          summary: "Chain has halted - no new blocks in 60s"
+          description: >-
+            The consensus height has not increased in the last 60 seconds.
+            This indicates that the chain may have halted. Immediate
+            investigation is required.
+          runbook: "docs/observability.md#chainhalted"
+
+      # -------------------------------------------------------
+      # SlowBlockTime - Average block time exceeds 10 seconds
+      # Severity: warning
+      # Runbook: docs/observability.md#slowblocktime
+      # -------------------------------------------------------
+      - alert: SlowBlockTime
+        expr: |
+          rate(cometbft_consensus_height[5m]) > 0
+            and
+          (
+            increase(cometbft_consensus_block_interval_seconds_sum[5m])
+            /
+            increase(cometbft_consensus_block_interval_seconds_count[5m])
+          ) > 10
+        for: 120s
+        labels:
+          severity: warning
+          chain_id: "clawchain-1"
+        annotations:
+          summary: "Block time is slow (>10s average)"
+          description: >-
+            The average block interval over the last 5 minutes exceeds
+            10 seconds. This may indicate network congestion, insufficient
+            validator participation, or infrastructure degradation.
+          runbook: "docs/observability.md#slowblocktime"
+
+      # -------------------------------------------------------
+      # ConsensusRoundHigh - Consensus round exceeds 2
+      # Severity: warning
+      # Runbook: docs/observability.md#consensusroundhigh
+      # -------------------------------------------------------
+      - alert: ConsensusRoundHigh
+        expr: |
+          cometbft_consensus_rounds > 2
+        for: 60s
+        labels:
+          severity: warning
+          chain_id: "clawchain-1"
+        annotations:
+          summary: "Consensus round is high (>2)"
+          description: >-
+            The current consensus round has exceeded 2. Multiple rounds
+            indicate that validators are failing to reach consensus promptly.
+            Check for network partitions or validator downtime.
+          runbook: "docs/observability.md#consensusroundhigh"
+
+      # -------------------------------------------------------
+      # TxPoolBacklog - Mempool exceeds 1000 transactions
+      # Severity: warning
+      # Runbook: docs/observability.md#txpoolbacklog
+      # -------------------------------------------------------
+      - alert: TxPoolBacklog
+        expr: |
+          cometbft_mempool_size > 1000
+        for: 120s
+        labels:
+          severity: warning
+          chain_id: "clawchain-1"
+        annotations:
+          summary: "Mempool backlog is high (>1000 txs)"
+          description: >-
+            The mempool contains more than 1000 pending transactions.
+            This may indicate that block production cannot keep up with
+            transaction submission rate. Consider increasing block gas
+            limits or investigating slow block production.
+          runbook: "docs/observability.md#txpoolbacklog"
+
+  # =========================================================
+  # Validator Alerts
+  # =========================================================
+  - name: clawchain_validator
+    rules:
+      # -------------------------------------------------------
+      # MissedBlocks - Validator missed >10 blocks in window
+      # Severity: warning
+      # Runbook: docs/observability.md#missedblocks
+      # -------------------------------------------------------
+      - alert: MissedBlocks
+        expr: |
+          increase(cometbft_consensus_missing_validators_power[10m]) > 10
+        for: 60s
+        labels:
+          severity: warning
+          chain_id: "clawchain-1"
+        annotations:
+          summary: "Validator has missed >10 blocks in the signing window"
+          description: >-
+            A validator has missed more than 10 blocks in the recent
+            signing window. Continued misses will lead to jailing and
+            slashing. Check the validator node health, connectivity, and
+            signing key availability.
+          runbook: "docs/observability.md#missedblocks"
+
+  # =========================================================
+  # Network Alerts
+  # =========================================================
+  - name: clawchain_network
+    rules:
+      # -------------------------------------------------------
+      # PeerCountLow - Fewer than 3 connected peers
+      # Severity: warning
+      # Runbook: docs/observability.md#peercountlow
+      # -------------------------------------------------------
+      - alert: PeerCountLow
+        expr: |
+          cometbft_p2p_peers < 3
+        for: 300s
+        labels:
+          severity: warning
+          chain_id: "clawchain-1"
+        annotations:
+          summary: "Peer count is low (<3 peers)"
+          description: >-
+            The node has fewer than 3 connected peers. Low peer count
+            increases the risk of network isolation and delayed block
+            propagation. Verify seed/persistent peer configuration and
+            network connectivity.
+          runbook: "docs/observability.md#peercountlow"
+
+      # -------------------------------------------------------
+      # PeerChurnDetected - Connected peer count flaps heavily
+      # Severity: warning
+      # Runbook: docs/incident-runbook.md#operate-while-isolated
+      # -------------------------------------------------------
+      - alert: PeerChurnDetected
+        expr: |
+          changes(cometbft_p2p_peers[10m]) > 20
+        for: 120s
+        labels:
+          severity: warning
+          chain_id: "clawchain-1"
+        annotations:
+          summary: "Peer churn is high (>20 peer-count changes in 10m)"
+          description: >-
+            Connected peer count is changing rapidly, which can indicate
+            unstable peering, network partition behavior, or seed churn.
+            Validate seed health and run peer maintenance.
+          runbook: "docs/incident-runbook.md#operate-while-isolated"
+
+  # =========================================================
+  # Incident SLA Alerts
+  # =========================================================
+  - name: clawchain_incident_sla
+    rules:
+      # -------------------------------------------------------
+      # IncidentAckSlaP1Breached - P1 ack over 60 minutes
+      # Severity: critical
+      # Runbook: docs/support-community-pipeline.md
+      # -------------------------------------------------------
+      - alert: IncidentAckSlaP1Breached
+        expr: |
+          max(clawchain_incident_ack_minutes{severity="P1"}) > 60
+        for: 60s
+        labels:
+          severity: critical
+          chain_id: "clawchain-1"
+        annotations:
+          summary: "P1 incident acknowledgement SLA breached (>60m)"
+          description: >-
+            At least one P1 incident exceeded the 60-minute acknowledgement
+            threshold. Escalate immediately per launch-week operations policy.
+          runbook: "docs/support-community-pipeline.md"
+
+      # -------------------------------------------------------
+      # IncidentAckSlaP2Breached - P2 ack over 24 hours
+      # Severity: warning
+      # Runbook: docs/support-community-pipeline.md
+      # -------------------------------------------------------
+      - alert: IncidentAckSlaP2Breached
+        expr: |
+          max(clawchain_incident_ack_minutes{severity="P2"}) > 1440
+        for: 120s
+        labels:
+          severity: warning
+          chain_id: "clawchain-1"
+        annotations:
+          summary: "P2 incident acknowledgement SLA breached (>24h)"
+          description: >-
+            At least one P2 incident exceeded the 24-hour acknowledgement
+            threshold. Ensure owner assignment and publish mitigation ETA.
+          runbook: "docs/support-community-pipeline.md"
+
+  # =========================================================
+  # Oracle Module Alerts
+  # =========================================================
+  - name: clawchain_oracle
+    rules:
+      # -------------------------------------------------------
+      # OraclePriceStale - No price update for over 60 blocks
+      # Severity: warning
+      # -------------------------------------------------------
+      - alert: OraclePriceStale
+        expr: |
+          clawchain_oracle_last_update_height > 0
+            and
+          (cometbft_consensus_height - clawchain_oracle_last_update_height) > 60
+        for: 120s
+        labels:
+          severity: warning
+          chain_id: "clawchain-1"
+        annotations:
+          summary: "Oracle price feed is stale (>60 blocks without update)"
+          description: >-
+            An oracle price feed has not been updated for over 60 blocks.
+            Check if validators are submitting prevotes/votes. Stale prices
+            can cause incorrect DEX swaps and liquidations.
+
+      # -------------------------------------------------------
+      # OracleHighMissRate - Validator missing >50% of vote windows
+      # Severity: warning
+      # -------------------------------------------------------
+      - alert: OracleHighMissRate
+        expr: |
+          clawchain_oracle_miss_counter > 0
+            and
+          increase(clawchain_oracle_miss_counter[30m]) > 50
+        for: 300s
+        labels:
+          severity: warning
+          chain_id: "clawchain-1"
+        annotations:
+          summary: "Oracle validator miss rate is high (>50 misses in 30m)"
+          description: >-
+            A validator has missed more than 50 oracle vote windows in the
+            last 30 minutes. This may lead to oracle slashing. Check the
+            feeder process connectivity and price source availability.
+
+      # -------------------------------------------------------
+      # OracleNoActiveFeeders - Zero active oracle feeders
+      # Severity: critical
+      # -------------------------------------------------------
+      - alert: OracleNoActiveFeeders
+        expr: |
+          clawchain_oracle_active_feeders == 0
+        for: 120s
+        labels:
+          severity: critical
+          chain_id: "clawchain-1"
+        annotations:
+          summary: "No active oracle feeders - price feeds will halt"
+          description: >-
+            There are zero active oracle feeders. Without feeders, no price
+            updates will occur, breaking DEX pricing, liquidations, and any
+            functionality that depends on oracle data.
+
+  # =========================================================
+  # Agent Module Alerts
+  # =========================================================
+  - name: clawchain_agent
+    rules:
+      # -------------------------------------------------------
+      # AgentMiningRewardsDepleted - Mining reward pool low
+      # Severity: warning
+      # -------------------------------------------------------
+      - alert: AgentMiningRewardsDepleted
+        expr: |
+          clawchain_agent_mining_pool_balance < 1000000
+        for: 300s
+        labels:
+          severity: warning
+          chain_id: "clawchain-1"
+        annotations:
+          summary: "Agent mining reward pool is nearly depleted (<1 CLAW)"
+          description: >-
+            The agent mining reward pool has less than 1 CLAW remaining.
+            Active agents will stop receiving mining rewards. Check the
+            inflation parameters and mint module configuration.
+
+      # -------------------------------------------------------
+      # AgentLivenessDropoff - Active agents dropped significantly
+      # Severity: warning
+      # -------------------------------------------------------
+      - alert: AgentLivenessDropoff
+        expr: |
+          clawchain_agent_active_count > 0
+            and
+          (
+            clawchain_agent_active_count
+            /
+            clawchain_agent_active_count offset 1h
+          ) < 0.5
+        for: 300s
+        labels:
+          severity: warning
+          chain_id: "clawchain-1"
+        annotations:
+          summary: "Active agent count dropped by >50% in the last hour"
+          description: >-
+            More than half of previously active agents have gone offline.
+            This may indicate a network issue, software bug, or coordinated
+            shutdown. Check agent heartbeat logs and network connectivity.
+
+  # =========================================================
+  # Privacy Module Alerts
+  # =========================================================
+  - name: clawchain_privacy
+    rules:
+      # -------------------------------------------------------
+      # PrivacyPoolImbalance - Shielded pool balance mismatch
+      # Severity: critical
+      # -------------------------------------------------------
+      - alert: PrivacyPoolImbalance
+        expr: |
+          abs(clawchain_privacy_pool_expected - clawchain_privacy_pool_actual) > 1000000
+        for: 60s
+        labels:
+          severity: critical
+          chain_id: "clawchain-1"
+        annotations:
+          summary: "Privacy pool balance mismatch detected (>1 CLAW difference)"
+          description: >-
+            The shielded privacy pool balance does not match expected values.
+            This could indicate a critical bug in shield/unshield accounting.
+            Halt the privacy module immediately and investigate.
+
+  # =========================================================
+  # System Resource Alerts
+  # =========================================================
+  - name: clawchain_system_resources
+    rules:
+      # -------------------------------------------------------
+      # HighMemoryUsage - clawchaind process using >80% of system memory
+      # Severity: warning
+      # Requires: node_exporter running
+      # Runbook: docs/observability.md#highmemoryusage
+      # -------------------------------------------------------
+      - alert: HighMemoryUsage
+        expr: |
+          (
+            1 - (
+              node_memory_MemAvailable_bytes
+              /
+              node_memory_MemTotal_bytes
+            )
+          ) * 100 > 80
+        for: 300s
+        labels:
+          severity: warning
+          chain_id: "clawchain-1"
+        annotations:
+          summary: "Memory usage is high (>80%)"
+          description: >-
+            System memory usage has exceeded 80% for 5 minutes. The
+            clawchaind process may be at risk of OOM termination.
+            Consider increasing available memory, enabling swap, or
+            investigating memory leaks.
+          runbook: "docs/observability.md#highmemoryusage"
+
+      # -------------------------------------------------------
+      # DiskSpaceLow - Less than 10% free disk space
+      # Severity: critical
+      # Requires: node_exporter running
+      # Runbook: docs/observability.md#diskspacelow
+      # -------------------------------------------------------
+      - alert: DiskSpaceLow
+        expr: |
+          (
+            node_filesystem_avail_bytes{mountpoint="/"}
+            /
+            node_filesystem_size_bytes{mountpoint="/"}
+          ) * 100 < 10
+        for: 300s
+        labels:
+          severity: critical
+          chain_id: "clawchain-1"
+        annotations:
+          summary: "Disk space is critically low (<10% free)"
+          description: >-
+            Less than 10% of disk space remains on the root filesystem.
+            The node will halt if it runs out of disk. Prune old state,
+            compact the database, or expand storage immediately.
+          runbook: "docs/observability.md#diskspacelow"

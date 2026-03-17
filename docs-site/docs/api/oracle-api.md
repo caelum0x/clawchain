@@ -14,7 +14,7 @@ The Oracle module provides decentralized price feeds from validator-submitted ex
 
 ## Query Endpoints
 
-### GET /clawchain/oracle/v1/price/{denom_pair}
+### GET /clawchain/oracle/v1/price/\{denom_pair\}
 
 Returns the current spot price and TWAP for a specific denom pair.
 
@@ -76,7 +76,7 @@ Returns current prices for all whitelisted denom pairs.
 
 ---
 
-### GET /clawchain/oracle/v1/price_history/{denom_pair}
+### GET /clawchain/oracle/v1/price_history/\{denom_pair\}
 
 Returns historical price records for a denom pair, ordered by block height descending.
 
@@ -149,7 +149,7 @@ Returns the oracle module parameters.
 
 ---
 
-### GET /clawchain/oracle/v1/feeder/{validator}
+### GET /clawchain/oracle/v1/feeder/\{validator\}
 
 Returns the delegated feeder address for a validator. If no feeder has been delegated, the validator's own operator address is returned.
 
@@ -176,7 +176,7 @@ Returns the delegated feeder address for a validator. If no feeder has been dele
 
 ---
 
-### GET /clawchain/oracle/v1/miss/{validator}
+### GET /clawchain/oracle/v1/miss/\{validator\}
 
 Returns the miss counter for a validator in the current slash window. The counter resets at the end of each slash window.
 

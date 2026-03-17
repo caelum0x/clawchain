@@ -136,7 +136,7 @@ Governance-controlled parameter update. Requires authority (typically the govern
 
 ## REST API Endpoints
 
-### GET /clawchain/oracle/v1/price/{denom_pair}
+### GET /clawchain/oracle/v1/price/\{denom_pair\}
 
 Returns the current spot price and TWAP for a specific denom pair.
 
@@ -187,7 +187,7 @@ Returns current prices for all whitelisted denom pairs.
 }
 ```
 
-### GET /clawchain/oracle/v1/price_history/{denom_pair}?limit=N
+### GET /clawchain/oracle/v1/price_history/\{denom_pair\}?limit=N
 
 Returns historical price records for a denom pair, ordered by block height descending.
 
@@ -249,7 +249,7 @@ Returns the oracle module parameters.
 }
 ```
 
-### GET /clawchain/oracle/v1/feeder/{validator}
+### GET /clawchain/oracle/v1/feeder/\{validator\}
 
 Returns the delegated feeder address for a validator.
 
@@ -267,7 +267,7 @@ Returns the delegated feeder address for a validator.
 }
 ```
 
-### GET /clawchain/oracle/v1/miss/{validator}
+### GET /clawchain/oracle/v1/miss/\{validator\}
 
 Returns the miss counter for a validator in the current slash window.
 
