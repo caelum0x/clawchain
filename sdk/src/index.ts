@@ -209,6 +209,12 @@ export {
   REST_ORACLE_PARAMS,
   REST_ORACLE_FEEDER,
   REST_ORACLE_MISS,
+  MSG_PROPOSE_NEGOTIATION_TYPE_URL,
+  MSG_COUNTER_NEGOTIATION_TYPE_URL,
+  MSG_ACCEPT_NEGOTIATION_TYPE_URL,
+  MSG_REJECT_NEGOTIATION_TYPE_URL,
+  REST_NEGOTIATION,
+  REST_NEGOTIATIONS_BY_AGENT,
 } from "./constants.js";
 
 // Types – re-export everything
@@ -385,6 +391,16 @@ export type {
   PortfolioSummary,
   AgentEarnings,
   LeaderboardEntry,
+  // Negotiation types
+  NegotiationTerms,
+  NegotiationRound,
+  Negotiation,
+  NegotiationResponse,
+  NegotiationsResponse,
+  MsgProposeNegotiationParams,
+  MsgCounterNegotiationParams,
+  MsgAcceptNegotiationParams,
+  MsgRejectNegotiationParams,
   // Oracle module types
   OraclePrice,
   OraclePriceResponse,

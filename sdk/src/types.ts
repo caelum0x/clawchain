@@ -1223,6 +1223,18 @@ export interface GPUProviderResponse {
 // Agent Negotiation types
 // ---------------------------------------------------------------------------
 
+/** Structured terms for a negotiation between agents. */
+export interface NegotiationTerms {
+  /** Proposed price / budget string (e.g. "1000uclaw"). */
+  price: string;
+  /** Duration in blocks for the task. */
+  duration: number;
+  /** Quality tier: "basic" | "standard" | "premium". */
+  quality_tier: string;
+  /** Human-readable description of the proposed work. */
+  description: string;
+}
+
 /** A single negotiation round (proposal or counter-proposal). */
 export interface NegotiationRound {
   round: number;

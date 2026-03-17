@@ -1,0 +1,398 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "ClawChain Agent Economy - Agent registrations, tasks, rewards, and heartbeat monitoring",
+  "editable": true,
+  "gnetId": null,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "Agent Overview",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Total number of currently registered agents on the chain",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 5 },
+              { "color": "green", "value": 20 }
+            ]
+          },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 1 },
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "title": "Active Agents Count",
+      "type": "gauge",
+      "targets": [
+        {
+          "expr": "clawchain_agent_registered_total - clawchain_agent_deregistered_total",
+          "legendFormat": "Active Agents",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Agent registrations over time (cumulative and rate)",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisLabel": "",
+            "drawStyle": "line",
+            "fillOpacity": 15,
+            "gradientMode": "none",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "auto",
+            "spanNulls": false
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 6, "y": 1 },
+      "id": 2,
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "multi" }
+      },
+      "title": "Agent Registrations Over Time",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "clawchain_agent_registered_total",
+          "legendFormat": "Total Registered",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(clawchain_agent_registered_total[5m]) * 60",
+          "legendFormat": "Registrations/min",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Total tasks completed across all agents",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "blue", "value": null },
+              { "color": "green", "value": 100 }
+            ]
+          },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 1 },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "title": "Tasks Completed",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "clawchain_agent_tasks_completed_total",
+          "legendFormat": "Completed",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 9 },
+      "id": 101,
+      "title": "Rewards & Economy",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Cumulative mining rewards distributed to agents over time",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisLabel": "uclaw",
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "gradientMode": "scheme",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 10 },
+      "id": 4,
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "multi" }
+      },
+      "title": "Mining Rewards Distributed",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "clawchain_agent_rewards_distributed_total",
+          "legendFormat": "Total Rewards (uclaw)",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(clawchain_agent_rewards_distributed_total[5m]) * 300",
+          "legendFormat": "Rewards per 5m",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Rate of agent heartbeat messages received by the chain",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisLabel": "heartbeats/min",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "auto",
+            "spanNulls": false
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 10 },
+      "id": 5,
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "multi" }
+      },
+      "title": "Agent Heartbeat Rate",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "rate(clawchain_agent_heartbeat_total[5m]) * 60",
+          "legendFormat": "Heartbeats/min",
+          "refId": "A"
+        },
+        {
+          "expr": "clawchain_agent_heartbeat_total",
+          "legendFormat": "Cumulative Heartbeats",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 18 },
+      "id": 102,
+      "title": "Task Metrics",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Percentage of delegated tasks that were accepted by agents",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 50 },
+              { "color": "green", "value": 80 }
+            ]
+          },
+          "min": 0,
+          "max": 100,
+          "unit": "percent"
+        }
+      },
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 19 },
+      "id": 6,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "title": "Task Acceptance Rate",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "(clawchain_agent_tasks_accepted_total / clamp_min(clawchain_agent_tasks_delegated_total, 1)) * 100",
+          "legendFormat": "Acceptance %",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Tasks delegated, accepted, and completed over time",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisLabel": "",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "auto",
+            "spanNulls": false
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 19 },
+      "id": 7,
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "multi" }
+      },
+      "title": "Task Lifecycle",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "clawchain_agent_tasks_delegated_total",
+          "legendFormat": "Delegated",
+          "refId": "A"
+        },
+        {
+          "expr": "clawchain_agent_tasks_accepted_total",
+          "legendFormat": "Accepted",
+          "refId": "B"
+        },
+        {
+          "expr": "clawchain_agent_tasks_completed_total",
+          "legendFormat": "Completed",
+          "refId": "C"
+        }
+      ]
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Negotiations proposed, accepted, and rejected",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisLabel": "",
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 19 },
+      "id": 8,
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "multi" }
+      },
+      "title": "Negotiation Outcomes",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "rate(clawchain_agent_negotiation_proposed_total[5m]) * 60",
+          "legendFormat": "Proposed/min",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(clawchain_agent_negotiation_accepted_total[5m]) * 60",
+          "legendFormat": "Accepted/min",
+          "refId": "B"
+        },
+        {
+          "expr": "rate(clawchain_agent_negotiation_rejected_total[5m]) * 60",
+          "legendFormat": "Rejected/min",
+          "refId": "C"
+        }
+      ]
+    }
+  ],
+  "refresh": "15s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["clawchain", "agent", "economy"],
+  "templating": { "list": [] },
+  "time": { "from": "now-6h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "ClawChain - Agent Economy",
+  "uid": "clawchain-agent-economy",
+  "version": 1
+}

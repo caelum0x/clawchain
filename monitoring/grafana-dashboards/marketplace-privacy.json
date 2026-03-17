@@ -1,0 +1,451 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "ClawChain Marketplace & Privacy - Skills, escrows, GPU jobs, privacy pool, and oracle feeds",
+  "editable": true,
+  "gnetId": null,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "Marketplace",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Total number of skills currently listed on the marketplace",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "blue", "value": null },
+              { "color": "green", "value": 10 }
+            ]
+          },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 1 },
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "title": "Skills Listed",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "clawchain_marketplace_skills_listed_total - clawchain_marketplace_skills_delisted_total",
+          "legendFormat": "Active Skills",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Skill purchase transactions over time",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisLabel": "",
+            "drawStyle": "line",
+            "fillOpacity": 15,
+            "gradientMode": "none",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "auto",
+            "spanNulls": false
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 6, "y": 1 },
+      "id": 2,
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "multi" }
+      },
+      "title": "Skill Purchases",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "clawchain_marketplace_purchases_total",
+          "legendFormat": "Total Purchases",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(clawchain_marketplace_purchases_total[5m]) * 60",
+          "legendFormat": "Purchases/min",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Total value locked in active marketplace escrows over time",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisLabel": "uclaw",
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "gradientMode": "scheme",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 1 },
+      "id": 3,
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "multi" }
+      },
+      "title": "Escrow Volume",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "clawchain_marketplace_escrow_locked_total",
+          "legendFormat": "Locked (uclaw)",
+          "refId": "A"
+        },
+        {
+          "expr": "clawchain_marketplace_escrow_released_total",
+          "legendFormat": "Released (uclaw)",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Number of GPU compute jobs currently in active state",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 50 },
+              { "color": "red", "value": 100 }
+            ]
+          },
+          "min": 0,
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 6 },
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "title": "GPU Jobs Active",
+      "type": "gauge",
+      "targets": [
+        {
+          "expr": "clawchain_marketplace_compute_jobs_active",
+          "legendFormat": "Active Jobs",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 11 },
+      "id": 101,
+      "title": "Privacy Pool",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Current total value locked in the shielded privacy pool",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "purple", "value": null },
+              { "color": "blue", "value": 1000000 },
+              { "color": "green", "value": 10000000 }
+            ]
+          },
+          "unit": "none"
+        }
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 12 },
+      "id": 5,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "title": "Privacy Pool Size",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "clawchain_privacy_pool_balance",
+          "legendFormat": "Pool (uclaw)",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Shield (deposits) and unshield (withdrawals) volume over time",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisLabel": "uclaw",
+            "drawStyle": "line",
+            "fillOpacity": 15,
+            "gradientMode": "none",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "auto",
+            "spanNulls": false
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 6, "y": 12 },
+      "id": 6,
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "multi" }
+      },
+      "title": "Shield/Unshield Volume",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "clawchain_privacy_shield_total",
+          "legendFormat": "Cumulative Shielded",
+          "refId": "A"
+        },
+        {
+          "expr": "clawchain_privacy_unshield_total",
+          "legendFormat": "Cumulative Unshielded",
+          "refId": "B"
+        },
+        {
+          "expr": "rate(clawchain_privacy_shield_total[5m]) * 300",
+          "legendFormat": "Shield Volume per 5m",
+          "refId": "C"
+        },
+        {
+          "expr": "rate(clawchain_privacy_unshield_total[5m]) * 300",
+          "legendFormat": "Unshield Volume per 5m",
+          "refId": "D"
+        }
+      ]
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Number of private transfers and Merkle tree commitments",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisLabel": "",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "auto",
+            "spanNulls": false
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 12 },
+      "id": 9,
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "multi" }
+      },
+      "title": "Private Transfers & Commitments",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "clawchain_privacy_private_transfer_total",
+          "legendFormat": "Transfers",
+          "refId": "A"
+        },
+        {
+          "expr": "clawchain_privacy_commitments_total",
+          "legendFormat": "Commitments",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 20 },
+      "id": 102,
+      "title": "Oracle",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Latest oracle price feeds for tracked denom pairs",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          },
+          "custom": {
+            "align": "auto",
+            "displayMode": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Pair" },
+            "properties": [{ "id": "custom.width", "value": 150 }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Price" },
+            "properties": [{ "id": "unit", "value": "currencyUSD" }]
+          }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 21 },
+      "id": 7,
+      "options": {
+        "showHeader": true,
+        "sortBy": [{ "desc": false, "displayName": "Pair" }]
+      },
+      "title": "Oracle Price Feeds",
+      "type": "table",
+      "targets": [
+        {
+          "expr": "clawchain_oracle_price",
+          "legendFormat": "{{pair}}",
+          "refId": "A",
+          "format": "table",
+          "instant": true
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time": true, "__name__": true, "instance": true, "job": true },
+            "renameByName": { "pair": "Pair", "Value": "Price" }
+          }
+        }
+      ]
+    },
+    {
+      "datasource": "Prometheus",
+      "description": "Oracle miss rate per validator - missed price feed submissions",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisLabel": "misses/min",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "auto",
+            "spanNulls": false
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 21 },
+      "id": 8,
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "multi" }
+      },
+      "title": "Oracle Miss Rate",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "rate(clawchain_oracle_miss_total[5m]) * 60",
+          "legendFormat": "{{validator}}",
+          "refId": "A"
+        },
+        {
+          "expr": "clawchain_oracle_miss_total",
+          "legendFormat": "Cumulative Misses ({{validator}})",
+          "refId": "B"
+        }
+      ]
+    }
+  ],
+  "refresh": "15s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["clawchain", "marketplace", "privacy", "oracle"],
+  "templating": { "list": [] },
+  "time": { "from": "now-6h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "ClawChain - Marketplace & Privacy",
+  "uid": "clawchain-marketplace-privacy",
+  "version": 1
+}

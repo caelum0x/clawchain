@@ -91,6 +91,7 @@ import type {
   MsgAcceptNegotiationParams,
   MsgRejectNegotiationParams,
   Negotiation,
+  NegotiationTerms,
   NegotiationResponse,
   NegotiationsResponse,
   ModelInput,
@@ -3653,6 +3654,64 @@ export class ClawChainClient {
     }
     const data = (await res.json()) as NegotiationResponse;
     return data.negotiation;
+  }
+
+  // -----------------------------------------------------------------------
+  // Convenience – Agent Negotiation (high-level wrappers)
+  // -----------------------------------------------------------------------
+
+  /**
+   * Submit a new negotiation to a counterparty using structured terms.
+   *
+   * This is a convenience wrapper around {@link proposeNegotiation} that
+   * accepts a {@link NegotiationTerms} object instead of flat parameters.
+   */
+  async submitNegotiation(
+    counterparty: string,
+    terms: NegotiationTerms,
+  ): Promise<{ txHash: string; negotiationId?: number }> {
+    return this.proposeNegotiation({
+      counterparty,
+      description: terms.description,
+      budget: terms.price,
+      deadlineBlocks: terms.duration,
+      requirements: JSON.stringify({ quality_tier: terms.quality_tier }),
+    });
+  }
+
+  /**
+   * Respond to an existing negotiation — accept, reject, or counter-propose.
+   *
+   * When {@link accept} is `true` the negotiation is accepted and a task is
+   * created.  When `false` and {@link counterTerms} is provided the response
+   * is a counter-proposal; otherwise the negotiation is rejected.
+   */
+  async respondToNegotiation(
+    negotiationId: number,
+    accept: boolean,
+    counterTerms?: NegotiationTerms,
+  ): Promise<TxResult> {
+    if (accept) {
+      const result = await this.acceptNegotiation({ negotiationId });
+      return {
+        transactionHash: result.txHash,
+        code: 0,
+        rawLog: "",
+        gasUsed: 0,
+        gasWanted: 0,
+        height: 0,
+        events: [],
+      };
+    }
+    if (counterTerms) {
+      return this.counterNegotiation({
+        negotiationId,
+        newBudget: counterTerms.price,
+        newDeadline: counterTerms.duration,
+        message: counterTerms.description,
+      });
+    }
+    return this.rejectNegotiation({ negotiationId });
   }
 
   // -----------------------------------------------------------------------
