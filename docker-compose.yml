@@ -21,6 +21,8 @@
 ##   8892   Notification service
 ##   9091   Inference sidecar metrics
 ##   17171  Tx history indexer
+##   4222   NATS client connections
+##   8222   NATS monitoring
 ##
 
 services:
@@ -194,6 +196,23 @@ services:
       - clawnet
     restart: unless-stopped
 
+  # -- NATS Message Broker ---------------------------------------------------
+  nats:
+    image: nats:2.10-alpine
+    container_name: clawchain-nats
+    ports:
+      - "4222:4222"   # Client connections
+      - "8222:8222"   # HTTP monitoring
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8222/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - clawnet
+    restart: unless-stopped
+
   # -- GPU Provider (optional, enable with --profile gpu) --------------------
   gpu-provider:
     build:
@@ -204,12 +223,15 @@ services:
       - CLAWCHAIN_RPC=http://clawchain:26657
       - CLAWCHAIN_REST=http://clawchain:1317
       - PROVIDER_LISTEN_ADDR=:8090
+      - NATS_URL=nats://nats:4222
     ports:
       - "8095:8090"
     profiles:
       - gpu
     depends_on:
       clawchain:
+        condition: service_healthy
+      nats:
         condition: service_healthy
     networks:
       - clawnet
