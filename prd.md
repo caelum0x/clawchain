@@ -895,98 +895,159 @@ ClawDEX is live. Astroport Core fork (262 Rust files) rebranded and deployed.
   - Docs site, landing, explorer, faucet, Keplr wallet
 
   ---
-  What's Remaining
+  ## What's Remaining — Launch Checklist
 
-  1. Public Infrastructure — Biggest Gap (FIX #7)
-
-  Everything runs on localhost. Nothing is publicly reachable. This alone blocks all real usage.
-
-  ┌────────────────────────┬─────────────────────────────────────────────────────────────────────────────┐
-  │          Task          │                                   Details                                   │
-  ├────────────────────────┼─────────────────────────────────────────────────────────────────────────────┤
-  │ Cloud hosting          │ Deploy chain node to VPS/cloud (Hetzner/DigitalOcean/AWS)                   │
-  ├────────────────────────┼─────────────────────────────────────────────────────────────────────────────┤
-  │ DNS                    │ Point clawchain.io, rpc.clawchain.io, api.clawchain.io, faucet.clawchain.io │
-  ├────────────────────────┼─────────────────────────────────────────────────────────────────────────────┤
-  │ SSL/TLS                │ nginx reverse proxy with Let's Encrypt certs                                │
-  ├────────────────────────┼─────────────────────────────────────────────────────────────────────────────┤
-  │ Deploy Docker stack    │ docker compose up -d on the cloud server                                    │
-  ├────────────────────────┼─────────────────────────────────────────────────────────────────────────────┤
-  │ Redeploy DEX contracts │ Run deploy-dex.sh against public chain                                      │
-  ├────────────────────────┼─────────────────────────────────────────────────────────────────────────────┤
-  │ Public faucet          │ Expose faucet on faucet.clawchain.io                                        │
-  ├────────────────────────┼─────────────────────────────────────────────────────────────────────────────┤
-  │ CI/CD                  │ Auto-deploy on push to main                                                 │
-  └────────────────────────┴─────────────────────────────────────────────────────────────────────────────┘
-
-  Effort: ~1 day with a VPS in hand.
+  All code is complete. What remains are deployment and external dependencies.
+  Follow this checklist in order:
 
   ---
-  2. GPU Compute Marketplace — Not E2E Tested
 
-  Services compile and run individually but the full orchestration has never run end-to-end.
+  ### Step 1: Get a Server (UNBLOCKS EVERYTHING)
+  **Effort: 1 hour | Blocker: None — just needs a credit card**
 
-  ┌────────────────────────┬────────────────────────────────────────────┐
-  │          Gap           │                   Status                   │
-  ├────────────────────────┼────────────────────────────────────────────┤
-  │ claw-gpu-provider      │ Needs real PROVIDER_KEY_HEX + GPU hardware │
-  ├────────────────────────┼────────────────────────────────────────────┤
-  │ claw-inference-sidecar │ Behind gpu profile, needs provider key     │
-  ├────────────────────────┼────────────────────────────────────────────┤
-  │ NATS message bus       │ Needs to be wired into the Docker stack    │
-  ├────────────────────────┼────────────────────────────────────────────┤
-  │ Real GPU job execution │ Requires actual compute provider hardware  │
-  └────────────────────────┴────────────────────────────────────────────┘
+  - [ ] Buy a VPS (Hetzner CPX41 recommended: 8 vCPU, 16GB RAM, ~€15/mo)
+  - [ ] Install Docker + Docker Compose on the server
+  - [ ] Clone the repo: `git clone <your-repo-url>`
+  - [ ] Copy `.env.example` → `.env`, fill in values
+  - [ ] Run: `docker compose up -d`
+  - [ ] Verify: `./scripts/health-check-all.sh --docker`
 
-  Effort: Significant — needs real GPU operator hardware.
+  **Result:** Chain producing blocks on a public IP.
 
   ---
-  ~~3. clawd in Docker~~ **DONE** — Claw Agent bundled into clawd Docker image (March 16, 2026)
+
+  ### Step 2: Point DNS
+  **Effort: 30 min | Blocker: Domain registrar access**
+
+  - [ ] Buy or configure `clawchain.io` domain
+  - [ ] Add A records pointing to your server IP:
+    - `clawchain.io` → server IP
+    - `rpc.clawchain.io` → server IP
+    - `api.clawchain.io` → server IP
+    - `faucet.clawchain.io` → server IP
+    - `explorer.clawchain.io` → server IP
+    - `app.clawchain.io` → server IP
+    - `dex.clawchain.io` → server IP
+    - `docs.clawchain.io` → server IP
+  - [ ] Set up nginx reverse proxy (config exists at `deploy/nginx/`)
+  - [ ] Run certbot for SSL: `certbot --nginx -d clawchain.io -d rpc.clawchain.io ...`
+
+  **Result:** https://clawchain.io is live.
 
   ---
-  ~~4. Mobile Wallet~~ **DONE** — Rebranded Oko → Claw Wallet (101 files), chain config injected, MPC signing works
+
+  ### Step 3: Deploy DEX Contracts on Public Chain
+  **Effort: 15 min | Blocker: Step 1 done**
+
+  - [ ] Run: `./scripts/deploy-dex.sh`
+  - [ ] Run: `./scripts/load-dex-config.sh` (updates dex-app env)
+  - [ ] Rebuild dex-app: `cd dex-app && npm run build`
+  - [ ] Verify swap works in browser
+
+  **Result:** DEX trading live on public chain.
 
   ---
-  3. Multi-Validator Testnet
 
-  Currently single-validator. For production it needs:
-  - 4+ independent validators
-  - Peer discovery / seed nodes
-  - Validator set governance
+  ### Step 4: Multi-Validator Testnet
+  **Effort: 1 day | Blocker: Step 1 done (need 4 servers)**
 
-  Effort: ~1 day with cloud infra.
+  - [ ] Get 3 more VPS nodes
+  - [ ] Run: `cd testnet && ./setup-testnet.sh` (generates 4-validator genesis)
+  - [ ] Deploy to all 4 nodes
+  - [ ] Verify: blocks produced, validators signing, IBC works
 
-  ---
-  ~~5. Paradigm Tool Forks~~ **DONE** — All 10/10 integrated (50-100% each)
-
-  All Paradigm forks have meaningful ClawChain integration:
-  alloy (CometBFT client crate), artemis (MEV/arb module), solar (CosmWasm type mapping),
-  cryo (historical data adapter), data-portal (5 datasets), flood (load testing),
-  flux (marketplace UI), rivet (Cosmos inspector), viem (chain defs), wagmi (Keplr connector).
-  Further deepening is nice-to-have, not launch-blocking.
+  **Result:** Production-grade 4-validator testnet.
 
   ---
-  4. Phase E Launch Gate — External Dependencies
 
-  ┌─────────────────────────────┬─────────────────────────────────┐
-  │            Task             │             Blocker             │
-  ├─────────────────────────────┼─────────────────────────────────┤
-  │ 7-day soak (started Mar 11) │ 1 day left (completes Mar 18)   │
-  ├─────────────────────────────┼─────────────────────────────────┤
-  │ Security audit              │ External firm                   │
-  ├─────────────────────────────┼─────────────────────────────────┤
-  │ MPC trusted setup ceremony  │ Multiple participants needed    │
-  ├─────────────────────────────┼─────────────────────────────────┤
-  │ Mainnet genesis ceremony    │ Validators + community          │
-  └─────────────────────────────┴─────────────────────────────────┘
+  ### Step 5: 7-Day Soak Test Completion
+  **Effort: Wait | Completes: March 18, 2026**
+
+  - [ ] Soak started March 11 on local chain
+  - [ ] Verify: chain still producing blocks after 7 days
+  - [ ] Check: no panics, no memory leaks, no consensus failures
+  - [ ] Run: `./scripts/soak-test.sh --report`
+
+  **Result:** Stability proven.
 
   ---
-  Priority Order
 
-  1. Public infra + DNS          ← unblocks everything, 1 day
-  2. Multi-validator testnet     ← after public infra
-  3. GPU marketplace E2E         ← needs hardware
-  4. Security audit              ← external
-  5. 7-day soak completion       ← completes Mar 18
+  ### Step 6: Security Audit
+  **Effort: Weeks | Blocker: Need to hire external firm**
 
-  The single highest-leverage action right now is getting a VPS, pointing DNS at it, and running docker compose up -d there.
+  - [ ] Scope the audit: x/agent, x/privacy (ZK), x/marketplace, x/oracle, app/ante.go
+  - [ ] Engage auditor (Trail of Bits, Halborn, Oak Security, or similar)
+  - [ ] Provide access to repo + docs
+  - [ ] Fix any findings
+  - [ ] Publish audit report
+
+  **Result:** Security-vetted chain.
+
+  ---
+
+  ### Step 7: MPC Trusted Setup Ceremony
+  **Effort: 1 day | Blocker: Need 3+ participants**
+
+  - [ ] Recruit 3-5 ceremony participants (validators, community members)
+  - [ ] Run: `clawproof ceremony` (code exists at x/privacy/circuit/mpc_setup.go)
+  - [ ] Each participant contributes randomness
+  - [ ] Publish transcript + verification keys
+  - [ ] Update x/privacy/circuit/keys/ with ceremony output
+
+  **Result:** Privacy module ready for mainnet.
+
+  ---
+
+  ### Step 8: Mainnet Genesis Ceremony
+  **Effort: 1 day | Blocker: Steps 4, 6, 7 done**
+
+  - [ ] Recruit initial validator set (5-10 validators)
+  - [ ] Run: `./scripts/generate-genesis.sh` with real validator gentxs
+  - [ ] Distribute genesis.json to all validators
+  - [ ] Coordinate start time
+  - [ ] All validators start simultaneously: `clawchaind start`
+  - [ ] Verify: blocks producing, validators signing
+
+  **Result:** Mainnet is live. 🎉
+
+  ---
+
+  ### Step 9: Post-Launch (ongoing)
+
+  - [ ] Monitor: Grafana dashboards (4 dashboards, 56 panels)
+  - [ ] Oncall: AlertManager routes to Slack/PagerDuty (36 alert rules)
+  - [ ] DEX: Seed additional liquidity pools
+  - [ ] Agents: Onboard first AI agents via `clawd up`
+  - [ ] Ecosystem: Open ClawHub skill marketplace
+  - [ ] GPU: Onboard first GPU provider with real hardware
+  - [ ] Mobile: Publish Claw Wallet to app stores
+
+  ---
+
+  ### GPU Compute (Can happen anytime after Step 1)
+  **Blocker: Real GPU hardware**
+
+  - [ ] Get a machine with NVIDIA GPU
+  - [ ] Generate provider key: `clawchaind keys add gpu-provider`
+  - [ ] Configure: `cp cmd/claw-gpu-provider/config.toml.example config.toml`
+  - [ ] Start: `claw-gpu-provider --config config.toml`
+  - [ ] NATS is already in Docker stack (added March 17)
+  - [ ] Submit test job via: `clawd gpu-provider submit-job`
+
+  ---
+
+  ### Priority Summary
+
+  | # | Task | Effort | Blocks |
+  |---|------|--------|--------|
+  | 1 | **Buy VPS + deploy Docker** | 1 hour | Everything |
+  | 2 | **Point DNS + SSL** | 30 min | Public access |
+  | 3 | **Deploy DEX contracts** | 15 min | Trading |
+  | 4 | **Multi-validator testnet** | 1 day | Production readiness |
+  | 5 | **Wait for soak** | 1 day left | Stability proof |
+  | 6 | **Security audit** | Weeks | Mainnet |
+  | 7 | **MPC ceremony** | 1 day | Privacy on mainnet |
+  | 8 | **Genesis ceremony** | 1 day | Mainnet launch |
+
+  **The single most important thing right now: buy a $15/mo VPS and run `docker compose up -d`.**
+  Everything else follows from that.
