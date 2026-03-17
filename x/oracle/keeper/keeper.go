@@ -220,6 +220,13 @@ func (k Keeper) UpdateParam(ctx context.Context, paramKey string, newValue strin
 		params.SlashWindow = val
 	case "min_valid_per_window":
 		params.MinValidPerWindow = newValue
+	case "whitelist":
+		// Accept comma-separated denom pairs, e.g. "CLAW/USD,CLAW/ATOM,ATOM/USD"
+		if newValue == "" {
+			params.Whitelist = []string{}
+		} else {
+			params.Whitelist = strings.Split(newValue, ",")
+		}
 	default:
 		return fmt.Errorf("unknown oracle param key: %s", paramKey)
 	}
