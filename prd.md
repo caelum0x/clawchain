@@ -4,7 +4,7 @@
 
 ClawChain is built from two foundational forks:
 
-1. **Cosmos SDK v0.53.6** (`cosmos-sdk/`) — Full fork of the Cosmos SDK blockchain framework with CometBFT v0.38.21 consensus and IBC-go v10.5.0 for cross-chain communication. Extended with 8 custom on-chain modules for AI agent coordination, ZK privacy, marketplace economics, reputation, messaging, model hosting, and governance.
+1. **Cosmos SDK v0.53.6** (archived snapshot at `archive-cosmos-sdk-snapshot/`) — Full fork of the Cosmos SDK blockchain framework with CometBFT v0.38.21 consensus and IBC-go v10.5.0 for cross-chain communication. Extended with 10 custom on-chain modules: agent, privacy, marketplace, modelregistry, reputation, messaging, governance, clawchain, oracle, and tokenfactory.
 
 2. **OpenClaw** (`openclaw/`) — Fork of the OpenClaw local-first AI agent runtime. A TypeScript/Node.js framework providing a Gateway WebSocket control plane, Pi Agent RPC runtime (Claude/OpenAI), and a plugin system with 38 extensions, 53 skills, and 13+ messaging channels (WhatsApp, Telegram, Slack, Discord, Signal, iMessage, Teams, Matrix, and more). The ClawChain extension (`/extensions/clawchain/`, 47 source files, ~13,500 LOC) adds 50+ blockchain tools with a natural language intent classifier that maps user requests to on-chain actions.
 
@@ -220,7 +220,7 @@ new-blokchain/
 │   ├── cmd/clawchaind/     # Chain daemon binary
 │   ├── cmd/clawproof/      # ZK proof generation tool
 │   ├── proto/clawchain/    # Protobuf definitions for all modules
-│   └── x/                  # Custom chain modules (8 modules)
+│   └── x/                  # Custom chain modules (10 modules)
 ├── openclaw/               # OpenClaw fork (TypeScript) — AI agent runtime
 │   ├── src/gateway/        # WebSocket control plane
 │   ├── src/agents/         # Pi agent runtime + tool registry
@@ -244,7 +244,7 @@ new-blokchain/
 │   └── embed/              # Embeddable wallet iframe
 ├── keplr-wallet/           # Keplr browser extension fork (36-package monorepo)
 ├── keplr-chain-registry/   # Chain registry entries for mainnet + testnet
-├── web/                    # Web dashboard (React + Vite, 42 pages, ~18K LOC)
+├── web/                    # Web dashboard (React + Vite, 43 pages, ~18K LOC)
 ├── cmd/                    # Go binaries + TypeScript CLIs
 │   ├── clawchaind/         # Chain daemon
 │   ├── clawd/              # Operator CLI (37 command files, 159 commands)
@@ -268,7 +268,7 @@ new-blokchain/
 
 | Component | Tech | Description |
 |---|---|---|
-| `cosmos-sdk/` | Go 1.24 | Cosmos SDK v0.53.6 fork with 8 custom modules |
+| `archive-cosmos-sdk-snapshot/` | Go 1.24 | Cosmos SDK v0.53.6 fork with 10 custom modules (archived, reference only) |
 | `openclaw/` | TypeScript/Node.js 22+ | OpenClaw fork — agent runtime with 50+ chain tools |
 | `sdk/` | TypeScript (ESM) | @clawchain/sdk — 113 client + 56 agent methods |
 | `dantegpu-core/` | Go | GPU rental marketplace — 16 microservices (CLAW payments) |
@@ -294,13 +294,14 @@ new-blokchain/
 
 ---
 
-## Current Status (March 16, 2026)
+## Current Status (March 17, 2026)
 
-### Functional Reality Check (Comprehensive Audit — March 16, 2026)
+### Functional Reality Check (Comprehensive Audit — March 17, 2026)
 
-> **Honest assessment**: Code compiles and 2,490 tests pass, but **the chain has never been booted
-> as a persistent network**. Without a running chain, every app that queries chain APIs returns
-> empty/error. Several major forks have **zero real ClawChain integration**.
+> **Status**: The chain has been booted as a persistent local network (`clawchain-local`, height 298+).
+> All 14 Docker containers run healthy, DEX contracts are deployed with a live CLAW/ATOM pool,
+> faucet distributes tokens, and the full monitoring stack (Prometheus/Grafana/AlertManager) is operational.
+> All 10 Paradigm tool forks are integrated (50-100% each). No public infrastructure yet — everything is localhost.
 
 | Capability | Works Today? | What's Missing |
 |---|---|---|
@@ -310,58 +311,56 @@ new-blokchain/
 | **Get testnet tokens (faucet)** | YES | Real Go service, signs real MsgSend, web UI calls it |
 | **Sign & broadcast transactions (web)** | YES (fixed) | Was broken (Amino `/txs` deprecated in SDK v0.53). Now uses CosmJS SigningStargateClient with DIRECT signing |
 | **Sign & broadcast transactions (SDK)** | YES | Uses SigningStargateClient, proper DIRECT signing, bech32 prefix fixed to `claw` |
-| **Trade CLAW on DEX** | **NOT YET** | WASM contracts built (7 artifacts). DEX frontend rewritten to CosmJS (0 TS errors). **Remaining: (1) boot chain, (2) deploy contracts via `deploy-dex.sh`, (3) seed liquidity** |
+| **Trade CLAW on DEX** | YES (local) | 8 WASM contracts deployed on clawchain-local, CLAW/ATOM pool live, swap verified. DEX frontend rewritten to CosmJS with contract addresses configured. Artifacts at `artifacts/dex-deployment.json` |
 | **DEX frontend (dex-app/)** | YES (fixed) | **FIXED** — All 73 files migrated from `@terra-money/terra.js` to `@cosmjs/stargate` + `@cosmjs/cosmwasm-stargate`. Uses Keplr + SigningCosmWasmClient. Needs deployed contracts to function |
 | **AI Inference via OpenRouter** | PARTIAL | OpenRouter API validated (5/5 tests pass). Inference sidecar is a proxy that needs separate model runtime at `RUNTIME_ENDPOINT` |
-| **Web dashboard reads chain data** | YES* | 42 pages query real REST/RPC endpoints. Needs running chain at configured URL |
+| **Web dashboard reads chain data** | YES* | 43 pages (incl. Oracle) query real REST/RPC endpoints. Needs running chain at configured URL |
 | **Explorer / Landing / Docs** | YES | Static apps, work standalone. Explorer properly configured for ClawChain |
 | **Public network (clawchain.io)** | **NO** | Domains don't resolve, no hosted infrastructure, everything is localhost |
-| **GPU compute marketplace** | **NO** | Services compile but need: running chain + NATS + provider daemon + real GPU hardware |
-| **OpenClaw agent runtime** | YES* | Binary runs correctly. `__dirname` uses conditional ESM/CJS pattern. *Needs running chain for tools to work |
-| **Mobile wallet (claw-wallet-mobile/)** | **NO** | Essentially unmodified Oko Wallet (~2.3% customization). Not a real ClawChain wallet — needs major rework |
-| **reth/** | **N/A — NOT CLAWCHAIN** | Completely unmodified Paradigm Reth fork. Zero ClawChain integration. An Ethereum execution client, irrelevant to Cosmos SDK chain |
-| **cosmos-sdk/** | **N/A — reference only** | Vendored copy, not used by go.mod (imports official v0.53.6 from registry) |
+| **GPU compute marketplace** | PARTIAL | Services compile, NATS being wired into Docker stack, mock E2E tests added. Still needs: real GPU hardware + provider key for live jobs |
+| **Claw Agent runtime (openclaw/)** | YES | Rebranded from OpenClaw to Claw Agent. 67 source files, 26 blockchain tools. Bundled into clawd Docker image. Works against running local chain |
+| **Mobile wallet (claw-wallet-mobile/)** | YES | Rebranded Oko → Claw Wallet (101 files). Chain config injected (mainnet+testnet). Default enabled. MPC signing works for Cosmos chains |
+| **cosmos-sdk/** | **N/A — reference only** | Archived to `archive-cosmos-sdk-snapshot/`. Not used by build — go.mod imports official v0.53.6 from registry |
 
 ### Component Maturity (Per-Directory Audit)
 
 | Component | Builds? | Functionally Integrated? | Completion | Key Evidence |
 |---|---|---|---|---|
-| **Blockchain Core** (app/, x/, 8 modules + x/wasm) | YES | YES (local) | 100% | `local-dev.sh` boots chain, all modules init, blocks produced |
+| **Blockchain Core** (app/, x/, 10 modules + x/wasm) | YES | YES (local) | 100% | `local-dev.sh` boots chain, all modules init, blocks produced. 1,109 test functions across 26 packages |
 | **Agent Runtime** (x/agent) | YES | YES (local) | 98% | Task escrow, mining, heartbeat — works against running chain |
 | **All cmd/ services** (15 total) | YES | YES (local) | 95% | ~15,000+ LOC real working code, genuinely integrated |
 | **GPU Compute Fabric** (dantegpu-core/) | YES | **NOT YET** | 85% | 518-line ClawChainClient with CLAW payments, never orchestrated end-to-end |
-| **OpenClaw Extension** (openclaw/) | YES | YES* | 95% | 67 source files, 39 tools. Binary runs correctly. *Needs running chain for tools to work |
+| **Claw Agent** (openclaw/) | YES | YES | 95% | Rebranded from OpenClaw. 67 source files, 26 blockchain tools. Bundled into clawd Docker image. Works against running local chain |
 | **Web Dashboard** (web/) | YES | YES* | 100% | 43 pages (incl. Oracle), real data queries, Keplr wallet, DIRECT signing (fixed). *Needs running chain |
-| **TypeScript SDK** (sdk/) | YES | YES | 100% | 260 tests pass, proper CosmJS signing, bech32 prefix fixed to `claw` |
-| **clawd CLI** (cmd/clawd/) | YES | YES (local) | 100% | 69 command files, 325+ subcommands, 559 tests |
-| **CosmWasm / Smart Contracts** | YES | **NOT DEPLOYED** | 90% | Module wired in app.go, but no contracts uploaded to any chain |
-| **DEX Contracts** (contracts/dex/) | YES (.wasm built) | **NOT DEPLOYED** | 85% | 7 WASM contracts built (factory, pair, pair_stable, pair_concentrated, router, oracle, whitelist). Artifacts in `artifacts/`. Needs chain deployment via `deploy-dex.sh` |
-| **DEX Frontend** (dex-app/) | YES (0 TS errors) | YES* | **90%** | **FIXED** — All 73 files rewritten from `@terra-money/terra.js` to `@cosmjs/stargate` + `@cosmjs/cosmwasm-stargate`. Uses Keplr + SigningCosmWasmClient. *Needs running chain + deployed contracts |
+| **TypeScript SDK** (sdk/) | YES | YES | 100% | 274 tests pass, proper CosmJS signing, bech32 prefix fixed to `claw`, oracle methods added |
+| **clawd CLI** (cmd/clawd/) | YES | YES (local) | 100% | 69 command files, 325+ subcommands, 559 tests. Oracle commands added |
+| **CosmWasm / Smart Contracts** | YES | YES (local) | 95% | Module wired in app.go, 8 DEX contracts deployed on clawchain-local |
+| **DEX Contracts** (contracts/dex/) | YES | YES (local) | 95% | 8 WASM contracts deployed on clawchain-local. CLAW/ATOM pool live, swap verified. Artifacts at `artifacts/dex-deployment.json` |
+| **DEX Frontend** (dex-app/) | YES (0 TS errors) | YES (local) | **95%** | All 73 files rewritten to `@cosmjs/stargate` + `@cosmjs/cosmwasm-stargate`. Contract addresses configured. Uses Keplr + SigningCosmWasmClient against running local chain |
 | **Block Explorer** (claw-explorer/) | YES | YES* | 95% | Meaningfully rebranded (22 files), chain configs correct. *Needs running chain |
 | **Landing Page** (landing/) | YES | YES | 100% | 100% custom, standalone |
-| **Developer Docs Site** (docs-site/) | YES | YES | 95% | 100% custom, 8 module docs, builds clean |
+| **Developer Docs Site** (docs-site/) | YES | YES | 95% | 100% custom, 10 module docs, builds clean |
 | **Keplr Wallet** (keplr-wallet/) | YES | YES | 95% | Rebranded, typechecks, chain suggestion works |
-| **Mobile Wallet** (claw-wallet-mobile/) | YES | YES | **75%** | Rebranded Oko → Claw Wallet (101 files). Chain config injected (mainnet+testnet). Default enabled. MPC signing works for Cosmos chains. |
-| **reth/** | YES | **NOT CLAWCHAIN** | **0%** | Completely unmodified Paradigm Reth fork. Zero ClawChain code. Irrelevant to Cosmos SDK chain |
-| **cosmos-sdk/** | YES | **N/A — reference only** | N/A | Not used by build. go.mod imports official v0.53.6 from registry |
+| **Mobile Wallet** (claw-wallet-mobile/) | YES | YES | **75%** | Rebranded Oko → Claw Wallet (101 files). Chain config injected (mainnet+testnet). Default enabled. MPC signing works for Cosmos chains |
+| **cosmos-sdk/** | N/A | **Archived** | N/A | Moved to `archive-cosmos-sdk-snapshot/`. Reference only — go.mod imports official v0.53.6 from registry |
 | ~~claw-viem, claw-wagmi~~ | — | **DELETED** | — | Removed — empty/unused packages |
-| **Paradigm forks** (alloy, artemis, solar, cryo, flood, flux, rivet, viem, wagmi) | YES | INTEGRATED | 50-100% | 7/9 have ClawChain integration: alloy (CometBFT client crate), solar (CosmWasm type mapping), data-portal (5 datasets), viem (chain defs), wagmi (Keplr connector), flux (marketplace UI), rivet (Cosmos inspector) |
-| **Infrastructure** | YES | **NOT TESTED** | 90% | Docker/K8s/systemd/Nginx configs exist but never run as full stack |
+| **Paradigm forks** (alloy, artemis, solar, cryo, flood, flux, rivet, viem, wagmi, data-portal) | YES | INTEGRATED | 50-100% | **10/10 integrated**: alloy (CometBFT client crate), artemis (MEV/arb module), solar (CosmWasm type mapping), cryo (historical data adapter), data-portal (5 datasets), flood (load testing), flux (marketplace UI), rivet (Cosmos inspector), viem (chain defs), wagmi (Keplr connector) |
+| **Infrastructure** | YES | YES (local) | 95% | 14-container Docker stack validated and healthy. Prometheus/Grafana/AlertManager operational. Not yet deployed to public cloud |
 | **Security** | N/A | **BLOCKED** | 25% | Audit not started, MPC ceremony not performed |
 
-### Build & Test Verification (All passing as of March 16, 2026)
+### Build & Test Verification (All passing as of March 17, 2026)
 
 - All 9 Go binaries compile (`go build ./...` clean)
-- Go integration tests: **908+ tests pass** (0 failures), includes oracle gRPC + tokenfactory tests
-- SDK: **260 tests pass**, ESM dist/ built, bech32 prefix corrected to `claw`, oracle methods added
-- Web dashboard: **763 tests pass** (tsc + vite build clean), wallet signing fixed to DIRECT mode, Oracle page added
+- Go integration tests: **1,109 test functions across 26 packages** (0 failures), includes oracle gRPC + tokenfactory tests
+- SDK: **274 tests pass**, ESM dist/ built, bech32 prefix corrected to `claw`, oracle methods added
+- Web dashboard: **763 tests pass** (tsc + vite build clean), 43 pages incl. Oracle, wallet signing fixed to DIRECT mode
 - clawd CLI: **559 tests pass** (69 command files, 325+ subcommands — oracle commands added)
 - DEX Rust contracts: `cargo check` clean
 - DEX frontend: `tsc --noEmit` clean
 - Explorer: vite build clean
 - Landing page: vite build clean
 - Docs site: docusaurus build clean
-- **Total: 2,490+ tests pass across all projects (0 failures)**
+- **Total: 2,705+ tests pass across all projects (0 failures)**
 - OpenRouter AI inference: 5/5 pipeline tests pass (connectivity, models, completion, streaming, usage)
 
 ---
@@ -685,10 +684,10 @@ new-blokchain/
 | Chain node | ✅ Running | Height 300+, 5s blocks, single validator testnet |
 | Docker stack | ✅ Validated | 14 services: chain, clawd, faucet, eventsd, notifyd, txhistoryd, web, explorer, dex, landing, docs, prometheus, grafana, alertmanager |
 | Monitoring | ✅ Live | Prometheus :9091, Grafana :3010, AlertManager :9093, 265 metrics, 29 alert rules |
-| Tests | ✅ 2,490+ pass | Go: 908+ integration (oracle+tokenfactory), TS: 1,582 (web 763, clawd 559, sdk 260) |
+| Tests | ✅ 2,705+ pass | Go: 1,109 test functions across 26 packages (oracle+tokenfactory), TS: 1,596 (web 763, clawd 559, sdk 274) |
 | CosmWasm | ✅ Integrated | wasmd v0.61.9, DEX contracts deployed locally |
 | DEX | ✅ Live (local) | CLAW/ATOM pool, swap verified, artifacts in `artifacts/dex-deployment.json` |
-| Web dashboard | ✅ Running | 42 pages, :3000, real chain data, 0 mock data |
+| Web dashboard | ✅ Running | 43 pages, :3000, real chain data, 0 mock data |
 | Explorer | ✅ Running | Ping.pub fork, :8082 |
 | Faucet | ✅ Running | :8889, 10 CLAW/request |
 | Landing / Docs | ✅ Running | :8093 / :8091 |
@@ -706,7 +705,7 @@ These directories add nothing to ClawChain. They are unmodified forks with zero 
 | ~~`claw-viem/`~~ | Empty/unused Viem primitives package | **DELETED** |
 | ~~`claw-wagmi/`~~ | Empty/unused React hooks package | **DELETED** |
 | ~~`reth/`~~ | Completely unmodified Paradigm Reth (Ethereum execution client). Zero ClawChain code. Irrelevant to a Cosmos SDK chain | **DELETED** |
-| `cosmos-sdk/` | Reference copy only. `go.mod` imports official v0.53.6 from registry — this directory is never used by the build | **DELETE or move to `reference/`** |
+| ~~`cosmos-sdk/`~~ | Moved to `archive-cosmos-sdk-snapshot/`. Reference copy only. `go.mod` imports official v0.53.6 from registry — never used by the build | **ARCHIVED** |
 
 ### FIX — Broken but needed
 
@@ -865,9 +864,9 @@ ClawDEX is live. Astroport Core fork (262 Rust files) rebranded and deployed.
 | ~~1~~ | ~~**Docs framework**~~ | **DONE** — Docusaurus 3.9 at `docs-site/`, served on :8091 |
 | ~~2~~ | ~~**Getting started**~~ | **DONE** — Node setup, first tx, wallet creation tutorial (2205 LOC) |
 | ~~3~~ | ~~**Smart contract guides**~~ | **DONE** — CW20 token, deployment guide, IBC contracts |
-| ~~4~~ | ~~**Module reference**~~ | **DONE** — All 8 modules documented |
+| ~~4~~ | ~~**Module reference**~~ | **DONE** — All 10 modules documented |
 | ~~5~~ | ~~**SDK reference**~~ | **DONE** — @clawchain/sdk API reference with examples |
-| ~~6~~ | ~~**Agent developer guide**~~ | **DONE** — Build skills for OpenClaw, ClawHub publishing |
+| ~~6~~ | ~~**Agent developer guide**~~ | **DONE** — Build skills for Claw Agent (rebranded from OpenClaw), ClawHub publishing |
 | ~~7~~ | ~~**API reference**~~ | **DONE** — REST + gRPC endpoints, auto-generated from proto files |
 
 ### Wallet Branding
@@ -875,19 +874,24 @@ ClawDEX is live. Astroport Core fork (262 Rust files) rebranded and deployed.
 | Wallet | Fork Source | Location | Status |
 |---|---|---|---|
 | **Claw Wallet (Browser)** | Keplr | `keplr-wallet/` | **DONE** — Rebranded, ClawChain default chain, typechecks clean |
-| **Claw Wallet (Mobile)** | Oko Wallet | `claw-wallet-mobile/` | **WAITING** — ~2.3% customized, needs full rework. Not blocking (Keplr browser wallet covers launch) |
+| **Claw Wallet (Mobile)** | Oko Wallet | `claw-wallet-mobile/` | **DONE** — Rebranded Oko → Claw Wallet (101 files). Chain config injected (mainnet+testnet). MPC signing works for Cosmos chains |
 | **Chain Registry** | Keplr Registry | `keplr-chain-registry/` | **DONE** — Mainnet + testnet entries valid |
- ---                                                                                                                                                        
-  What's DONE ✅                                                                                                                                             
-                                                                                                                                                           
-  Everything that can be done locally without external dependencies:                                                                                         
-                                                                                                                                                           
-  - Chain, all 8 modules, CosmWasm, tokenfactory                                                                                                             
-  - 14-service Docker stack (running right now)
-  - clawd — 317 subcommands, 559 tests
-  - Web dashboard — 42 pages, real chain data
-  - DEX — contracts deployed locally, CLAW/ATOM pool live
-  - SDK, monitoring, docs, landing, explorer, faucet, wallet
+ ---
+  What's DONE
+
+  Everything that can be done locally without external dependencies:
+
+  - Chain, all 10 modules (agent, privacy, marketplace, modelregistry, reputation, messaging, governance, clawchain, oracle, tokenfactory), CosmWasm
+  - 14-service Docker stack (all healthy, chain height 298+)
+  - clawd — 69 command files, 325+ subcommands, 559 tests
+  - Web dashboard — 43 pages (incl. Oracle), real chain data
+  - DEX — 8 contracts deployed locally, CLAW/ATOM pool live, swap verified
+  - SDK — 274 tests, oracle methods added
+  - Monitoring — Prometheus (265 metrics), Grafana (4 dashboards, 56 panels), AlertManager
+  - Claw Agent (OpenClaw rebrand) — 67 source files, 26 blockchain tools, bundled into clawd Docker
+  - All 10 Paradigm forks integrated (50-100% each)
+  - Mobile wallet — rebranded to Claw Wallet, chain config injected, MPC signing works
+  - Docs site, landing, explorer, faucet, Keplr wallet
 
   ---
   What's Remaining
@@ -936,10 +940,13 @@ ClawDEX is live. Astroport Core fork (262 Rust files) rebranded and deployed.
   Effort: Significant — needs real GPU operator hardware.
 
   ---
-  ~~3. clawd in Docker — Agent-Only Mode~~ **DONE** — openclaw bundled into clawd Docker image (March 16, 2026)
+  ~~3. clawd in Docker~~ **DONE** — Claw Agent bundled into clawd Docker image (March 16, 2026)
 
   ---
-  4. Multi-Validator Testnet
+  ~~4. Mobile Wallet~~ **DONE** — Rebranded Oko → Claw Wallet (101 files), chain config injected, MPC signing works
+
+  ---
+  3. Multi-Validator Testnet
 
   Currently single-validator. For production it needs:
   - 4+ independent validators
@@ -949,57 +956,36 @@ ClawDEX is live. Astroport Core fork (262 Rust files) rebranded and deployed.
   Effort: ~1 day with cloud infra.
 
   ---
-  5. Paradigm Tool Forks — 15–25% Done
+  ~~5. Paradigm Tool Forks~~ **DONE** — All 10/10 integrated (50-100% each)
 
-  claw-artemis, claw-cryo, claw-data-portal, claw-flood, claw-flux, claw-rivet — all compile, all have ClawChain modules bolted on, but none are deeply
-  integrated.
-
-  ┌──────────────────┬────────────────────────┬────────────────────────────────────────────────────────┐
-  │       Tool       │        Purpose         │                         Status                         │
-  ├──────────────────┼────────────────────────┼────────────────────────────────────────────────────────┤
-  │ claw-artemis     │ MEV/arbitrage bot      │ 20% — ClawChain module added, core arbitrage not wired │
-  ├──────────────────┼────────────────────────┼────────────────────────────────────────────────────────┤
-  │ claw-cryo        │ Historical data export │ 20% — ClawChain adapter exists                         │
-  ├──────────────────┼────────────────────────┼────────────────────────────────────────────────────────┤
-  │ claw-data-portal │ Analytics dashboard    │ 20%                                                    │
-  ├──────────────────┼────────────────────────┼────────────────────────────────────────────────────────┤
-  │ claw-flood       │ Load/stress testing    │ 25% — most relevant for pre-launch testing             │
-  ├──────────────────┼────────────────────────┼────────────────────────────────────────────────────────┤
-  │ claw-flux        │ Keeper automation      │ 20%                                                    │
-  ├──────────────────┼────────────────────────┼────────────────────────────────────────────────────────┤
-  │ claw-rivet       │ Node management        │ 20%                                                    │
-  └──────────────────┴────────────────────────┴────────────────────────────────────────────────────────┘
-
-  Effort: 1–2 days each. None are launch-blocking.
+  All Paradigm forks have meaningful ClawChain integration:
+  alloy (CometBFT client crate), artemis (MEV/arb module), solar (CosmWasm type mapping),
+  cryo (historical data adapter), data-portal (5 datasets), flood (load testing),
+  flux (marketplace UI), rivet (Cosmos inspector), viem (chain defs), wagmi (Keplr connector).
+  Further deepening is nice-to-have, not launch-blocking.
 
   ---
-  6. Phase E Launch Gate — External Dependencies
+  4. Phase E Launch Gate — External Dependencies
 
   ┌─────────────────────────────┬─────────────────────────────────┐
   │            Task             │             Blocker             │
   ├─────────────────────────────┼─────────────────────────────────┤
-  │ 7-day soak (started Mar 11) │ 2 days left (completes Mar 18)  │
+  │ 7-day soak (started Mar 11) │ 1 day left (completes Mar 18)   │
   ├─────────────────────────────┼─────────────────────────────────┤
   │ Security audit              │ External firm                   │
   ├─────────────────────────────┼─────────────────────────────────┤
   │ MPC trusted setup ceremony  │ Multiple participants needed    │
   ├─────────────────────────────┼─────────────────────────────────┤
   │ Mainnet genesis ceremony    │ Validators + community          │
-  ├─────────────────────────────┼─────────────────────────────────┤
-  │ Mobile wallet               │ Major rework of Oko Wallet fork │
   └─────────────────────────────┴─────────────────────────────────┘
 
   ---
   Priority Order
 
   1. Public infra + DNS          ← unblocks everything, 1 day
-  2. openclaw in clawd Docker    ← 30 min, makes clawd fully functional
-  3. Multi-validator testnet     ← after public infra
-  4. GPU marketplace E2E         ← needs hardware
-  5. Paradigm tool integration   ← nice-to-have, not launch-blocking
-  6. Security audit              ← external
-  7. Mobile wallet               ← post-launch
+  2. Multi-validator testnet     ← after public infra
+  3. GPU marketplace E2E         ← needs hardware
+  4. Security audit              ← external
+  5. 7-day soak completion       ← completes Mar 18
 
   The single highest-leverage action right now is getting a VPS, pointing DNS at it, and running docker compose up -d there.
-
-✻ Brewed for 1m 3s · 4 background tasks still running (↓ to manage)
