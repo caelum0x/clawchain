@@ -1,125 +1,149 @@
 # ClawChain
 
-**ClawChain** is a sovereign AI-agent blockchain built with **Cosmos SDK v0.53**, **CometBFT v0.38**, and **IBC-go v10**. Users run the **clawd** CLI (built on the **OpenClaw** runtime) on Mac Minis, VPS servers, and local machines. The chain provides on-chain identity, ZK-private payments, agent coordination, a skill marketplace, GPU compute, and reputation -- everything AI agents need to participate economically.
+ClawChain is a sovereign blockchain for AI agents, compute providers, and autonomous digital services. It is built with Cosmos SDK, CometBFT, and IBC, and combines on-chain identity, agent coordination, privacy-preserving payments, reputation, marketplace settlement, and GPU compute into one operator-focused network.
 
-## Architecture
+The project includes the chain node, the `clawd` operator CLI, a TypeScript SDK, a web dashboard, monitoring assets, and integrations with the OpenClaw local agent runtime.
 
-| Layer | Path | Description |
-|-------|------|-------------|
-| Chain binary | `cmd/clawchaind/` | Cosmos SDK application node |
-| clawd CLI | `cmd/clawd/` | TypeScript CLI with 159 commands (Commander.js) |
-| TypeScript SDK | `sdk/` | `@clawchain/sdk` -- full client library (80 tests) |
-| Web dashboard | `web/` | React + Vite dashboard (14 pages) |
-| OpenClaw runtime | `openclaw/` | Local-first AI agent framework |
-| GPU provider | `cmd/claw-gpu-provider/` | GPU compute provider daemon |
-| Inference sidecar | `cmd/claw-inference-sidecar/` | Model inference sidecar |
-| Monitoring | `monitoring/` | Prometheus + Grafana + Alertmanager stack |
+## Overview
 
-### Chain Modules (8)
+ClawChain is designed for agents and operators that need more than a wallet balance. The chain gives agents a verifiable identity, a way to discover and complete work, private payment primitives, reputation history, and settlement flows for skills, services, models, and compute.
 
-| Module | Path | Purpose |
-|--------|------|---------|
-| **privacy** | `x/privacy/` | ZK shielded pool (Groth16 proofs, Merkle tree, nullifiers) |
-| **agent** | `x/agent/` | Agent registry, heartbeat liveness, task delegation, negotiation, intent coordination |
-| **marketplace** | `x/marketplace/` | Skill listings, purchases, escrow, GPU compute resources and leases |
-| **modelregistry** | `x/modelregistry/` | AI model registration, versioning, access control, inference marketplace |
-| **reputation** | `x/reputation/` | Agent ratings, endorsements, reputation scores |
-| **messaging** | `x/messaging/` | Encrypted on-chain messaging between agents |
-| **governance** | `x/governance/` | Parameter governance proposals and voting |
-| **clawchain** | `x/clawchain/` | Core chain parameters |
+Core goals:
+
+- **Sovereign agent economy**: agent registration, delegation, task lifecycle, reputation, and marketplace settlement.
+- **Operator-first infrastructure**: `clawd` manages node startup, health checks, readiness, peer status, and provider workflows.
+- **Privacy as a native primitive**: shielded transfers, nullifiers, Merkle roots, and proof verification paths.
+- **Interoperability**: Cosmos SDK module architecture with IBC-oriented network design.
+- **Production observability**: Prometheus, Grafana, Alertmanager, health checks, and launch/readiness artifacts.
+
+## Technology Stack
+
+| Area | Technology |
+| --- | --- |
+| Consensus | CometBFT v0.38 |
+| Application framework | Cosmos SDK v0.53 |
+| Interoperability | IBC-go v10 |
+| Chain binary | Go |
+| Operator CLI | TypeScript / Node.js |
+| SDK | TypeScript |
+| Dashboard | React + Vite |
+| Monitoring | Prometheus, Grafana, Alertmanager |
 
 Bond denomination: `uclaw`
 
-## Why Cosmos SDK
+## Repository Layout
 
-- **Modular by design**: All 8 custom modules (`x/privacy`, `x/agent`, `x/messaging`, `x/marketplace`, `x/modelregistry`, `x/reputation`, `x/governance`, `x/clawchain`) can be developed and upgraded independently.
-- **Production-proven stack**: Cosmos SDK + CometBFT provide deterministic execution with BFT finality, battle-tested across many live chains.
-- **IBC interoperability**: Native IBC integration enables cross-chain private transfers, agent discovery, and remote task delegation.
-- **Governance and permissioning**: SDK patterns for params, authority, and module accounts map directly to ClawChain's escrow and trust model.
-- **Sovereign customization**: Chain-specific economics, agent coordination primitives, and ZK privacy while maintaining compatibility with the Cosmos tooling ecosystem.
+| Path | Description |
+| --- | --- |
+| `cmd/clawchaind/` | ClawChain node binary |
+| `cmd/clawd/` | Operator CLI for chain and runtime workflows |
+| `x/` | Custom Cosmos SDK modules |
+| `proto/` | Protocol buffer definitions |
+| `sdk/` | TypeScript SDK for applications and scripts |
+| `web/` | React dashboard and explorer surface |
+| `docs/` | Operator, security, upgrade, observability, and integration documentation |
+| `testnet/` | Testnet scripts, manifests, monitoring, and deployment helpers |
+| `monitoring/` | Prometheus, Grafana, and Alertmanager configuration |
+| `contracts/` | Smart contract and DEX-related integrations |
+| `openclaw/` | OpenClaw runtime submodule |
 
-## Quick Start
+Several external projects are included as Git submodules. Clone with submodules when you need the full workspace:
 
-### Build the chain
+```bash
+git clone --recurse-submodules https://github.com/caelum0x/clawchain.git
+```
+
+## Chain Modules
+
+| Module | Path | Purpose |
+| --- | --- | --- |
+| Agent | `x/agent/` | Agent registry, heartbeat, task delegation, negotiation, and intent coordination |
+| Marketplace | `x/marketplace/` | Skill listings, purchases, escrow, GPU resources, and leases |
+| Privacy | `x/privacy/` | Shielded pool, Groth16 proofs, Merkle roots, and nullifiers |
+| Messaging | `x/messaging/` | Encrypted on-chain messaging between agents |
+| Model Registry | `x/modelregistry/` | Model registration, versioning, access control, and inference marketplace support |
+| Reputation | `x/reputation/` | Ratings, endorsements, and reputation scoring |
+| Governance | `x/governance/` | Proposals, voting, and parameter governance |
+| ClawChain | `x/clawchain/` | Core chain parameters and network-specific logic |
+| Oracle | `x/oracle/` | Oracle state, voting, tallying, and exchange-rate query surfaces |
+
+## Getting Started
+
+### Prerequisites
+
+- Go toolchain compatible with the Cosmos SDK version used by this repository
+- Node.js and npm for the CLI, SDK, and dashboard
+- Docker for containerized services and local infrastructure
+- Ignite CLI if you want to run the chain through `ignite chain serve`
+
+### Build the Chain
 
 ```bash
 go build ./...
 ```
 
-### Run the node
+### Run a Local Node
 
 ```bash
 ignite chain serve
 ```
 
-### Build the CLI and SDK
+### Build the Operator CLI
 
 ```bash
-# clawd CLI (TypeScript)
-cd cmd/clawd && npm install && npm run build
-
-# TypeScript SDK
-cd sdk && npm install && npm run build && npm test
-
-# Web dashboard
-cd web && npm install && npx vite build
+cd cmd/clawd
+npm install
+npm run build
+node dist/main.js --help
 ```
 
-### Run tests
+### Build the SDK
 
 ```bash
-# Go unit tests
-go test ./x/...
-
-# Integration tests
-go test -tags=integration ./x/...
-
-# E2E tests
-go test -tags=e2e ./tests/e2e/...
-
-# TypeScript SDK tests
-cd sdk && npm test
+cd sdk
+npm install
+npm run build
+npm test
 ```
 
-## Validation
+### Build the Web Dashboard
 
 ```bash
-make protocol-contract-pack   # Protocol/WS contract coherence
-make protocol-sanity          # Preflight (contracts + sync guards)
-make prd-verify               # PRD integrity (claims + wiring)
-make branch-protection-verify # Branch protection policy
-make prd-build                # Full project build gate
-make help                     # Show all available shortcuts
+cd web
+npm install
+npx vite build
 ```
 
-Branch protection required checks: `docs/branch-protection.md`
+## Operator Workflow
 
-## Operator Onboarding (Absolute Flow)
+`clawd` is the primary operator interface for running ClawChain infrastructure. It coordinates node lifecycle, readiness checks, runtime health, peer diagnostics, provider services, and agent workflows.
 
-Run this exact sequence for VPS/Mac mini/local node operators:
+Example operator flow:
 
 ```bash
-# 1) start unified runtime
-openclaw up --from-manifest https://testnet.clawchain.example/manifest.json --host your.public.host --request-faucet
+# Start the unified runtime from a manifest.
+openclaw up \
+  --from-manifest https://testnet.clawchain.example/manifest.json \
+  --host your.public.host \
+  --request-faucet
 
-# 2) validate and auto-repair runtime prerequisites
+# Validate and repair runtime prerequisites.
 openclaw doctor runtime --repair
 
-# 3) generate/share nodecard
+# Inspect node identity and peer status.
 cd cmd/clawd
 node ./dist/main.js nodecard --host your.public.host --out pretty
-
-# 4) verify peer health
 node ./dist/main.js peers summary --out pretty
 node ./dist/main.js peers verify
 ```
 
-Detailed operator guide: `docs/operator-quickstart.md`.
-External integrator quickstart: `docs/integrator-quickstart.md`.
+Detailed guide: [`docs/operator-quickstart.md`](docs/operator-quickstart.md)
 
-## Core Product Flow (Agent Lifecycle)
+## Agent Lifecycle
 
-After runtime startup, execute the on-chain agent task lifecycle in one command:
+ClawChain supports an end-to-end lifecycle for agent tasks, including assignment, acceptance, execution, completion, escrow, messaging, and reputation.
+
+Run a task lifecycle from the Makefile:
 
 ```bash
 make clawd-agent-flow \
@@ -127,7 +151,7 @@ make clawd-agent-flow \
   DESCRIPTION="Generate weekly market summary"
 ```
 
-Machine-readable result (for automation/scripts):
+Machine-readable output:
 
 ```bash
 make clawd-agent-flow-json \
@@ -135,20 +159,7 @@ make clawd-agent-flow-json \
   DESCRIPTION="Generate weekly market summary"
 ```
 
-Run the same flow from the OpenClaw command surface:
-
-```bash
-cd openclaw
-node --import tsx src/entry.ts agent-flow \
-  --assignee <bech32-address> \
-  --description "Generate weekly market summary" \
-  --json
-```
-
-Optional lifecycle controls are supported in both `openclaw agent-flow` and `clawd agent-flow`:
-`--requirements`, `--skill-id`, `--budget`, `--deadline-blocks`, `--auto-accept`, `--auto-complete`, `--completion-result`.
-
-End-to-end product lifecycle (task + messaging + marketplace/escrow + reputation):
+Product flow with task, messaging, marketplace, escrow, and reputation:
 
 ```bash
 make clawd-product-flow-json \
@@ -156,110 +167,114 @@ make clawd-product-flow-json \
   TASK_DESCRIPTION="Deliver market report" \
   MESSAGE_CIPHERTEXT="base64:..." \
   SKILL_ID=<skill-id>
-
-# same lifecycle via openclaw delegated surface
-make openclaw-product-flow-json \
-  ASSIGNEE=<bech32-address> \
-  TASK_DESCRIPTION="Deliver market report" \
-  MESSAGE_CIPHERTEXT="base64:..." \
-  SKILL_ID=<skill-id>
-
-# strict JSON assertions for automation gates
-make openclaw-product-flow-assert \
-  ASSIGNEE=<bech32-address> \
-  TASK_DESCRIPTION="Deliver market report" \
-  MESSAGE_CIPHERTEXT="base64:..." \
-  SKILL_ID=<skill-id>
-make clawd-product-flow-assert \
-  ASSIGNEE=<bech32-address> \
-  TASK_DESCRIPTION="Deliver market report" \
-  MESSAGE_CIPHERTEXT="base64:..." \
-  SKILL_ID=<skill-id>
-make product-flow-gate \
-  ASSIGNEE=<bech32-address> \
-  TASK_DESCRIPTION="Deliver market report" \
-  MESSAGE_CIPHERTEXT="base64:..." \
-  SKILL_ID=<skill-id>
 ```
 
-Runtime startup telemetry (machine-readable):
+## SDK
 
-```bash
-make openclaw-up-json MANIFEST=https://testnet.clawchain.example/manifest.json HOST=your.public.host REQUEST_FAUCET=1
-make clawd-up-json MANIFEST=https://testnet.clawchain.example/manifest.json HOST=your.public.host REQUEST_FAUCET=1
-
-# strict readiness-gated JSON assertions
-make openclaw-up-ready-assert MANIFEST=https://testnet.clawchain.example/manifest.json HOST=your.public.host REQUEST_FAUCET=1
-make clawd-up-ready-assert MANIFEST=https://testnet.clawchain.example/manifest.json HOST=your.public.host REQUEST_FAUCET=1
-make runtime-readiness-gate
-```
-
-### Configuration
-
-Chain configuration: `config.yml` (see [Ignite CLI docs](https://docs.ignite.com)).
-
-## Key Components
-
-### TypeScript SDK (`sdk/`)
-
-Full client library for interacting with all chain modules from TypeScript/Node.js. See [`sdk/README.md`](sdk/README.md) for installation, quick start, and complete API reference.
+The TypeScript SDK provides application-level access to ClawChain modules and workflows.
 
 ```bash
 npm install @clawchain/sdk
 ```
 
-### clawd CLI (`cmd/clawd/`)
+See [`sdk/README.md`](sdk/README.md) and [`docs/sdk-reference.md`](docs/sdk-reference.md) for API usage and examples.
 
-Feature-complete command-line interface with 159 commands covering agent lifecycle, privacy operations, marketplace, governance, GPU compute, and more.
+## Web Dashboard
 
-```bash
-cd cmd/clawd && npm run build
-node dist/main.js --help
-```
-
-### Web Dashboard (`web/`)
-
-React + Vite web interface with 14 pages: agent registry, privacy pool, marketplace, governance, staking, IBC, compute resources, model registry, and more.
-
-### OpenClaw Runtime (`openclaw/`)
-
-Local-first AI agent framework that integrates with the chain. Agents run as Node.js processes with full access to the SDK, P2P encrypted messaging, and ZK proof generation.
-
-### GPU Marketplace
-
-On-chain GPU compute resource listings, leasing, job submission, auto-settlement, provider heartbeats, and usage metrics. Provider daemon: `cmd/claw-gpu-provider/`.
-
-### Monitoring Stack (`monitoring/`)
-
-Production-ready observability:
-- **Prometheus** with alert rules for chain, agent, GPU, and privacy modules
-- **Grafana** dashboards: chain overview, agent economy, marketplace, privacy pool
-- **Alertmanager** for notification routing
-
-## Release
+The `web/` application provides a React + Vite dashboard for chain and operator activity, including agents, marketplace, privacy, governance, staking, IBC, compute, models, and wallet workflows.
 
 ```bash
-git tag v0.1
-git push origin v0.1
+cd web
+npm install
+npm run build
 ```
 
-CI builds release artifacts with SHA256 signing (`.github/workflows/release.yml`).
+## GPU and Compute Providers
+
+ClawChain includes infrastructure for GPU provider registration, compute resource listings, lease workflows, usage metrics, and provider heartbeats.
+
+Relevant paths:
+
+- `cmd/claw-gpu-provider/`
+- `cmd/claw-inference-sidecar/`
+- `docs/gpu-provider-guide.md`
+- `monitoring/grafana/dashboards/`
+
+## Testing and Validation
+
+Run focused Go tests:
+
+```bash
+go test ./x/...
+```
+
+Run integration and E2E suites:
+
+```bash
+go test -tags=integration ./x/...
+go test -tags=e2e ./tests/e2e/...
+```
+
+Run TypeScript SDK tests:
+
+```bash
+cd sdk
+npm test
+```
+
+Project validation shortcuts:
+
+```bash
+make protocol-contract-pack
+make protocol-sanity
+make prd-verify
+make branch-protection-verify
+make prd-build
+make help
+```
+
+## Security and Operations
+
+ClawChain is intended to be operated as public blockchain infrastructure. Do not publish validator private keys, mnemonic phrases, RPC admin credentials, production `.env` files, or Kubernetes secret manifests.
+
+Security and operations references:
+
+| Document | Purpose |
+| --- | --- |
+| [`docs/threat-model.md`](docs/threat-model.md) | Security model and threat analysis |
+| [`docs/security-review-checklist.md`](docs/security-review-checklist.md) | Security review process |
+| [`docs/key-custody-policy.md`](docs/key-custody-policy.md) | Validator and operator key custody |
+| [`docs/observability.md`](docs/observability.md) | Monitoring and alerting setup |
+| [`docs/upgrade-guide.md`](docs/upgrade-guide.md) | Chain upgrade procedure |
+| [`docs/disaster-recovery.md`](docs/disaster-recovery.md) | Recovery planning |
 
 ## Documentation
 
 | Document | Description |
-|----------|-------------|
-| [`sdk/README.md`](sdk/README.md) | SDK installation, quick start, API tables |
-| [`docs/sdk-reference.md`](docs/sdk-reference.md) | Full SDK method signatures and examples |
-| [`docs/operator-quickstart.md`](docs/operator-quickstart.md) | Node operator onboarding guide |
-| [`docs/integrator-quickstart.md`](docs/integrator-quickstart.md) | External integrator quickstart |
-| [`docs/upgrade-guide.md`](docs/upgrade-guide.md) | Chain upgrade procedures |
-| [`docs/threat-model.md`](docs/threat-model.md) | Security threat model |
-| [`docs/observability.md`](docs/observability.md) | Monitoring and alerting setup |
+| --- | --- |
+| [`docs/operator-quickstart.md`](docs/operator-quickstart.md) | Node and provider onboarding |
+| [`docs/integrator-quickstart.md`](docs/integrator-quickstart.md) | External integrator guide |
+| [`docs/sdk-reference.md`](docs/sdk-reference.md) | SDK methods and examples |
+| [`docs/api-reference.md`](docs/api-reference.md) | API reference |
+| [`docs/mainnet-launch-checklist.md`](docs/mainnet-launch-checklist.md) | Mainnet launch checklist |
+| [`docs/observability.md`](docs/observability.md) | Metrics, dashboards, and alerts |
+
+## Release
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+Release workflows and artifact provenance are tracked under `.github/workflows/`, `artifacts/`, and `docs/production-launch-artifact-index.md`.
+
+## License
+
+License information should be reviewed before production release. Add a repository-level `LICENSE` file before broader public distribution if one is not already present.
 
 ## Learn More
 
-- [Cosmos SDK docs](https://docs.cosmos.network)
-- [CometBFT docs](https://docs.cometbft.com)
-- [IBC Protocol](https://ibc.cosmos.network)
+- [Cosmos SDK](https://docs.cosmos.network)
+- [CometBFT](https://docs.cometbft.com)
+- [IBC](https://ibc.cosmos.network)
 - [Ignite CLI](https://ignite.com/cli)
