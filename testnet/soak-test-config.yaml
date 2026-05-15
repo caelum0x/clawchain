@@ -1,0 +1,157 @@
+# ClawChain 7-Day Soak Test Configuration
+# Validates chain stability under sustained realistic load.
+#
+# Usage:
+#   ./scripts/load-test.sh --config testnet/soak-test-config.yaml --duration 7d
+
+name: "clawchain-soak-7day"
+chain_id: "clawchain-soak-1"
+duration: "168h"  # 7 days
+
+# Target chain endpoints
+endpoints:
+  rpc: "http://localhost:26657"
+  rest: "http://localhost:1317"
+  grpc: "localhost:9090"
+
+# Validator configuration
+validators:
+  count: 4
+  min_uptime: 0.99  # 99% uptime threshold
+
+# Transaction patterns (sustained load)
+workloads:
+  # Basic token transfers
+  - name: "token-transfers"
+    type: "send"
+    rate_per_minute: 30
+    amount_range: [1000, 1000000]
+    denom: "uclaw"
+
+  # Agent registrations and heartbeats
+  - name: "agent-lifecycle"
+    type: "agent"
+    actions:
+      - register: 2_per_hour
+      - heartbeat: 60_per_hour
+      - deregister: 1_per_hour
+
+  # Task delegation cycle
+  - name: "task-delegation"
+    type: "task"
+    rate_per_minute: 5
+    actions:
+      - delegate: 0.4
+      - accept: 0.3
+      - complete: 0.3
+
+  # Privacy transactions
+  - name: "privacy-pool"
+    type: "privacy"
+    rate_per_minute: 10
+    actions:
+      - shield: 0.4
+      - private_transfer: 0.3
+      - unshield: 0.3
+
+  # Governance proposals
+  - name: "governance"
+    type: "governance"
+    actions:
+      - submit_proposal: 1_per_day
+      - vote: 10_per_proposal
+
+  # GPU compute jobs
+  - name: "compute-jobs"
+    type: "compute"
+    rate_per_minute: 2
+    actions:
+      - list_resource: 0.1
+      - lease: 0.2
+      - submit_job: 0.4
+      - release: 0.3
+
+  # Model registry
+  - name: "model-registry"
+    type: "model"
+    actions:
+      - register_model: 2_per_day
+      - publish_version: 3_per_day
+      - purchase_access: 10_per_day
+      - rate_model: 5_per_day
+
+# Chaos events (scheduled disruptions)
+chaos:
+  # Restart a random validator every 12 hours
+  - name: "validator-restart"
+    interval: "12h"
+    action: "restart_random_validator"
+    recovery_timeout: "60s"
+
+  # Simulate network partition (5 min) every 24 hours
+  - name: "network-partition"
+    interval: "24h"
+    action: "partition_validator"
+    duration: "5m"
+
+  # High load burst every 6 hours
+  - name: "load-spike"
+    interval: "6h"
+    action: "burst_transactions"
+    rate: 100_per_block
+    duration: "10m"
+
+# Health checks
+health:
+  check_interval: "30s"
+  thresholds:
+    max_block_time_seconds: 15
+    min_peer_count: 2
+    max_mempool_size: 500
+    min_validators_active: 3
+    max_missed_blocks_window: 5
+
+# Pass/fail criteria
+criteria:
+  - name: "chain-liveness"
+    condition: "no block gaps > 30s"
+    required: true
+
+  - name: "validator-uptime"
+    condition: "all validators > 99% uptime"
+    required: true
+
+  - name: "transaction-success"
+    condition: "tx success rate > 95%"
+    required: true
+
+  - name: "privacy-pool-integrity"
+    condition: "merkle root consistent across all nodes"
+    required: true
+
+  - name: "no-panics"
+    condition: "zero panic entries in logs"
+    required: true
+
+  - name: "memory-stability"
+    condition: "memory usage does not grow >50% from baseline"
+    required: true
+
+  - name: "disk-growth"
+    condition: "state DB growth < 10GB over 7 days"
+    required: false
+
+# Reporting
+reporting:
+  interval: "1h"
+  output_dir: "testnet/soak-results/"
+  metrics:
+    - blocks_produced
+    - avg_block_time
+    - tx_throughput
+    - tx_success_rate
+    - privacy_tx_count
+    - agent_count
+    - validator_uptime
+    - memory_usage
+    - disk_usage

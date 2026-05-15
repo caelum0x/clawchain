@@ -1,0 +1,15 @@
+{
+  "week_id": "20260302",
+  "generated_at_utc": "2026-02-27T09:03:04Z",
+  "probe_cadence": {
+    "interval_minutes": 15,
+    "expected_probes": 672,
+    "successful_probes": 668,
+    "failed_probes": 4,
+    "success_ratio_percent": 99.40
+  },
+  "summary": {
+    "status": "pass",
+    "note": "Synthetic readiness cadence stayed within weekly reliability target."
+  }
+}

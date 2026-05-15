@@ -66,12 +66,19 @@ import {
 import {
   runOraclePrice,
   runOraclePrices,
-  runOracleHistory,
+  runOracleActives,
+  runOracleVoteTargets,
   runOracleParams,
   runOracleFeeder,
   runOracleMiss,
   runOraclePrevote,
+  runOraclePrevotes,
   runOracleVote,
+  runOracleVotes,
+  runOracleTobinTax,
+  runOracleTobinTaxes,
+  runOracleSetup,
+  runOracleDelegateFeed,
 } from "./commands/oracle.js";
 import { runSkillList, runSkillCreate, runSkillPurchase } from "./commands/skill.js";
 import {
@@ -224,6 +231,8 @@ import {
   runGpuRegister,
   runGpuProviderStatus,
   runGpuEarnings,
+  runGpuProviderSetup,
+  runDetectHardware,
 } from "./commands/gpu-provider.js";
 import {
   runSkillsList,
@@ -2248,33 +2257,39 @@ govCmd
 // ---------------------------------------------------------------------------
 // clawd oracle
 // ---------------------------------------------------------------------------
-const oracleCmd = program.command("oracle").description("Oracle price feeds and voting");
+const oracleCmd = program.command("oracle").description("Terra-forked oracle: exchange rates, tobin taxes, votes");
 
 oracleCmd
   .command("price")
-  .description("Query oracle price for a denom pair")
-  .argument("<pair>", "denom pair (e.g. CLAW/USD)")
+  .description("Query exchange rate for a single denom")
+  .argument("<denom>", "denom (e.g. uusd)")
   .option("--json", "output JSON")
-  .action(async (pair, opts) => {
-    await runOraclePrice({ pair, json: opts.json });
+  .action(async (denom, opts) => {
+    await runOraclePrice({ denom, json: opts.json });
   });
 
 oracleCmd
   .command("prices")
-  .description("List all oracle prices")
+  .description("List all exchange rates")
   .option("--json", "output JSON")
   .action(async (opts) => {
     await runOraclePrices({ json: opts.json });
   });
 
 oracleCmd
-  .command("history")
-  .description("Price history for a denom pair")
-  .argument("<pair>", "denom pair (e.g. CLAW/USD)")
-  .option("--limit <n>", "max entries to show", parseInt)
+  .command("actives")
+  .description("List active oracle denoms")
   .option("--json", "output JSON")
-  .action(async (pair, opts) => {
-    await runOracleHistory({ pair, limit: opts.limit, json: opts.json });
+  .action(async (opts) => {
+    await runOracleActives({ json: opts.json });
+  });
+
+oracleCmd
+  .command("vote-targets")
+  .description("List oracle vote target denoms")
+  .option("--json", "output JSON")
+  .action(async (opts) => {
+    await runOracleVoteTargets({ json: opts.json });
   });
 
 oracleCmd
@@ -2288,7 +2303,7 @@ oracleCmd
 oracleCmd
   .command("feeder")
   .description("Query feeder delegation for a validator")
-  .argument("<validator>", "validator address")
+  .argument("<validator>", "validator operator address")
   .option("--json", "output JSON")
   .action(async (validator, opts) => {
     await runOracleFeeder({ validator, json: opts.json });
@@ -2297,7 +2312,7 @@ oracleCmd
 oracleCmd
   .command("miss")
   .description("Query miss counter for a validator")
-  .argument("<validator>", "validator address")
+  .argument("<validator>", "validator operator address")
   .option("--json", "output JSON")
   .action(async (validator, opts) => {
     await runOracleMiss({ validator, json: opts.json });
@@ -2305,21 +2320,72 @@ oracleCmd
 
 oracleCmd
   .command("prevote")
-  .description("Submit aggregate prevote (hash-based)")
-  .argument("<hash>", "prevote hash")
-  .requiredOption("--validator <address>", "validator address")
-  .action(async (hash, opts) => {
-    await runOraclePrevote({ hash, validator: opts.validator });
+  .description("Query aggregate prevote for a validator")
+  .argument("<validator>", "validator operator address")
+  .option("--json", "output JSON")
+  .action(async (validator, opts) => {
+    await runOraclePrevote({ validator, json: opts.json });
+  });
+
+oracleCmd
+  .command("prevotes")
+  .description("List all aggregate prevotes")
+  .option("--json", "output JSON")
+  .action(async (opts) => {
+    await runOraclePrevotes({ json: opts.json });
   });
 
 oracleCmd
   .command("vote")
-  .description("Submit aggregate vote (reveal)")
-  .argument("<salt>", "salt used in prevote")
-  .argument("<rates>", "exchange rates string")
-  .requiredOption("--validator <address>", "validator address")
-  .action(async (salt, rates, opts) => {
-    await runOracleVote({ salt, rates, validator: opts.validator });
+  .description("Query aggregate vote for a validator")
+  .argument("<validator>", "validator operator address")
+  .option("--json", "output JSON")
+  .action(async (validator, opts) => {
+    await runOracleVote({ validator, json: opts.json });
+  });
+
+oracleCmd
+  .command("votes")
+  .description("List all aggregate votes")
+  .option("--json", "output JSON")
+  .action(async (opts) => {
+    await runOracleVotes({ json: opts.json });
+  });
+
+oracleCmd
+  .command("tobin-tax")
+  .description("Query tobin tax for a denom")
+  .argument("<denom>", "denom (e.g. uusd)")
+  .option("--json", "output JSON")
+  .action(async (denom, opts) => {
+    await runOracleTobinTax({ denom, json: opts.json });
+  });
+
+oracleCmd
+  .command("tobin-taxes")
+  .description("List all tobin taxes")
+  .option("--json", "output JSON")
+  .action(async (opts) => {
+    await runOracleTobinTaxes({ json: opts.json });
+  });
+
+oracleCmd
+  .command("setup")
+  .description("Interactive oracle feeder setup wizard")
+  .option("--validator <address>", "validator operator address (clawvaloper1...)")
+  .option("--json", "output JSON")
+  .action(async (opts) => {
+    await runOracleSetup({ validator: opts.validator, json: opts.json });
+  });
+
+oracleCmd
+  .command("delegate-feed")
+  .description("Delegate feed consent to a feeder address")
+  .argument("<validator>", "validator operator address (clawvaloper1...)")
+  .argument("<feeder>", "feeder address (claw1...)")
+  .option("--json", "output JSON")
+  .action(async (validator, feeder, opts) => {
+    await runOracleDelegateFeed({ validator, feeder, json: opts.json });
   });
 
 // ---------------------------------------------------------------------------
@@ -3457,6 +3523,32 @@ gpuProviderCmd
   .option("--json", "output machine-readable JSON")
   .action(async (opts) => {
     await runGpuEarnings({ json: opts.json });
+  });
+
+gpuProviderCmd
+  .command("setup")
+  .description("Interactive setup wizard for GPU providers (detect hardware, validate chain, generate config)")
+  .option("--skip-checks", "skip chain connectivity and balance checks")
+  .option("--output <path>", "config output path (default: config.toml)")
+  .option("--name <name>", "provider display name")
+  .option("--rest-url <url>", "chain REST endpoint override")
+  .option("--rpc-url <url>", "chain RPC endpoint override")
+  .action(async (opts) => {
+    await runGpuProviderSetup({
+      skipChecks: opts.skipChecks,
+      output: opts.output,
+      name: opts.name,
+      restUrl: opts.restUrl,
+      rpcUrl: opts.rpcUrl,
+    });
+  });
+
+gpuProviderCmd
+  .command("detect-hardware")
+  .description("Detect available GPU hardware (NVIDIA, AMD, Apple Silicon)")
+  .option("--json", "output machine-readable JSON")
+  .action(async (opts) => {
+    await runDetectHardware({ json: opts.json });
   });
 
 // ---------------------------------------------------------------------------

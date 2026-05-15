@@ -1,0 +1,107 @@
+# ClawChain TLS — cert-manager ClusterIssuer + Certificates
+#
+# Prerequisites:
+#   kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.14.4/cert-manager.yaml
+#
+# Production uses Let's Encrypt. Staging issuer included for testing.
+
+# Staging issuer (for testing — does NOT produce trusted certs)
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-staging
+  labels:
+    app.kubernetes.io/part-of: clawchain
+spec:
+  acme:
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    email: ops@clawchain.io
+    privateKeySecretRef:
+      name: letsencrypt-staging-key
+    solvers:
+      - http01:
+          ingress:
+            class: nginx
+
+---
+# Production issuer
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+  labels:
+    app.kubernetes.io/part-of: clawchain
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: ops@clawchain.io
+    privateKeySecretRef:
+      name: letsencrypt-prod-key
+    solvers:
+      - http01:
+          ingress:
+            class: nginx
+
+---
+# Certificate for API + RPC endpoints
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: clawchain-api-tls
+  namespace: clawchain
+  labels:
+    app.kubernetes.io/part-of: clawchain
+spec:
+  secretName: clawchain-api-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+    - api.clawchain.io
+    - rpc.clawchain.io
+    - grpc.clawchain.io
+  duration: 2160h    # 90 days
+  renewBefore: 360h  # renew 15 days before expiry
+
+---
+# Certificate for web dashboard
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: clawchain-web-tls
+  namespace: clawchain
+  labels:
+    app.kubernetes.io/part-of: clawchain
+spec:
+  secretName: clawchain-web-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+    - app.clawchain.io
+    - clawchain.io
+    - www.clawchain.io
+  duration: 2160h
+  renewBefore: 360h
+
+---
+# Certificate for ancillary services
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: clawchain-services-tls
+  namespace: clawchain
+  labels:
+    app.kubernetes.io/part-of: clawchain
+spec:
+  secretName: clawchain-services-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+    - faucet.clawchain.io
+    - wallet.clawchain.io
+    - explorer.clawchain.io
+    - grafana.clawchain.io
+  duration: 2160h
+  renewBefore: 360h

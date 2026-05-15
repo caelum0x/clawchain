@@ -1,0 +1,14 @@
+{
+  "generatedAtUtc": "2026-02-27T11:54:22Z",
+  "gitCommit": "53f513522850cb36bd92a351534991e34104fcd3",
+  "weekId": "2026-W09",
+  "references": {
+    "auditLogFile": "artifacts/launch-control/weekly-audit-log-latest.json",
+    "attestationFile": "artifacts/launch-control/weekly-closeout-attestation-latest.json"
+  },
+  "signoff": {
+    "releaseOwner": "pending",
+    "runtimeOwner": "pending",
+    "chainOwner": "pending"
+  }
+}

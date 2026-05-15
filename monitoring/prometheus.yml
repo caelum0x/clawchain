@@ -1,0 +1,104 @@
+# ClawChain Prometheus Configuration
+# Phase 13 Track C - Production Observability
+#
+# Usage:
+#   prometheus --config.file=monitoring/prometheus.yml
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    chain_id: "clawchain-1"
+    environment: "production"
+
+rule_files:
+  - "alerting-rules.yml"
+
+# Alertmanager configuration (uncomment and configure for production)
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets:
+#             - "localhost:9093"
+
+scrape_configs:
+  # ---------------------------------------------------------
+  # CometBFT consensus metrics
+  # Exposed on :26660 when prometheus = true in config.toml
+  # ---------------------------------------------------------
+  - job_name: "cometbft"
+    static_configs:
+      - targets: ["localhost:26660"]
+        labels:
+          chain_id: "clawchain-1"
+          node_type: "validator"
+          instance_name: "clawchain-node-0"
+    metrics_path: "/metrics"
+    scheme: "http"
+    scrape_interval: 15s
+    scrape_timeout: 10s
+
+  # ---------------------------------------------------------
+  # Cosmos SDK application metrics
+  # Exposed on the API server (default :1317) when telemetry
+  # is enabled in app.toml:
+  #   [telemetry]
+  #   enabled = true
+  #   prometheus-retention-time = 60
+  # The SDK exposes a /metrics endpoint via the telemetry module.
+  # By default it binds to :1318 (or the configured telemetry addr).
+  # ---------------------------------------------------------
+  - job_name: "cosmos-sdk-app"
+    static_configs:
+      - targets: ["localhost:1317"]
+        labels:
+          chain_id: "clawchain-1"
+          node_type: "validator"
+          instance_name: "clawchain-node-0"
+    metrics_path: "/metrics"
+    scheme: "http"
+    scrape_interval: 15s
+    scrape_timeout: 10s
+
+  # ---------------------------------------------------------
+  # Node exporter (system metrics: CPU, memory, disk)
+  # Install: https://github.com/prometheus/node_exporter
+  # Default port: 9100
+  # ---------------------------------------------------------
+  - job_name: "node-exporter"
+    static_configs:
+      - targets: ["localhost:9100"]
+        labels:
+          chain_id: "clawchain-1"
+          node_type: "validator"
+          instance_name: "clawchain-node-0"
+    scrape_interval: 15s
+    scrape_timeout: 10s
+
+  # ---------------------------------------------------------
+  # GPU provider metrics
+  # claw-gpu-provider exposes Prometheus metrics via promhttp.
+  # Default addr is :2112 (configure via --metrics-addr flag).
+  # Metrics: claw_gpu_provider_active_jobs, _jobs_total,
+  #          _job_duration_seconds, _reconciler_runs_total,
+  #          _reconciler_mismatches_total, _event_cursor_height,
+  #          _scheduler_queue_size, _gpu_available
+  # ---------------------------------------------------------
+  - job_name: "claw-gpu-provider"
+    static_configs:
+      - targets: ["localhost:2112"]
+        labels:
+          chain_id: "clawchain-1"
+          service: "gpu-provider"
+          instance_name: "gpu-provider-0"
+    metrics_path: "/metrics"
+    scheme: "http"
+    scrape_interval: 15s
+    scrape_timeout: 10s
+
+  # ---------------------------------------------------------
+  # Prometheus self-monitoring
+  # ---------------------------------------------------------
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]

@@ -1,0 +1,9 @@
+{
+  "generatedAtUtc": "2026-02-27T09:37:41Z",
+  "monthId": "2026-02",
+  "governanceReportPath": "artifacts/monthly-reports/2026-02.md",
+  "governanceDecisionLogPath": "docs/governance-decision-log.md",
+  "monthlyReportGateStatus": "passed",
+  "monthlyReportGateOutput": "Monthly Report Gate\n===================\n[PASS] Monthly report found: /Users/arhansubasi/new-blokchain/artifacts/monthly-reports/2026-02.md\n[PASS] Report template exists\n[PASS] Governance decision log exists\n\nMonthly report gate: PASSED",
+  "closureStatus": "closed"
+}

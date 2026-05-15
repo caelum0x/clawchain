@@ -1,0 +1,102 @@
+{
+  "annotations": { "list": [] },
+  "description": "ClawChain Oracle Module — price feeds, vote participation, slashing, rewards",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "title": "Vote Periods Completed",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "targets": [{ "expr": "clawchain_oracle_vote_periods_total", "legendFormat": "total" }],
+      "fieldConfig": { "defaults": { "unit": "short", "thresholds": { "steps": [{ "color": "green", "value": null }] } } }
+    },
+    {
+      "title": "Active Exchange Rates",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "targets": [{ "expr": "clawchain_oracle_active_exchange_rates", "legendFormat": "denoms" }],
+      "fieldConfig": { "defaults": { "unit": "short", "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 1 }, { "color": "red", "value": 0 }] } } }
+    },
+    {
+      "title": "Voting Validators",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "targets": [{ "expr": "clawchain_oracle_voting_validators", "legendFormat": "validators" }],
+      "fieldConfig": { "defaults": { "unit": "short", "thresholds": { "steps": [{ "color": "red", "value": null }, { "color": "yellow", "value": 2 }, { "color": "green", "value": 4 }] } } }
+    },
+    {
+      "title": "Oracle Slashes (Total)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "targets": [{ "expr": "clawchain_oracle_slashes_total", "legendFormat": "slashes" }],
+      "fieldConfig": { "defaults": { "unit": "short", "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 1 }, { "color": "red", "value": 5 }] } } }
+    },
+    {
+      "title": "Exchange Rates Over Time",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "targets": [{ "expr": "clawchain_oracle_exchange_rate", "legendFormat": "{{denom}}" }],
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10 } } }
+    },
+    {
+      "title": "Vote Periods Rate (per hour)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "targets": [{ "expr": "rate(clawchain_oracle_vote_periods_total[1h]) * 3600", "legendFormat": "vote periods/hr" }],
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10 } } }
+    },
+    {
+      "title": "Total Miss Counter (all validators)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "targets": [{ "expr": "clawchain_oracle_total_miss_counter", "legendFormat": "misses" }],
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 15 }, "color": { "mode": "fixed", "fixedColor": "orange" } } }
+    },
+    {
+      "title": "Rewards Distributed (uclaw)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "targets": [{ "expr": "clawchain_oracle_rewards_distributed_uclaw", "legendFormat": "uclaw distributed" }],
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "bars", "lineWidth": 1, "fillOpacity": 50 }, "color": { "mode": "fixed", "fixedColor": "green" } } }
+    },
+    {
+      "title": "Ballot Power",
+      "type": "gauge",
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 20 },
+      "targets": [{ "expr": "clawchain_oracle_ballot_power_total", "legendFormat": "power" }],
+      "fieldConfig": { "defaults": { "unit": "short", "thresholds": { "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 100 }] } } }
+    },
+    {
+      "title": "Slash Rate (per hour)",
+      "type": "gauge",
+      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 20 },
+      "targets": [{ "expr": "rate(clawchain_oracle_slashes_total[1h]) * 3600", "legendFormat": "slashes/hr" }],
+      "fieldConfig": { "defaults": { "unit": "short", "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 0.5 }, { "color": "red", "value": 2 }] } } }
+    },
+    {
+      "title": "Active Denoms vs Vote Targets",
+      "type": "bargauge",
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 20 },
+      "targets": [
+        { "expr": "clawchain_oracle_active_exchange_rates", "legendFormat": "active rates" },
+        { "expr": "clawchain_oracle_voting_validators", "legendFormat": "voting validators" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    }
+  ],
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["oracle", "clawchain"],
+  "templating": { "list": [] },
+  "time": { "from": "now-6h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "ClawChain Oracle",
+  "uid": "clawchain-oracle",
+  "version": 1
+}

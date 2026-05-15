@@ -1,0 +1,8 @@
+version: v2
+plugins:
+  - remote: buf.build/community/timostamm-protobuf-ts
+    out: sdk/src/generated
+    opt:
+      - long_type_string
+      - output_javascript=false
+      - output_legacy_commonjs=false

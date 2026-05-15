@@ -565,23 +565,44 @@ export const REST_WASM_CONTRACT_SMART_SUFFIX = "smart";
 export const REST_WASM_CODE_CONTRACTS_SUFFIX = "contracts";
 
 // ---------------------------------------------------------------------------
-// Oracle module REST paths
+// Oracle module REST paths (Terra-forked v1beta1 endpoints)
 // ---------------------------------------------------------------------------
 
-/** REST path prefix for querying a single oracle price by denom pair. */
-export const REST_ORACLE_PRICE = "/clawchain/oracle/v1/price";
+/** REST path for querying the exchange rate for a single denom. Template: append /{denom}/exchange_rate */
+export const REST_ORACLE_EXCHANGE_RATE = "/clawchain/oracle/v1beta1/denoms";
 
-/** REST path for querying all oracle prices. */
-export const REST_ORACLE_PRICES = "/clawchain/oracle/v1/prices";
+/** REST path for querying all exchange rates. */
+export const REST_ORACLE_EXCHANGE_RATES = "/clawchain/oracle/v1beta1/denoms/exchange_rates";
 
-/** REST path prefix for querying oracle price history by denom pair. */
-export const REST_ORACLE_PRICE_HISTORY = "/clawchain/oracle/v1/price_history";
+/** REST path for querying the tobin tax for a single denom. Template: append /{denom}/tobin_tax */
+export const REST_ORACLE_TOBIN_TAX = "/clawchain/oracle/v1beta1/denoms";
+
+/** REST path for querying all tobin taxes. */
+export const REST_ORACLE_TOBIN_TAXES = "/clawchain/oracle/v1beta1/denoms/tobin_taxes";
+
+/** REST path for querying active denoms. */
+export const REST_ORACLE_ACTIVES = "/clawchain/oracle/v1beta1/denoms/actives";
+
+/** REST path for querying vote target denoms. */
+export const REST_ORACLE_VOTE_TARGETS = "/clawchain/oracle/v1beta1/denoms/vote_targets";
+
+/** REST path prefix for querying a validator's feeder delegation. Template: /validators/{validator_addr}/feeder */
+export const REST_ORACLE_FEEDER = "/clawchain/oracle/v1beta1/validators";
+
+/** REST path prefix for querying a validator's miss counter. Template: /validators/{validator_addr}/miss */
+export const REST_ORACLE_MISS = "/clawchain/oracle/v1beta1/validators";
+
+/** REST path prefix for querying a validator's aggregate prevote. Template: /validators/{validator_addr}/aggregate_prevote */
+export const REST_ORACLE_AGGREGATE_PREVOTE = "/clawchain/oracle/v1beta1/validators";
+
+/** REST path for querying all aggregate prevotes. */
+export const REST_ORACLE_AGGREGATE_PREVOTES = "/clawchain/oracle/v1beta1/validators/aggregate_prevotes";
+
+/** REST path prefix for querying a validator's aggregate vote. Template: /validators/{validator_addr}/aggregate_vote */
+export const REST_ORACLE_AGGREGATE_VOTE = "/clawchain/oracle/v1beta1/validators";
+
+/** REST path for querying all aggregate votes. */
+export const REST_ORACLE_AGGREGATE_VOTES = "/clawchain/oracle/v1beta1/validators/aggregate_votes";
 
 /** REST path for querying oracle module params. */
-export const REST_ORACLE_PARAMS = "/clawchain/oracle/v1/params";
-
-/** REST path prefix for querying the feeder delegate for a validator. */
-export const REST_ORACLE_FEEDER = "/clawchain/oracle/v1/feeder";
-
-/** REST path prefix for querying the miss counter for a validator. */
-export const REST_ORACLE_MISS = "/clawchain/oracle/v1/miss";
+export const REST_ORACLE_PARAMS = "/clawchain/oracle/v1beta1/params";

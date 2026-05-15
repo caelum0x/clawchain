@@ -1,8 +1,7 @@
 /**
- * Tests for `clawd oracle` subcommands -- prices, history, params, feeder, miss.
+ * Tests for `clawd oracle` subcommands -- Terra-forked oracle REST queries.
  *
- * Tests read-only query commands by mocking fetch.
- * Skips prevote/vote (they require signing client).
+ * Tests read-only query commands by mocking fetch against v1beta1 endpoints.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
@@ -29,10 +28,17 @@ vi.mock("../../lib/mnemonic.js", () => ({
 import {
   runOraclePrice,
   runOraclePrices,
-  runOracleHistory,
+  runOracleActives,
+  runOracleVoteTargets,
   runOracleParams,
   runOracleFeeder,
   runOracleMiss,
+  runOraclePrevote,
+  runOraclePrevotes,
+  runOracleVote,
+  runOracleVotes,
+  runOracleTobinTax,
+  runOracleTobinTaxes,
 } from "../oracle.js";
 
 let logs: string[];
@@ -57,40 +63,37 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 
 describe("runOraclePrice", () => {
-  it("displays price for a given pair", async () => {
+  it("displays exchange rate for a given denom", async () => {
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: () =>
         Promise.resolve({
-          price: {
-            denom_pair: "CLAW/USD",
-            price: "1.250000",
-            timestamp: "2026-03-17T00:00:00Z",
-          },
+          exchange_rate: "1.250000",
         }),
     }) as unknown as typeof fetch;
 
-    await runOraclePrice({ pair: "CLAW/USD" });
+    await runOraclePrice({ denom: "uusd" });
 
     const output = logs.join("\n");
-    expect(output).toContain("Oracle Price: CLAW/USD");
+    expect(output).toContain("Exchange Rate");
+    expect(output).toContain("uusd");
     expect(output).toContain("1.250000");
   });
 
-  it("calls correct endpoint URL", async () => {
+  it("calls correct v1beta1 endpoint URL", async () => {
     const fetchSpy = vi.fn().mockResolvedValue({
       ok: true,
       json: () =>
         Promise.resolve({
-          price: { denom_pair: "CLAW/USD", price: "1.0" },
+          exchange_rate: "1.0",
         }),
     }) as unknown as typeof fetch;
     globalThis.fetch = fetchSpy;
 
-    await runOraclePrice({ pair: "CLAW/USD" });
+    await runOraclePrice({ denom: "uusd" });
 
     const calledUrl = String((fetchSpy as any).mock.calls[0][0]);
-    expect(calledUrl).toContain("/clawchain/oracle/v1/price/CLAW%2FUSD");
+    expect(calledUrl).toContain("/clawchain/oracle/v1beta1/denoms/uusd/exchange_rate");
   });
 
   it("shows not found message on 404", async () => {
@@ -100,10 +103,10 @@ describe("runOraclePrice", () => {
       json: () => Promise.resolve({}),
     }) as unknown as typeof fetch;
 
-    await runOraclePrice({ pair: "UNKNOWN/PAIR" });
+    await runOraclePrice({ denom: "unknown" });
 
     const output = logs.join("\n");
-    expect(output).toContain('No price found for pair "UNKNOWN/PAIR"');
+    expect(output).toContain('No exchange rate found for denom "unknown"');
   });
 
   it("outputs JSON when --json flag is set", async () => {
@@ -117,19 +120,15 @@ describe("runOraclePrice", () => {
       ok: true,
       json: () =>
         Promise.resolve({
-          price: {
-            denom_pair: "CLAW/USD",
-            price: "1.250000",
-          },
+          exchange_rate: "1.250000",
         }),
     }) as unknown as typeof fetch;
 
-    await runOraclePrice({ pair: "CLAW/USD", json: true });
+    await runOraclePrice({ denom: "uusd", json: true });
 
     const output = stdoutSpy.join("");
     const parsed = JSON.parse(output);
-    expect(parsed.denom_pair).toBe("CLAW/USD");
-    expect(parsed.price).toBe("1.250000");
+    expect(parsed.exchange_rate).toBe("1.250000");
   });
 });
 
@@ -138,14 +137,14 @@ describe("runOraclePrice", () => {
 // ---------------------------------------------------------------------------
 
 describe("runOraclePrices", () => {
-  it("displays oracle prices table", async () => {
+  it("displays exchange rates table", async () => {
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: () =>
         Promise.resolve({
-          prices: [
-            { denom_pair: "CLAW/USD", price: "1.25", timestamp: "2026-03-17T00:00:00Z" },
-            { denom_pair: "CLAW/BTC", price: "0.000015", timestamp: "2026-03-17T00:00:00Z" },
+          exchange_rates: [
+            { denom: "uusd", exchange_rate: "1.25" },
+            { denom: "ukrw", exchange_rate: "1350.00" },
           ],
         }),
     }) as unknown as typeof fetch;
@@ -153,22 +152,22 @@ describe("runOraclePrices", () => {
     await runOraclePrices({});
 
     const output = logs.join("\n");
-    expect(output).toContain("Oracle Prices");
-    expect(output).toContain("CLAW/USD");
-    expect(output).toContain("CLAW/BTC");
+    expect(output).toContain("Exchange Rates");
+    expect(output).toContain("uusd");
+    expect(output).toContain("ukrw");
     expect(output).toContain("1.25");
   });
 
-  it("shows message when no prices found", async () => {
+  it("shows message when no exchange rates found", async () => {
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({ prices: [] }),
+      json: () => Promise.resolve({ exchange_rates: [] }),
     }) as unknown as typeof fetch;
 
     await runOraclePrices({});
 
     const output = logs.join("\n");
-    expect(output).toContain("No oracle prices found.");
+    expect(output).toContain("No exchange rates found.");
   });
 
   it("outputs JSON when --json flag is set", async () => {
@@ -182,8 +181,8 @@ describe("runOraclePrices", () => {
       ok: true,
       json: () =>
         Promise.resolve({
-          prices: [
-            { denom_pair: "CLAW/USD", price: "1.25" },
+          exchange_rates: [
+            { denom: "uusd", exchange_rate: "1.25" },
           ],
         }),
     }) as unknown as typeof fetch;
@@ -192,86 +191,91 @@ describe("runOraclePrices", () => {
 
     const output = stdoutSpy.join("");
     const parsed = JSON.parse(output);
-    expect(parsed.prices).toBeDefined();
-    expect(parsed.prices).toHaveLength(1);
-    expect(parsed.prices[0].denom_pair).toBe("CLAW/USD");
+    expect(parsed.exchange_rates).toBeDefined();
+    expect(parsed.exchange_rates).toHaveLength(1);
   });
 });
 
 // ---------------------------------------------------------------------------
-// runOracleHistory()
+// runOracleActives()
 // ---------------------------------------------------------------------------
 
-describe("runOracleHistory", () => {
-  it("displays price history table for a given pair", async () => {
+describe("runOracleActives", () => {
+  it("displays active denom list", async () => {
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: () =>
         Promise.resolve({
-          history: [
-            { price: "1.20", timestamp: "2026-03-16T00:00:00Z", block_height: "100" },
-            { price: "1.25", timestamp: "2026-03-17T00:00:00Z", block_height: "200" },
-          ],
+          actives: ["uusd", "ukrw", "usdr"],
         }),
     }) as unknown as typeof fetch;
 
-    await runOracleHistory({ pair: "CLAW/USD" });
+    await runOracleActives({});
 
     const output = logs.join("\n");
-    expect(output).toContain("Price History: CLAW/USD");
-    expect(output).toContain("1.20");
-    expect(output).toContain("1.25");
+    expect(output).toContain("Active Denoms");
+    expect(output).toContain("uusd");
+    expect(output).toContain("ukrw");
   });
 
-  it("uses limit parameter in URL", async () => {
+  it("shows message when no active denoms", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ actives: [] }),
+    }) as unknown as typeof fetch;
+
+    await runOracleActives({});
+
+    const output = logs.join("\n");
+    expect(output).toContain("No active denoms.");
+  });
+
+  it("calls correct v1beta1 endpoint URL", async () => {
     const fetchSpy = vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({ history: [] }),
+      json: () => Promise.resolve({ actives: [] }),
     }) as unknown as typeof fetch;
     globalThis.fetch = fetchSpy;
 
-    await runOracleHistory({ pair: "CLAW/USD", limit: 5 });
+    await runOracleActives({});
 
     const calledUrl = String((fetchSpy as any).mock.calls[0][0]);
-    expect(calledUrl).toContain("limit=5");
+    expect(calledUrl).toContain("/clawchain/oracle/v1beta1/denoms/actives");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// runOracleVoteTargets()
+// ---------------------------------------------------------------------------
+
+describe("runOracleVoteTargets", () => {
+  it("displays vote target list", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          vote_targets: ["uusd", "ukrw"],
+        }),
+    }) as unknown as typeof fetch;
+
+    await runOracleVoteTargets({});
+
+    const output = logs.join("\n");
+    expect(output).toContain("Vote Targets");
+    expect(output).toContain("uusd");
   });
 
-  it("defaults limit to 20 when not provided", async () => {
+  it("calls correct v1beta1 endpoint URL", async () => {
     const fetchSpy = vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({ history: [] }),
+      json: () => Promise.resolve({ vote_targets: [] }),
     }) as unknown as typeof fetch;
     globalThis.fetch = fetchSpy;
 
-    await runOracleHistory({ pair: "CLAW/USD" });
+    await runOracleVoteTargets({});
 
     const calledUrl = String((fetchSpy as any).mock.calls[0][0]);
-    expect(calledUrl).toContain("limit=20");
-  });
-
-  it("shows not found message on 404", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: false,
-      status: 404,
-      json: () => Promise.resolve({}),
-    }) as unknown as typeof fetch;
-
-    await runOracleHistory({ pair: "UNKNOWN/PAIR" });
-
-    const output = logs.join("\n");
-    expect(output).toContain('No price history found for pair "UNKNOWN/PAIR"');
-  });
-
-  it("shows empty history message when response has no entries", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ history: [] }),
-    }) as unknown as typeof fetch;
-
-    await runOracleHistory({ pair: "CLAW/USD" });
-
-    const output = logs.join("\n");
-    expect(output).toContain('No price history for "CLAW/USD"');
+    expect(calledUrl).toContain("/clawchain/oracle/v1beta1/denoms/vote_targets");
   });
 });
 
@@ -286,9 +290,10 @@ describe("runOracleParams", () => {
       json: () =>
         Promise.resolve({
           params: {
-            admin: "claw1admin_address",
-            max_age_seconds: "300",
-            allowed_denoms: ["CLAW/USD", "CLAW/BTC"],
+            vote_period: "5",
+            vote_threshold: "0.500000",
+            reward_band: "0.020000",
+            whitelist: [{ name: "uusd", tobin_tax: "0.0025" }],
           },
         }),
     }) as unknown as typeof fetch;
@@ -297,12 +302,11 @@ describe("runOracleParams", () => {
 
     const output = logs.join("\n");
     expect(output).toContain("Oracle Parameters");
-    expect(output).toContain("admin");
-    expect(output).toContain("claw1admin_address");
-    expect(output).toContain("max_age_seconds");
+    expect(output).toContain("vote_period");
+    expect(output).toContain("vote_threshold");
   });
 
-  it("calls correct endpoint URL", async () => {
+  it("calls correct v1beta1 endpoint URL", async () => {
     const fetchSpy = vi.fn().mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({ params: {} }),
@@ -312,7 +316,7 @@ describe("runOracleParams", () => {
     await runOracleParams({});
 
     const calledUrl = String((fetchSpy as any).mock.calls[0][0]);
-    expect(calledUrl).toContain("/clawchain/oracle/v1/params");
+    expect(calledUrl).toContain("/clawchain/oracle/v1beta1/params");
   });
 
   it("outputs JSON when --json flag is set", async () => {
@@ -327,8 +331,8 @@ describe("runOracleParams", () => {
       json: () =>
         Promise.resolve({
           params: {
-            admin: "claw1admin",
-            max_age_seconds: "300",
+            vote_period: "5",
+            vote_threshold: "0.500000",
           },
         }),
     }) as unknown as typeof fetch;
@@ -337,8 +341,7 @@ describe("runOracleParams", () => {
 
     const output = stdoutSpy.join("");
     const parsed = JSON.parse(output);
-    expect(parsed.admin).toBe("claw1admin");
-    expect(parsed.max_age_seconds).toBe("300");
+    expect(parsed.vote_period).toBe("5");
   });
 });
 
@@ -352,7 +355,7 @@ describe("runOracleFeeder", () => {
       ok: true,
       json: () =>
         Promise.resolve({
-          feeder_address: "claw1feeder_address",
+          feeder_addr: "claw1feeder_address",
         }),
     }) as unknown as typeof fetch;
 
@@ -364,17 +367,17 @@ describe("runOracleFeeder", () => {
     expect(output).toContain("claw1feeder_address");
   });
 
-  it("calls correct endpoint URL", async () => {
+  it("calls correct v1beta1 endpoint URL", async () => {
     const fetchSpy = vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({ feeder_address: "claw1test" }),
+      json: () => Promise.resolve({ feeder_addr: "claw1test" }),
     }) as unknown as typeof fetch;
     globalThis.fetch = fetchSpy;
 
     await runOracleFeeder({ validator: "clawvaloper1abc" });
 
     const calledUrl = String((fetchSpy as any).mock.calls[0][0]);
-    expect(calledUrl).toContain("/clawchain/oracle/v1/feeder/clawvaloper1abc");
+    expect(calledUrl).toContain("/clawchain/oracle/v1beta1/validators/clawvaloper1abc/feeder");
   });
 
   it("shows not found message on 404", async () => {
@@ -413,7 +416,7 @@ describe("runOracleMiss", () => {
     expect(output).toContain("42");
   });
 
-  it("calls correct endpoint URL", async () => {
+  it("calls correct v1beta1 endpoint URL", async () => {
     const fetchSpy = vi.fn().mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({ miss_counter: "0" }),
@@ -423,7 +426,7 @@ describe("runOracleMiss", () => {
     await runOracleMiss({ validator: "clawvaloper1abc" });
 
     const calledUrl = String((fetchSpy as any).mock.calls[0][0]);
-    expect(calledUrl).toContain("/clawchain/oracle/v1/miss/clawvaloper1abc");
+    expect(calledUrl).toContain("/clawchain/oracle/v1beta1/validators/clawvaloper1abc/miss");
   });
 
   it("shows not found message on 404", async () => {
@@ -459,5 +462,352 @@ describe("runOracleMiss", () => {
     const output = stdoutSpy.join("");
     const parsed = JSON.parse(output);
     expect(parsed.miss_counter).toBe("42");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// runOraclePrevote()
+// ---------------------------------------------------------------------------
+
+describe("runOraclePrevote", () => {
+  it("displays aggregate prevote for a validator", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          aggregate_prevote: {
+            hash: "abc123",
+            voter: "clawvaloper1abc",
+            submit_block: "1000",
+          },
+        }),
+    }) as unknown as typeof fetch;
+
+    await runOraclePrevote({ validator: "clawvaloper1abc" });
+
+    const output = logs.join("\n");
+    expect(output).toContain("Aggregate Prevote");
+    expect(output).toContain("abc123");
+    expect(output).toContain("clawvaloper1abc");
+    expect(output).toContain("1000");
+  });
+
+  it("calls correct v1beta1 endpoint URL", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          aggregate_prevote: { hash: "abc", voter: "v1", submit_block: "1" },
+        }),
+    }) as unknown as typeof fetch;
+    globalThis.fetch = fetchSpy;
+
+    await runOraclePrevote({ validator: "clawvaloper1abc" });
+
+    const calledUrl = String((fetchSpy as any).mock.calls[0][0]);
+    expect(calledUrl).toContain(
+      "/clawchain/oracle/v1beta1/validators/clawvaloper1abc/aggregate_prevote",
+    );
+  });
+
+  it("shows not found message on 404", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+      json: () => Promise.resolve({}),
+    }) as unknown as typeof fetch;
+
+    await runOraclePrevote({ validator: "clawvaloper1unknown" });
+
+    const output = logs.join("\n");
+    expect(output).toContain('No aggregate prevote found for validator "clawvaloper1unknown"');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// runOraclePrevotes()
+// ---------------------------------------------------------------------------
+
+describe("runOraclePrevotes", () => {
+  it("displays all aggregate prevotes", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          aggregate_prevotes: [
+            { hash: "abc", voter: "clawvaloper1a", submit_block: "100" },
+            { hash: "def", voter: "clawvaloper1b", submit_block: "101" },
+          ],
+        }),
+    }) as unknown as typeof fetch;
+
+    await runOraclePrevotes({});
+
+    const output = logs.join("\n");
+    expect(output).toContain("Aggregate Prevotes");
+    expect(output).toContain("clawvaloper1a");
+    expect(output).toContain("clawvaloper1b");
+  });
+
+  it("shows message when no prevotes found", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ aggregate_prevotes: [] }),
+    }) as unknown as typeof fetch;
+
+    await runOraclePrevotes({});
+
+    const output = logs.join("\n");
+    expect(output).toContain("No aggregate prevotes found.");
+  });
+
+  it("calls correct v1beta1 endpoint URL", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ aggregate_prevotes: [] }),
+    }) as unknown as typeof fetch;
+    globalThis.fetch = fetchSpy;
+
+    await runOraclePrevotes({});
+
+    const calledUrl = String((fetchSpy as any).mock.calls[0][0]);
+    expect(calledUrl).toContain("/clawchain/oracle/v1beta1/validators/aggregate_prevotes");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// runOracleVote()
+// ---------------------------------------------------------------------------
+
+describe("runOracleVote", () => {
+  it("displays aggregate vote for a validator", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          aggregate_vote: {
+            exchange_rate_tuples: [
+              { denom: "uusd", exchange_rate: "1.25" },
+            ],
+            voter: "clawvaloper1abc",
+          },
+        }),
+    }) as unknown as typeof fetch;
+
+    await runOracleVote({ validator: "clawvaloper1abc" });
+
+    const output = logs.join("\n");
+    expect(output).toContain("Aggregate Vote");
+    expect(output).toContain("clawvaloper1abc");
+    expect(output).toContain("uusd");
+    expect(output).toContain("1.25");
+  });
+
+  it("calls correct v1beta1 endpoint URL", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          aggregate_vote: { exchange_rate_tuples: [], voter: "v1" },
+        }),
+    }) as unknown as typeof fetch;
+    globalThis.fetch = fetchSpy;
+
+    await runOracleVote({ validator: "clawvaloper1abc" });
+
+    const calledUrl = String((fetchSpy as any).mock.calls[0][0]);
+    expect(calledUrl).toContain(
+      "/clawchain/oracle/v1beta1/validators/clawvaloper1abc/aggregate_vote",
+    );
+  });
+
+  it("shows not found message on 404", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+      json: () => Promise.resolve({}),
+    }) as unknown as typeof fetch;
+
+    await runOracleVote({ validator: "clawvaloper1unknown" });
+
+    const output = logs.join("\n");
+    expect(output).toContain('No aggregate vote found for validator "clawvaloper1unknown"');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// runOracleVotes()
+// ---------------------------------------------------------------------------
+
+describe("runOracleVotes", () => {
+  it("displays all aggregate votes", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          aggregate_votes: [
+            {
+              exchange_rate_tuples: [{ denom: "uusd", exchange_rate: "1.25" }],
+              voter: "clawvaloper1a",
+            },
+          ],
+        }),
+    }) as unknown as typeof fetch;
+
+    await runOracleVotes({});
+
+    const output = logs.join("\n");
+    expect(output).toContain("clawvaloper1a");
+    expect(output).toContain("uusd");
+  });
+
+  it("shows message when no votes found", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ aggregate_votes: [] }),
+    }) as unknown as typeof fetch;
+
+    await runOracleVotes({});
+
+    const output = logs.join("\n");
+    expect(output).toContain("No aggregate votes found.");
+  });
+
+  it("calls correct v1beta1 endpoint URL", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ aggregate_votes: [] }),
+    }) as unknown as typeof fetch;
+    globalThis.fetch = fetchSpy;
+
+    await runOracleVotes({});
+
+    const calledUrl = String((fetchSpy as any).mock.calls[0][0]);
+    expect(calledUrl).toContain("/clawchain/oracle/v1beta1/validators/aggregate_votes");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// runOracleTobinTax()
+// ---------------------------------------------------------------------------
+
+describe("runOracleTobinTax", () => {
+  it("displays tobin tax for a denom", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          tobin_tax: "0.002500",
+        }),
+    }) as unknown as typeof fetch;
+
+    await runOracleTobinTax({ denom: "uusd" });
+
+    const output = logs.join("\n");
+    expect(output).toContain("Tobin Tax");
+    expect(output).toContain("uusd");
+    expect(output).toContain("0.002500");
+  });
+
+  it("calls correct v1beta1 endpoint URL", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ tobin_tax: "0.0025" }),
+    }) as unknown as typeof fetch;
+    globalThis.fetch = fetchSpy;
+
+    await runOracleTobinTax({ denom: "uusd" });
+
+    const calledUrl = String((fetchSpy as any).mock.calls[0][0]);
+    expect(calledUrl).toContain("/clawchain/oracle/v1beta1/denoms/uusd/tobin_tax");
+  });
+
+  it("shows not found message on 404", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+      json: () => Promise.resolve({}),
+    }) as unknown as typeof fetch;
+
+    await runOracleTobinTax({ denom: "unknown" });
+
+    const output = logs.join("\n");
+    expect(output).toContain('No tobin tax found for denom "unknown"');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// runOracleTobinTaxes()
+// ---------------------------------------------------------------------------
+
+describe("runOracleTobinTaxes", () => {
+  it("displays all tobin taxes", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          tobin_taxes: [
+            { denom: "uusd", tobin_tax: "0.0025" },
+            { denom: "ukrw", tobin_tax: "0.0050" },
+          ],
+        }),
+    }) as unknown as typeof fetch;
+
+    await runOracleTobinTaxes({});
+
+    const output = logs.join("\n");
+    expect(output).toContain("Tobin Taxes");
+    expect(output).toContain("uusd");
+    expect(output).toContain("ukrw");
+  });
+
+  it("shows message when no tobin taxes found", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ tobin_taxes: [] }),
+    }) as unknown as typeof fetch;
+
+    await runOracleTobinTaxes({});
+
+    const output = logs.join("\n");
+    expect(output).toContain("No tobin taxes found.");
+  });
+
+  it("calls correct v1beta1 endpoint URL", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ tobin_taxes: [] }),
+    }) as unknown as typeof fetch;
+    globalThis.fetch = fetchSpy;
+
+    await runOracleTobinTaxes({});
+
+    const calledUrl = String((fetchSpy as any).mock.calls[0][0]);
+    expect(calledUrl).toContain("/clawchain/oracle/v1beta1/denoms/tobin_taxes");
+  });
+
+  it("outputs JSON when --json flag is set", async () => {
+    const stdoutSpy: string[] = [];
+    vi.spyOn(process.stdout, "write").mockImplementation((chunk: any) => {
+      stdoutSpy.push(String(chunk));
+      return true;
+    });
+
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          tobin_taxes: [
+            { denom: "uusd", tobin_tax: "0.0025" },
+          ],
+        }),
+    }) as unknown as typeof fetch;
+
+    await runOracleTobinTaxes({ json: true });
+
+    const output = stdoutSpy.join("");
+    const parsed = JSON.parse(output);
+    expect(parsed.tobin_taxes).toBeDefined();
+    expect(parsed.tobin_taxes).toHaveLength(1);
   });
 });

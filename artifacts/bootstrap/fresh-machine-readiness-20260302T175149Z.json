@@ -1,0 +1,109 @@
+{
+  "ok": false,
+  "ready": false,
+  "chainId": "clawchain-1",
+  "agentAddress": null,
+  "rpcUrl": "http://localhost:26657",
+  "restUrl": "http://localhost:1317",
+  "messagingEndpoint": null,
+  "checks": [
+    {
+      "name": "Chain RPC",
+      "ok": false,
+      "detail": "TypeError: fetch failed",
+      "required": true
+    },
+    {
+      "name": "Chain REST",
+      "ok": false,
+      "detail": "TypeError: fetch failed",
+      "required": true
+    },
+    {
+      "name": "Manifest signature trust",
+      "ok": true,
+      "detail": "no manifest source configured",
+      "required": false
+    },
+    {
+      "name": "OpenClaw gateway",
+      "ok": false,
+      "detail": "not reachable on http://localhost:18789, http://localhost:3000",
+      "required": true
+    },
+    {
+      "name": "On-chain agent identity",
+      "ok": false,
+      "detail": "agentAddress is missing in clawd config",
+      "required": true
+    },
+    {
+      "name": "Agent heartbeat/liveness",
+      "ok": false,
+      "detail": "agentAddress is missing in clawd config",
+      "required": true
+    },
+    {
+      "name": "Messaging endpoint",
+      "ok": false,
+      "detail": "messagingEndpoint is missing in clawd config",
+      "required": true
+    },
+    {
+      "name": "Peer connectivity",
+      "ok": false,
+      "detail": "TypeError: fetch failed",
+      "required": true
+    },
+    {
+      "name": "Incident mode",
+      "ok": true,
+      "detail": "inactive",
+      "required": false
+    }
+  ],
+  "blockers": [
+    {
+      "name": "Chain RPC",
+      "ok": false,
+      "detail": "TypeError: fetch failed",
+      "required": true
+    },
+    {
+      "name": "Chain REST",
+      "ok": false,
+      "detail": "TypeError: fetch failed",
+      "required": true
+    },
+    {
+      "name": "OpenClaw gateway",
+      "ok": false,
+      "detail": "not reachable on http://localhost:18789, http://localhost:3000",
+      "required": true
+    },
+    {
+      "name": "On-chain agent identity",
+      "ok": false,
+      "detail": "agentAddress is missing in clawd config",
+      "required": true
+    },
+    {
+      "name": "Agent heartbeat/liveness",
+      "ok": false,
+      "detail": "agentAddress is missing in clawd config",
+      "required": true
+    },
+    {
+      "name": "Messaging endpoint",
+      "ok": false,
+      "detail": "messagingEndpoint is missing in clawd config",
+      "required": true
+    },
+    {
+      "name": "Peer connectivity",
+      "ok": false,
+      "detail": "TypeError: fetch failed",
+      "required": true
+    }
+  ]
+}

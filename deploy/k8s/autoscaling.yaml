@@ -1,0 +1,183 @@
+# ClawChain HPA, PDB, and ResourceQuota
+
+# --- HorizontalPodAutoscaler ---
+
+# Web dashboard: scale 2-10 replicas based on CPU
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: clawchain-web
+  namespace: clawchain
+  labels:
+    app.kubernetes.io/name: clawchain-web
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: clawchain-web
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 30
+      policies:
+        - type: Pods
+          value: 2
+          periodSeconds: 60
+
+---
+# GPU provider: scale 1-8 replicas based on CPU (one per GPU node)
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: claw-gpu-provider
+  namespace: clawchain
+  labels:
+    app.kubernetes.io/name: claw-gpu-provider
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: claw-gpu-provider
+  minReplicas: 1
+  maxReplicas: 8
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 60
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 600
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 120
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 60
+
+---
+# --- PodDisruptionBudgets ---
+
+# Chain node: never evict all validators at once
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: clawchain-node
+  namespace: clawchain
+  labels:
+    app.kubernetes.io/name: clawchain-node
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: clawchain-node
+
+---
+# Web dashboard: keep at least 1 replica running during disruptions
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: clawchain-web
+  namespace: clawchain
+  labels:
+    app.kubernetes.io/name: clawchain-web
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: clawchain-web
+
+---
+# Prometheus: at least 1 must remain
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: prometheus
+  namespace: clawchain
+  labels:
+    app.kubernetes.io/name: prometheus
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus
+
+---
+# --- ResourceQuota ---
+
+# Namespace-wide resource limits
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: clawchain-quota
+  namespace: clawchain
+  labels:
+    app.kubernetes.io/part-of: clawchain
+spec:
+  hard:
+    requests.cpu: "16"
+    requests.memory: "32Gi"
+    limits.cpu: "32"
+    limits.memory: "64Gi"
+    persistentvolumeclaims: "10"
+    requests.storage: "500Gi"
+    pods: "50"
+    services: "20"
+    secrets: "30"
+    configmaps: "30"
+
+---
+# LimitRange: defaults and caps for pods that don't specify resources
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: clawchain-limits
+  namespace: clawchain
+  labels:
+    app.kubernetes.io/part-of: clawchain
+spec:
+  limits:
+    - type: Container
+      default:
+        cpu: "500m"
+        memory: "512Mi"
+      defaultRequest:
+        cpu: "100m"
+        memory: "128Mi"
+      max:
+        cpu: "8"
+        memory: "16Gi"
+      min:
+        cpu: "50m"
+        memory: "64Mi"
+    - type: PersistentVolumeClaim
+      max:
+        storage: "200Gi"
+      min:
+        storage: "1Gi"

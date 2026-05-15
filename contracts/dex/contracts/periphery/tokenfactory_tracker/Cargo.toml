@@ -1,0 +1,32 @@
+[package]
+name = "astroport-tokenfactory-tracker"
+version = "2.0.0"
+authors = ["Astroport"]
+edition = "2021"
+description = "Cosmos Bank hook for tokenfactory tokens"
+license = "GPL-3.0-only"
+repository = "https://github.com/astroport-fi/astroport"
+homepage = "https://astroport.fi"
+
+[features]
+library = []
+tests-tube = ["test-tube", "neutron-test-tube"]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+cw2.workspace = true
+cosmwasm-std = { workspace = true, features = ["cosmwasm_1_1"] }
+cw-storage-plus.workspace = true
+cosmwasm-schema.workspace = true
+thiserror.workspace = true
+astroport = "5.1"
+
+# Optional dependencies
+neutron-test-tube = { git = "https://github.com/astroport-fi/neutron-test-tube", optional = true, branch = "feat/neutron-v5-cosmwasm-v1", version = "4.2.2-rc" }
+test-tube = { package = "test-tube-ntrn", git = "https://github.com/astroport-fi/neutron-test-tube", optional = true, branch = "feat/neutron-v5-cosmwasm-v1", version = "0.1.0" }
+
+[dev-dependencies]
+cw-multi-test = { git = "https://github.com/astroport-fi/cw-multi-test", branch = "feat/bank_with_send_hooks", features = ["cosmwasm_1_1"] }
+neutron-std = { git = "https://github.com/astroport-fi/neutron-std", branch = "backport/cosmwasm_v1" }

@@ -2013,49 +2013,44 @@ export interface GenesisInfo {
 }
 
 // ---------------------------------------------------------------------------
-// Oracle module – query responses
+// Oracle module – query responses (Terra-forked v1beta1)
 // ---------------------------------------------------------------------------
 
-/** A single oracle price entry. */
-export interface OraclePrice {
-  /** Denom pair identifier, e.g. "CLAW/USD". */
-  denom_pair: string;
-  /** Decimal price string. */
-  price: string;
-  /** Block height at which the price was recorded. */
-  block_height: string;
-  /** ISO-8601 timestamp of the price update. */
-  timestamp: string;
+/** A denom/exchange_rate pair returned by the exchange_rates endpoint. */
+export interface OracleExchangeRateItem {
+  /** Denom identifier, e.g. "uusd". */
+  denom: string;
+  /** Decimal exchange rate string. */
+  exchange_rate: string;
 }
 
-/** Response for a single oracle price query. */
-export interface OraclePriceResponse {
-  rate: OraclePrice;
+/** Response for querying the exchange rate for a single denom. */
+export interface OracleExchangeRateResponse {
+  /** Decimal exchange rate string. */
+  exchange_rate: string;
 }
 
-/** Response for querying all oracle prices. */
-export interface OraclePricesResponse {
-  rates: OraclePrice[];
+/** Response for querying all exchange rates. */
+export interface OracleExchangeRatesResponse {
+  /** Array of denom/exchange_rate pairs. */
+  exchange_rates: OracleExchangeRateItem[];
 }
 
-/** A single entry in the oracle price history. */
-export interface OraclePriceHistoryEntry {
-  /** Decimal price string. */
-  price: string;
-  /** Block height at which the price was recorded. */
-  block_height: string;
-  /** ISO-8601 timestamp of the price update. */
-  timestamp: string;
-  /** Optional number of blocks this price was valid. */
-  duration_blocks?: string;
+/** Response for querying the tobin tax for a single denom. */
+export interface OracleTobinTaxResponse {
+  /** Decimal tobin tax string. */
+  tobin_tax: string;
 }
 
-/** Response for an oracle price history query. */
-export interface OraclePriceHistoryResponse {
-  entries: OraclePriceHistoryEntry[];
+/** A whitelist entry in oracle params. */
+export interface OracleWhitelistEntry {
+  /** Denom name. */
+  name: string;
+  /** Tobin tax as a decimal string. */
+  tobin_tax: string;
 }
 
-/** Oracle module parameters. */
+/** Oracle module parameters (Terra-forked). */
 export interface OracleParamsData {
   /** Number of blocks in each voting period. */
   vote_period: string;
@@ -2063,19 +2058,39 @@ export interface OracleParamsData {
   vote_threshold: string;
   /** Percentage band around the weighted median for rewards. */
   reward_band: string;
+  /** Number of blocks in the reward distribution window. */
+  reward_distribution_window: string;
+  /** Whitelisted denoms with their tobin taxes. */
+  whitelist: OracleWhitelistEntry[];
   /** Fraction of stake slashed per missed vote. */
   slash_fraction: string;
   /** Number of blocks in the slash evaluation window. */
   slash_window: string;
   /** Minimum valid votes per window before slashing. */
   min_valid_per_window: string;
-  /** List of whitelisted denom pairs. */
-  whitelist: string[];
 }
 
 /** Response for querying oracle module params. */
 export interface OracleParamsResponse {
   params: OracleParamsData;
+}
+
+/** Response for querying active denoms. */
+export interface OracleActivesResponse {
+  /** List of active denom strings. */
+  actives: string[];
+}
+
+/** Response for querying vote target denoms. */
+export interface OracleVoteTargetsResponse {
+  /** List of vote target denom strings. */
+  vote_targets: string[];
+}
+
+/** Response for querying a validator's feeder delegation. */
+export interface OracleFeederResponse {
+  /** Bech32 address of the delegated feeder. */
+  feeder_addr: string;
 }
 
 /** Response for querying a validator's miss counter. */
@@ -2084,10 +2099,50 @@ export interface OracleMissCounterResponse {
   miss_counter: string;
 }
 
-/** Response for querying a validator's feeder delegation. */
-export interface OracleFeederResponse {
-  /** Bech32 address of the delegated feeder. */
-  feeder: string;
+/** An exchange rate tuple in an aggregate vote. */
+export interface OracleExchangeRateTuple {
+  /** Denom identifier. */
+  denom: string;
+  /** Decimal exchange rate string. */
+  exchange_rate: string;
+}
+
+/** An aggregate prevote submitted by a validator. */
+export interface OracleAggregatePrevote {
+  /** Hash of the prevote. */
+  hash: string;
+  /** Voter validator address. */
+  voter: string;
+  /** Block height at which the prevote was submitted. */
+  submit_block: string;
+}
+
+/** Response for querying a single aggregate prevote. */
+export interface OracleAggregatePrevoteResponse {
+  aggregate_prevote: OracleAggregatePrevote;
+}
+
+/** Response for querying all aggregate prevotes. */
+export interface OracleAggregatePrevotesResponse {
+  aggregate_prevotes: OracleAggregatePrevote[];
+}
+
+/** An aggregate vote submitted by a validator. */
+export interface OracleAggregateVote {
+  /** Exchange rate tuples in the vote. */
+  exchange_rate_tuples: OracleExchangeRateTuple[];
+  /** Voter validator address. */
+  voter: string;
+}
+
+/** Response for querying a single aggregate vote. */
+export interface OracleAggregateVoteResponse {
+  aggregate_vote: OracleAggregateVote;
+}
+
+/** Response for querying all aggregate votes. */
+export interface OracleAggregateVotesResponse {
+  aggregate_votes: OracleAggregateVote[];
 }
 
 /** Health status of a single endpoint. */

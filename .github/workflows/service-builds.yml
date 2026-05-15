@@ -1,0 +1,150 @@
+name: Service Builds
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "cmd/**"
+      - "go.mod"
+      - "go.sum"
+      - "sdk/**"
+      - "web/**"
+      - "dex-app/**"
+      - "landing/**"
+      - "docs-site/**"
+      - "claw-explorer/**"
+  push:
+    branches: [main]
+    paths:
+      - "cmd/**"
+      - "go.mod"
+      - "go.sum"
+      - "sdk/**"
+      - "web/**"
+      - "dex-app/**"
+      - "landing/**"
+      - "docs-site/**"
+      - "claw-explorer/**"
+
+permissions:
+  contents: read
+
+jobs:
+  go-services:
+    name: Build Go Services
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      matrix:
+        service:
+          - { dir: "cmd/clawchaind", binary: "clawchaind" }
+          - { dir: "cmd/clawproof", binary: "clawproof" }
+          - { dir: "cmd/claw-faucet", binary: "claw-faucet" }
+          - { dir: "cmd/claw-eventsd", binary: "claw-eventsd" }
+          - { dir: "cmd/claw-notifyd", binary: "claw-notifyd" }
+          - { dir: "cmd/claw-inference-sidecar", binary: "claw-inference-sidecar" }
+          - { dir: "cmd/claw-gpu-provider", binary: "claw-gpu-provider" }
+          - { dir: "cmd/claw-txhistoryd", binary: "claw-txhistoryd" }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+          check-latest: true
+
+      - name: Build ${{ matrix.service.binary }}
+        run: go build -o /dev/null ./${{ matrix.service.dir }}
+
+      - name: Test ${{ matrix.service.binary }}
+        run: |
+          if ls ${{ matrix.service.dir }}/*_test.go 1>/dev/null 2>&1; then
+            go test ./${{ matrix.service.dir }}/...
+          else
+            echo "No tests found, skipping"
+          fi
+
+  ts-services:
+    name: Build TypeScript Services
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        service:
+          - { dir: "cmd/clawd", name: "clawd" }
+          - { dir: "cmd/claw-artemis", name: "claw-artemis" }
+          - { dir: "cmd/claw-cryo", name: "claw-cryo" }
+          - { dir: "cmd/claw-data-portal", name: "claw-data-portal" }
+          - { dir: "cmd/claw-flood", name: "claw-flood" }
+          - { dir: "cmd/claw-flux", name: "claw-flux" }
+          - { dir: "cmd/claw-rivet", name: "claw-rivet" }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        working-directory: ${{ matrix.service.dir }}
+        run: npm install
+
+      - name: Type check
+        working-directory: ${{ matrix.service.dir }}
+        run: npx tsc --noEmit
+
+      - name: Build
+        working-directory: ${{ matrix.service.dir }}
+        run: npx tsc
+
+      - name: Test
+        working-directory: ${{ matrix.service.dir }}
+        run: npm test
+
+  price-feeder:
+    name: Build Price Feeder
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+          check-latest: true
+
+      - name: Build price feeder
+        working-directory: cmd/claw-price-feeder
+        run: go build -o /dev/null .
+
+      - name: Test price feeder
+        working-directory: cmd/claw-price-feeder
+        run: go test ./...
+
+  frontend-builds:
+    name: Build Frontend Apps
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      matrix:
+        app:
+          - { dir: "web", name: "Web Dashboard", cmd: "npx vite build" }
+          - { dir: "claw-explorer", name: "Explorer", cmd: "yarn build" }
+          - { dir: "landing", name: "Landing Page", cmd: "npx vite build" }
+          - { dir: "docs-site", name: "Documentation", cmd: "npm run build" }
+          - { dir: "dex-app", name: "DEX App", cmd: "npm run build" }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        working-directory: ${{ matrix.app.dir }}
+        run: |
+          if [ -f yarn.lock ]; then
+            yarn install --frozen-lockfile
+          else
+            npm install
+          fi
+
+      - name: Build ${{ matrix.app.name }}
+        working-directory: ${{ matrix.app.dir }}
+        run: ${{ matrix.app.cmd }}

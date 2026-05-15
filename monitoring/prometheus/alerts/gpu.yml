@@ -1,0 +1,105 @@
+# ClawChain GPU Compute Alert Rules
+# Monitors GPU provider availability, lease lifecycle, and utilization.
+
+groups:
+  - name: gpu_compute
+    rules:
+      # -------------------------------------------------------
+      # GPUProviderOffline - Provider not responding
+      # Severity: critical
+      # -------------------------------------------------------
+      - alert: GPUProviderOffline
+        expr: up{job="gpu-provider"} == 0
+        for: 5m
+        labels:
+          severity: critical
+          chain_id: "clawchain-1"
+        annotations:
+          summary: "GPU provider is offline"
+          description: >-
+            The GPU provider metrics endpoint has been unreachable for 5 minutes.
+            This means compute resources are unavailable and active leases
+            may be affected.
+
+      # -------------------------------------------------------
+      # GPUUtilizationHigh - GPU utilization > 95%
+      # Severity: warning
+      # -------------------------------------------------------
+      - alert: GPUUtilizationHigh
+        expr: clawchain_gpu_utilization_percent > 95
+        for: 15m
+        labels:
+          severity: warning
+          chain_id: "clawchain-1"
+        annotations:
+          summary: "GPU utilization exceeding 95% for 15 minutes"
+          description: >-
+            GPU resources are near saturation. New compute jobs may experience
+            delays or failures. Consider provisioning additional capacity.
+
+      # -------------------------------------------------------
+      # LeaseExpiringUnrenewed - Leases about to expire
+      # Severity: warning
+      # -------------------------------------------------------
+      - alert: LeaseExpiringUnrenewed
+        expr: clawchain_compute_leases_expiring_soon > 0
+        for: 10m
+        labels:
+          severity: warning
+          chain_id: "clawchain-1"
+        annotations:
+          summary: "Compute leases expiring soon without renewal"
+          description: >-
+            One or more compute leases are approaching expiration and have
+            not been renewed. Active jobs on these leases may be interrupted.
+
+      # -------------------------------------------------------
+      # ComputeJobFailureRate - Job failure rate elevated
+      # Severity: warning
+      # -------------------------------------------------------
+      - alert: ComputeJobFailureRate
+        expr: |
+          rate(clawchain_compute_jobs_failed_total[30m])
+          /
+          rate(clawchain_compute_jobs_total[30m]) > 0.2
+        for: 15m
+        labels:
+          severity: warning
+          chain_id: "clawchain-1"
+        annotations:
+          summary: "Compute job failure rate above 20%"
+          description: >-
+            More than 20% of compute jobs are failing. This may indicate
+            hardware issues, misconfigured resources, or provider problems.
+
+      # -------------------------------------------------------
+      # NoActiveGPUResources - No GPU resources available
+      # Severity: warning
+      # -------------------------------------------------------
+      - alert: NoActiveGPUResources
+        expr: clawchain_gpu_resources_active == 0
+        for: 10m
+        labels:
+          severity: warning
+          chain_id: "clawchain-1"
+        annotations:
+          summary: "No active GPU resources available"
+          description: >-
+            There are no active GPU compute resources registered on the
+            marketplace. Compute jobs cannot be scheduled.
+
+      # -------------------------------------------------------
+      # GPUMemoryPressure - GPU memory near limit
+      # Severity: warning
+      # -------------------------------------------------------
+      - alert: GPUMemoryPressure
+        expr: clawchain_gpu_memory_used_bytes / clawchain_gpu_memory_total_bytes > 0.9
+        for: 10m
+        labels:
+          severity: warning
+          chain_id: "clawchain-1"
+        annotations:
+          summary: "GPU memory utilization above 90%"
+          description: >-
+            GPU memory is near capacity. Large model inference or training
+            jobs may fail with out-of-memory errors.

@@ -175,12 +175,18 @@ import type {
   PortfolioSummary,
   AgentEarnings,
   LeaderboardEntry,
-  OraclePriceResponse,
-  OraclePricesResponse,
-  OraclePriceHistoryResponse,
+  OracleExchangeRateResponse,
+  OracleExchangeRatesResponse,
+  OracleTobinTaxResponse,
   OracleParamsResponse,
-  OracleMissCounterResponse,
+  OracleActivesResponse,
+  OracleVoteTargetsResponse,
   OracleFeederResponse,
+  OracleMissCounterResponse,
+  OracleAggregatePrevoteResponse,
+  OracleAggregatePrevotesResponse,
+  OracleAggregateVoteResponse,
+  OracleAggregateVotesResponse,
 } from "./types.js";
 import {
   DEFAULT_RPC_URL,
@@ -317,12 +323,19 @@ import {
   REST_WASM_CONTRACT_SMART_SUFFIX,
   REST_WASM_CODE_CONTRACTS_SUFFIX,
   REST_AGENT_REWARDS,
-  REST_ORACLE_PRICE,
-  REST_ORACLE_PRICES,
-  REST_ORACLE_PRICE_HISTORY,
+  REST_ORACLE_EXCHANGE_RATE,
+  REST_ORACLE_EXCHANGE_RATES,
+  REST_ORACLE_TOBIN_TAX,
+  REST_ORACLE_TOBIN_TAXES,
+  REST_ORACLE_ACTIVES,
+  REST_ORACLE_VOTE_TARGETS,
   REST_ORACLE_PARAMS,
   REST_ORACLE_FEEDER,
   REST_ORACLE_MISS,
+  REST_ORACLE_AGGREGATE_PREVOTE,
+  REST_ORACLE_AGGREGATE_PREVOTES,
+  REST_ORACLE_AGGREGATE_VOTE,
+  REST_ORACLE_AGGREGATE_VOTES,
 } from "./constants.js";
 
 // ---------------------------------------------------------------------------
@@ -5746,55 +5759,89 @@ export class ClawChainClient {
   }
 
   // -----------------------------------------------------------------------
-  // Queries – Oracle module
+  // Queries – Oracle module (Terra-forked v1beta1)
   // -----------------------------------------------------------------------
 
   /**
-   * Query the current oracle price for a given denom pair.
+   * Query the exchange rate for a single denom.
    *
-   * @param denomPair - Denom pair identifier, e.g. "CLAW/USD".
+   * @param denom - Denom identifier, e.g. "uusd".
    */
-  async getOraclePrice(denomPair: string): Promise<OraclePriceResponse> {
-    const url = `${this.restUrl}${REST_ORACLE_PRICE}/${encodeURIComponent(denomPair)}`;
+  async getOracleExchangeRate(denom: string): Promise<OracleExchangeRateResponse> {
+    const url = `${this.restUrl}${REST_ORACLE_EXCHANGE_RATE}/${encodeURIComponent(denom)}/exchange_rate`;
     const res = await fetch(url);
     if (!res.ok) {
       const body = await res.text().catch(() => "");
-      throw new Error(`ClawChainClient.getOraclePrice: HTTP ${res.status} – ${body}`);
+      throw new Error(`ClawChainClient.getOracleExchangeRate: HTTP ${res.status} – ${body}`);
     }
-    return (await res.json()) as OraclePriceResponse;
+    return (await res.json()) as OracleExchangeRateResponse;
   }
 
   /**
-   * Query all current oracle prices.
+   * Query all current exchange rates.
    */
-  async getOraclePrices(): Promise<OraclePricesResponse> {
-    const url = `${this.restUrl}${REST_ORACLE_PRICES}`;
+  async getOracleExchangeRates(): Promise<OracleExchangeRatesResponse> {
+    const url = `${this.restUrl}${REST_ORACLE_EXCHANGE_RATES}`;
     const res = await fetch(url);
     if (!res.ok) {
       const body = await res.text().catch(() => "");
-      throw new Error(`ClawChainClient.getOraclePrices: HTTP ${res.status} – ${body}`);
+      throw new Error(`ClawChainClient.getOracleExchangeRates: HTTP ${res.status} – ${body}`);
     }
-    return (await res.json()) as OraclePricesResponse;
+    return (await res.json()) as OracleExchangeRatesResponse;
   }
 
   /**
-   * Query oracle price history for a given denom pair.
+   * Query the tobin tax for a single denom.
    *
-   * @param denomPair - Denom pair identifier, e.g. "CLAW/USD".
-   * @param limit - Maximum number of history entries to return.
+   * @param denom - Denom identifier, e.g. "uusd".
    */
-  async getOraclePriceHistory(denomPair: string, limit?: number): Promise<OraclePriceHistoryResponse> {
-    let url = `${this.restUrl}${REST_ORACLE_PRICE_HISTORY}/${encodeURIComponent(denomPair)}`;
-    if (limit !== undefined) {
-      const qp = new URLSearchParams({ limit: String(limit) });
-      url += `?${qp.toString()}`;
-    }
+  async getOracleTobinTax(denom: string): Promise<OracleTobinTaxResponse> {
+    const url = `${this.restUrl}${REST_ORACLE_TOBIN_TAX}/${encodeURIComponent(denom)}/tobin_tax`;
     const res = await fetch(url);
     if (!res.ok) {
       const body = await res.text().catch(() => "");
-      throw new Error(`ClawChainClient.getOraclePriceHistory: HTTP ${res.status} – ${body}`);
+      throw new Error(`ClawChainClient.getOracleTobinTax: HTTP ${res.status} – ${body}`);
     }
-    return (await res.json()) as OraclePriceHistoryResponse;
+    return (await res.json()) as OracleTobinTaxResponse;
+  }
+
+  /**
+   * Query all tobin taxes.
+   */
+  async getOracleTobinTaxes(): Promise<OracleExchangeRatesResponse> {
+    const url = `${this.restUrl}${REST_ORACLE_TOBIN_TAXES}`;
+    const res = await fetch(url);
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(`ClawChainClient.getOracleTobinTaxes: HTTP ${res.status} – ${body}`);
+    }
+    return (await res.json()) as OracleExchangeRatesResponse;
+  }
+
+  /**
+   * Query active denoms that the oracle is tracking.
+   */
+  async getOracleActives(): Promise<OracleActivesResponse> {
+    const url = `${this.restUrl}${REST_ORACLE_ACTIVES}`;
+    const res = await fetch(url);
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(`ClawChainClient.getOracleActives: HTTP ${res.status} – ${body}`);
+    }
+    return (await res.json()) as OracleActivesResponse;
+  }
+
+  /**
+   * Query vote target denoms.
+   */
+  async getOracleVoteTargets(): Promise<OracleVoteTargetsResponse> {
+    const url = `${this.restUrl}${REST_ORACLE_VOTE_TARGETS}`;
+    const res = await fetch(url);
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(`ClawChainClient.getOracleVoteTargets: HTTP ${res.status} – ${body}`);
+    }
+    return (await res.json()) as OracleVoteTargetsResponse;
   }
 
   /**
@@ -5811,12 +5858,27 @@ export class ClawChainClient {
   }
 
   /**
+   * Query the feeder delegation for a validator.
+   *
+   * @param validator - Bech32 validator address.
+   */
+  async getOracleFeederDelegation(validator: string): Promise<OracleFeederResponse> {
+    const url = `${this.restUrl}${REST_ORACLE_FEEDER}/${encodeURIComponent(validator)}/feeder`;
+    const res = await fetch(url);
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(`ClawChainClient.getOracleFeederDelegation: HTTP ${res.status} – ${body}`);
+    }
+    return (await res.json()) as OracleFeederResponse;
+  }
+
+  /**
    * Query the miss counter for a validator's oracle votes.
    *
    * @param validator - Bech32 validator address.
    */
   async getOracleMissCounter(validator: string): Promise<OracleMissCounterResponse> {
-    const url = `${this.restUrl}${REST_ORACLE_MISS}/${encodeURIComponent(validator)}`;
+    const url = `${this.restUrl}${REST_ORACLE_MISS}/${encodeURIComponent(validator)}/miss`;
     const res = await fetch(url);
     if (!res.ok) {
       const body = await res.text().catch(() => "");
@@ -5826,18 +5888,59 @@ export class ClawChainClient {
   }
 
   /**
-   * Query the feeder delegation for a validator.
+   * Query the aggregate prevote for a specific validator.
    *
    * @param validator - Bech32 validator address.
    */
-  async getOracleFeederDelegation(validator: string): Promise<OracleFeederResponse> {
-    const url = `${this.restUrl}${REST_ORACLE_FEEDER}/${encodeURIComponent(validator)}`;
+  async getOracleAggregatePrevote(validator: string): Promise<OracleAggregatePrevoteResponse> {
+    const url = `${this.restUrl}${REST_ORACLE_AGGREGATE_PREVOTE}/${encodeURIComponent(validator)}/aggregate_prevote`;
     const res = await fetch(url);
     if (!res.ok) {
       const body = await res.text().catch(() => "");
-      throw new Error(`ClawChainClient.getOracleFeederDelegation: HTTP ${res.status} – ${body}`);
+      throw new Error(`ClawChainClient.getOracleAggregatePrevote: HTTP ${res.status} – ${body}`);
     }
-    return (await res.json()) as OracleFeederResponse;
+    return (await res.json()) as OracleAggregatePrevoteResponse;
+  }
+
+  /**
+   * Query all aggregate prevotes.
+   */
+  async getOracleAggregatePrevotes(): Promise<OracleAggregatePrevotesResponse> {
+    const url = `${this.restUrl}${REST_ORACLE_AGGREGATE_PREVOTES}`;
+    const res = await fetch(url);
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(`ClawChainClient.getOracleAggregatePrevotes: HTTP ${res.status} – ${body}`);
+    }
+    return (await res.json()) as OracleAggregatePrevotesResponse;
+  }
+
+  /**
+   * Query the aggregate vote for a specific validator.
+   *
+   * @param validator - Bech32 validator address.
+   */
+  async getOracleAggregateVote(validator: string): Promise<OracleAggregateVoteResponse> {
+    const url = `${this.restUrl}${REST_ORACLE_AGGREGATE_VOTE}/${encodeURIComponent(validator)}/aggregate_vote`;
+    const res = await fetch(url);
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(`ClawChainClient.getOracleAggregateVote: HTTP ${res.status} – ${body}`);
+    }
+    return (await res.json()) as OracleAggregateVoteResponse;
+  }
+
+  /**
+   * Query all aggregate votes.
+   */
+  async getOracleAggregateVotes(): Promise<OracleAggregateVotesResponse> {
+    const url = `${this.restUrl}${REST_ORACLE_AGGREGATE_VOTES}`;
+    const res = await fetch(url);
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(`ClawChainClient.getOracleAggregateVotes: HTTP ${res.status} – ${body}`);
+    }
+    return (await res.json()) as OracleAggregateVotesResponse;
   }
 
   // -----------------------------------------------------------------------

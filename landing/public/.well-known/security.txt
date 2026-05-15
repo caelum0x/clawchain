@@ -1,0 +1,4 @@
+Contact: security@clawchain.io
+Expires: 2027-03-09T00:00:00.000Z
+Preferred-Languages: en
+Canonical: https://clawchain.io/.well-known/security.txt

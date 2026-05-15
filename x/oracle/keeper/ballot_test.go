@@ -1,0 +1,186 @@
+package keeper
+
+import (
+	"sort"
+	"testing"
+
+	sdkmath "cosmossdk.io/math"
+	"clawchain/x/oracle/types"
+	sdk "github.com/cosmos/cosmos-sdk/types"
+	stakingkeeper "github.com/cosmos/cosmos-sdk/x/staking/keeper"
+	"github.com/stretchr/testify/require"
+)
+
+func TestOrganizeAggregate(t *testing.T) {
+	input := CreateTestInput(t)
+
+	power := int64(100)
+	amt := sdk.TokensFromConsensusPower(power, sdk.DefaultPowerReduction)
+	stakingMsgSvr := stakingkeeper.NewMsgServerImpl(input.StakingKeeper)
+	ctx := input.Ctx
+
+	// Validator created
+	_, err := stakingMsgSvr.CreateValidator(ctx, NewTestMsgCreateValidator(ValAddrs[0], ValPubKeys[0], amt))
+	require.NoError(t, err)
+	_, err = stakingMsgSvr.CreateValidator(ctx, NewTestMsgCreateValidator(ValAddrs[1], ValPubKeys[1], amt))
+	require.NoError(t, err)
+	_, err = stakingMsgSvr.CreateValidator(ctx, NewTestMsgCreateValidator(ValAddrs[2], ValPubKeys[2], amt))
+	require.NoError(t, err)
+	input.StakingKeeper.EndBlocker(ctx)
+
+	sdrBallot := types.ExchangeRateBallot{
+		types.NewVoteForTally(sdkmath.LegacyNewDec(17), "uusd", ValAddrs[0], power),
+		types.NewVoteForTally(sdkmath.LegacyNewDec(10), "uusd", ValAddrs[1], power),
+		types.NewVoteForTally(sdkmath.LegacyNewDec(6), "uusd", ValAddrs[2], power),
+	}
+	krwBallot := types.ExchangeRateBallot{
+		types.NewVoteForTally(sdkmath.LegacyNewDec(1000), "uatom", ValAddrs[0], power),
+		types.NewVoteForTally(sdkmath.LegacyNewDec(1300), "uatom", ValAddrs[1], power),
+		types.NewVoteForTally(sdkmath.LegacyNewDec(2000), "uatom", ValAddrs[2], power),
+	}
+
+	for i := range sdrBallot {
+		input.OracleKeeper.SetAggregateExchangeRateVote(input.Ctx, ValAddrs[i],
+			types.NewAggregateExchangeRateVote(types.ExchangeRateTuples{
+				{Denom: sdrBallot[i].Denom, ExchangeRate: sdrBallot[i].ExchangeRate},
+				{Denom: krwBallot[i].Denom, ExchangeRate: krwBallot[i].ExchangeRate},
+			}, ValAddrs[i]))
+	}
+
+	// organize votes by denom
+	ballotMap := input.OracleKeeper.OrganizeBallotByDenom(input.Ctx, map[string]types.Claim{
+		ValAddrs[0].String(): {
+			Power:     power,
+			WinCount:  0,
+			Recipient: ValAddrs[0],
+		},
+		ValAddrs[1].String(): {
+			Power:     power,
+			WinCount:  0,
+			Recipient: ValAddrs[1],
+		},
+		ValAddrs[2].String(): {
+			Power:     power,
+			WinCount:  0,
+			Recipient: ValAddrs[2],
+		},
+	})
+
+	// sort each ballot for comparison
+	sort.Sort(sdrBallot)
+	sort.Sort(krwBallot)
+	sort.Sort(ballotMap["uusd"])
+	sort.Sort(ballotMap["uatom"])
+
+	require.Equal(t, sdrBallot, ballotMap["uusd"])
+	require.Equal(t, krwBallot, ballotMap["uatom"])
+}
+
+func TestClearBallots(t *testing.T) {
+	input := CreateTestInput(t)
+
+	power := int64(100)
+	amt := sdk.TokensFromConsensusPower(power, sdk.DefaultPowerReduction)
+	stakingMsgSvr := stakingkeeper.NewMsgServerImpl(input.StakingKeeper)
+	ctx := input.Ctx
+
+	// Validator created
+	_, err := stakingMsgSvr.CreateValidator(ctx, NewTestMsgCreateValidator(ValAddrs[0], ValPubKeys[0], amt))
+	require.NoError(t, err)
+	_, err = stakingMsgSvr.CreateValidator(ctx, NewTestMsgCreateValidator(ValAddrs[1], ValPubKeys[1], amt))
+	require.NoError(t, err)
+	_, err = stakingMsgSvr.CreateValidator(ctx, NewTestMsgCreateValidator(ValAddrs[2], ValPubKeys[2], amt))
+	require.NoError(t, err)
+	input.StakingKeeper.EndBlocker(ctx)
+
+	sdrBallot := types.ExchangeRateBallot{
+		types.NewVoteForTally(sdkmath.LegacyNewDec(17), "uusd", ValAddrs[0], power),
+		types.NewVoteForTally(sdkmath.LegacyNewDec(10), "uusd", ValAddrs[1], power),
+		types.NewVoteForTally(sdkmath.LegacyNewDec(6), "uusd", ValAddrs[2], power),
+	}
+	krwBallot := types.ExchangeRateBallot{
+		types.NewVoteForTally(sdkmath.LegacyNewDec(1000), "uatom", ValAddrs[0], power),
+		types.NewVoteForTally(sdkmath.LegacyNewDec(1300), "uatom", ValAddrs[1], power),
+		types.NewVoteForTally(sdkmath.LegacyNewDec(2000), "uatom", ValAddrs[2], power),
+	}
+
+	for i := range sdrBallot {
+		input.OracleKeeper.SetAggregateExchangeRatePrevote(input.Ctx, ValAddrs[i], types.AggregateExchangeRatePrevote{
+			Hash:        "",
+			Voter:       ValAddrs[i].String(),
+			SubmitBlock: uint64(input.Ctx.BlockHeight()),
+		})
+
+		input.OracleKeeper.SetAggregateExchangeRateVote(input.Ctx, ValAddrs[i],
+			types.NewAggregateExchangeRateVote(types.ExchangeRateTuples{
+				{Denom: sdrBallot[i].Denom, ExchangeRate: sdrBallot[i].ExchangeRate},
+				{Denom: krwBallot[i].Denom, ExchangeRate: krwBallot[i].ExchangeRate},
+			}, ValAddrs[i]))
+	}
+
+	input.OracleKeeper.ClearBallots(input.Ctx, 5)
+
+	prevoteCounter := 0
+	voteCounter := 0
+	input.OracleKeeper.IterateAggregateExchangeRatePrevotes(input.Ctx, func(_ sdk.ValAddress, _ types.AggregateExchangeRatePrevote) bool {
+		prevoteCounter++
+		return false
+	})
+	input.OracleKeeper.IterateAggregateExchangeRateVotes(input.Ctx, func(_ sdk.ValAddress, _ types.AggregateExchangeRateVote) bool {
+		voteCounter++
+		return false
+	})
+
+	require.Equal(t, prevoteCounter, 3)
+	require.Equal(t, voteCounter, 0)
+
+	input.OracleKeeper.ClearBallots(input.Ctx.WithBlockHeight(input.Ctx.BlockHeight()+6), 5)
+
+	prevoteCounter = 0
+	input.OracleKeeper.IterateAggregateExchangeRatePrevotes(input.Ctx, func(_ sdk.ValAddress, _ types.AggregateExchangeRatePrevote) bool {
+		prevoteCounter++
+		return false
+	})
+	require.Equal(t, prevoteCounter, 0)
+}
+
+func TestApplyWhitelist(t *testing.T) {
+	input := CreateTestInput(t)
+
+	// no update
+	input.OracleKeeper.ApplyWhitelist(input.Ctx, types.DenomList{
+		types.Denom{
+			Name:     "uusd",
+			TobinTax: sdkmath.LegacyOneDec(),
+		},
+		types.Denom{
+			Name:     "uatom",
+			TobinTax: sdkmath.LegacyOneDec(),
+		},
+	}, map[string]sdkmath.LegacyDec{
+		"uusd": sdkmath.LegacyZeroDec(),
+		"uatom": sdkmath.LegacyZeroDec(),
+	})
+
+	price, err := input.OracleKeeper.GetTobinTax(input.Ctx, "uusd")
+	require.NoError(t, err)
+	require.Equal(t, price, sdkmath.LegacyOneDec())
+
+	price, err = input.OracleKeeper.GetTobinTax(input.Ctx, "uatom")
+	require.NoError(t, err)
+	require.Equal(t, price, sdkmath.LegacyOneDec())
+
+	metadata, ok := input.BankKeeper.GetDenomMetaData(input.Ctx, "uusd")
+	require.True(t, ok)
+	require.Equal(t, metadata.Base, "uusd")
+	require.Equal(t, metadata.Display, "usd")
+	require.Equal(t, len(metadata.DenomUnits), 3)
+	require.Equal(t, metadata.Description, "The native stable token of ClawChain.")
+
+	metadata, ok = input.BankKeeper.GetDenomMetaData(input.Ctx, "uatom")
+	require.True(t, ok)
+	require.Equal(t, metadata.Base, "uatom")
+	require.Equal(t, metadata.Display, "atom")
+	require.Equal(t, len(metadata.DenomUnits), 3)
+	require.Equal(t, metadata.Description, "The native stable token of ClawChain.")
+}

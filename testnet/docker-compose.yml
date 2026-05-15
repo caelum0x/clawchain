@@ -1,0 +1,211 @@
+##
+## ClawChain 4-Validator Testnet
+##
+## Usage:
+##   1. Build:  docker compose build
+##   2. Init:   ./setup-testnet.sh
+##   3. Start:  docker compose up -d
+##   4. Logs:   docker compose logs -f
+##   5. Stop:   docker compose down
+##
+
+services:
+  # ── Validator 0 (seed node) ──────────────────────────────────────
+  node0:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: clawchain-node0
+    hostname: node0
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        # Ensure API is enabled in app.toml before starting
+        APP_TOML="/clawchain/config/app.toml"
+        if [ -f "$$APP_TOML" ]; then
+          sed -i '/^\[api\]/,/^\[/{s|^enable = false|enable = true|}' "$$APP_TOML"
+          sed -i '/^\[grpc\]/,/^\[/{s|^enable = false|enable = true|}' "$$APP_TOML"
+        fi
+        exec clawchaind start --home /clawchain
+    volumes:
+      - ./data/node0:/clawchain
+    ports:
+      - "26657:26657"   # RPC
+      - "1317:1317"     # REST / LCD
+      - "9090:9090"     # gRPC
+      - "26660:26660"   # Prometheus metrics
+    networks:
+      clawnet:
+        ipv4_address: 10.0.10.2
+    restart: unless-stopped
+
+  # ── Validator 1 ──────────────────────────────────────────────────
+  node1:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: clawchain-node1
+    hostname: node1
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        APP_TOML="/clawchain/config/app.toml"
+        if [ -f "$$APP_TOML" ]; then
+          sed -i '/^\[api\]/,/^\[/{s|^enable = false|enable = true|}' "$$APP_TOML"
+          sed -i '/^\[grpc\]/,/^\[/{s|^enable = false|enable = true|}' "$$APP_TOML"
+        fi
+        exec clawchaind start --home /clawchain
+    volumes:
+      - ./data/node1:/clawchain
+    ports:
+      - "26757:26657"
+      - "1417:1317"
+      - "9190:9090"
+      - "26761:26660"
+    networks:
+      clawnet:
+        ipv4_address: 10.0.10.3
+    restart: unless-stopped
+
+  # ── Validator 2 ──────────────────────────────────────────────────
+  node2:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: clawchain-node2
+    hostname: node2
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        APP_TOML="/clawchain/config/app.toml"
+        if [ -f "$$APP_TOML" ]; then
+          sed -i '/^\[api\]/,/^\[/{s|^enable = false|enable = true|}' "$$APP_TOML"
+          sed -i '/^\[grpc\]/,/^\[/{s|^enable = false|enable = true|}' "$$APP_TOML"
+        fi
+        exec clawchaind start --home /clawchain
+    volumes:
+      - ./data/node2:/clawchain
+    ports:
+      - "26857:26657"
+      - "1517:1317"
+      - "9290:9090"
+      - "26862:26660"
+    networks:
+      clawnet:
+        ipv4_address: 10.0.10.4
+    restart: unless-stopped
+
+  # ── Validator 3 ──────────────────────────────────────────────────
+  node3:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: clawchain-node3
+    hostname: node3
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        APP_TOML="/clawchain/config/app.toml"
+        if [ -f "$$APP_TOML" ]; then
+          sed -i '/^\[api\]/,/^\[/{s|^enable = false|enable = true|}' "$$APP_TOML"
+          sed -i '/^\[grpc\]/,/^\[/{s|^enable = false|enable = true|}' "$$APP_TOML"
+        fi
+        exec clawchaind start --home /clawchain
+    volumes:
+      - ./data/node3:/clawchain
+    ports:
+      - "26957:26657"
+      - "1617:1317"
+      - "9390:9090"
+      - "26963:26660"
+    networks:
+      clawnet:
+        ipv4_address: 10.0.10.5
+    restart: unless-stopped
+
+  # ── Monitoring: Prometheus ───────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.51.2
+    container_name: clawchain-prometheus
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/alert-rules.yml:/etc/prometheus/alert-rules.yml:ro
+    ports:
+      - "9091:9090"
+    networks:
+      clawnet:
+        ipv4_address: 10.0.10.10
+    restart: unless-stopped
+
+  # ── Monitoring: AlertManager ─────────────────────────────────────
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: clawchain-alertmanager
+    volumes:
+      - ./monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    ports:
+      - "9093:9093"
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+      - "--log.level=info"
+    networks:
+      clawnet:
+        ipv4_address: 10.0.10.12
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+  # ── Monitoring: Grafana ──────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:11.0.0
+    container_name: clawchain-grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=clawchain
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    networks:
+      clawnet:
+        ipv4_address: 10.0.10.11
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+  # ── Faucet ───────────────────────────────────────────────────────
+  faucet:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: clawchain-faucet
+    hostname: faucet
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo "Waiting for node0 to be ready..."
+        until curl -s http://node0:26657/status > /dev/null 2>&1; do sleep 2; done
+        echo "Node0 is ready. Starting faucet account balance check..."
+        clawchaind query bank balances $$(clawchaind keys show faucet -a --keyring-backend test --home /clawchain) --node http://node0:26657 --home /clawchain || true
+        echo "Faucet is available via node0 REST API"
+        sleep infinity
+    volumes:
+      - ./data/node0:/clawchain:ro
+    networks:
+      clawnet:
+        ipv4_address: 10.0.10.20
+    depends_on:
+      - node0
+    restart: unless-stopped
+
+volumes:
+  grafana-data:
+
+networks:
+  clawnet:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.0.10.0/24

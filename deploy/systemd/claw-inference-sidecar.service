@@ -1,0 +1,45 @@
+[Unit]
+Description=ClawChain Inference Sidecar
+Documentation=https://github.com/clawchain/clawchain
+After=network-online.target clawchaind.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=clawchain
+Group=clawchain
+ExecStart=/usr/local/bin/claw-inference-sidecar
+Restart=on-failure
+RestartSec=10
+StartLimitInterval=200
+StartLimitBurst=5
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=claw-inference-sidecar
+
+# Environment
+Environment="CHAIN_REST=http://localhost:1317"
+Environment="CHAIN_RPC=http://localhost:26657"
+Environment="CHAIN_ID=clawchain-1"
+Environment="PROVIDER_ADDRESS="
+Environment="PROVIDER_KEY_HEX="
+Environment="METRICS_ADDR=:9090"
+EnvironmentFile=-/etc/clawchain/inference.env
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/clawchain
+
+# Resource limits
+LimitNOFILE=65535
+LimitNPROC=4096
+MemoryMax=4G
+CPUQuota=200%
+
+[Install]
+WantedBy=multi-user.target

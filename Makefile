@@ -489,7 +489,7 @@ build:
 	@echo "--> Building clawchaind"
 	@go build $(BUILD_FLAGS) -mod=readonly -o build/clawchaind ./cmd/clawchaind
 
-build-all: build build-services build-tools build-clawd build-ts-tools
+build-all: build build-services build-tools build-price-feeder build-clawd build-ts-tools
 	@echo "--> All binaries built"
 
 build-services:
@@ -500,6 +500,10 @@ build-services:
 	@go build $(BUILD_FLAGS) -mod=readonly -o build/claw-inference-sidecar ./cmd/claw-inference-sidecar
 	@go build $(BUILD_FLAGS) -mod=readonly -o build/claw-gpu-provider ./cmd/claw-gpu-provider
 	@go build $(BUILD_FLAGS) -mod=readonly -o build/claw-txhistoryd ./cmd/claw-txhistoryd
+
+build-price-feeder:
+	@echo "--> Building oracle price feeder"
+	@cd cmd/claw-price-feeder && go build -o ../../build/claw-price-feeder .
 
 build-tools:
 	@echo "--> Building CLI tools"

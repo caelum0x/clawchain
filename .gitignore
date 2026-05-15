@@ -42,8 +42,19 @@ vendor/
 credentials.json
 service-account*.json
 **/secrets/
+**/node_key.json
+**/priv_validator_key.json
+contracts/dex/e2e/keys.json
+deploy/k8s/secrets.yaml
 *.pem
 *.p12
 *.pfx
 *.key
 !artifacts/.gitkeep
+
+# Local chain data
+.local-node/
+testnet/data/
+contracts/dex/e2e/docker/*/.*/data/
+contracts/dex/e2e/docker/*/.*/config/node_key.json
+contracts/dex/e2e/docker/*/.*/config/priv_validator_key.json

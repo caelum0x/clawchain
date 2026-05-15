@@ -1,0 +1,101 @@
+# ClawChain Alertmanager Configuration
+# Routes alerts to Slack and PagerDuty based on severity.
+#
+# Required environment variables (set in .env):
+#   SLACK_WEBHOOK_URL     - Slack incoming webhook URL
+#   PAGERDUTY_SERVICE_KEY - PagerDuty Events API v2 integration key
+
+global:
+  resolve_timeout: 5m
+
+# Routing tree
+route:
+  # Default receiver
+  receiver: slack-warnings
+  group_by: ["alertname", "chain_id"]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+
+  routes:
+    # Critical alerts: PagerDuty + Slack
+    - match:
+        severity: critical
+      receiver: pagerduty-critical
+      group_wait: 10s
+      repeat_interval: 1h
+      continue: true
+
+    - match:
+        severity: critical
+      receiver: slack-critical
+      group_wait: 10s
+      repeat_interval: 1h
+
+    # Warning alerts: Slack only
+    - match:
+        severity: warning
+      receiver: slack-warnings
+      group_wait: 30s
+      repeat_interval: 4h
+
+# Inhibition rules
+inhibit_rules:
+  # If ChainHalted is firing, suppress SlowBlockTime
+  - source_match:
+      alertname: ChainHalted
+    target_match:
+      alertname: SlowBlockTime
+    equal: ["chain_id"]
+
+  # If DiskSpaceLow (critical) is firing, suppress HighMemoryUsage (warning)
+  - source_match:
+      severity: critical
+    target_match:
+      severity: warning
+    equal: ["chain_id", "instance"]
+
+# Receivers
+receivers:
+  - name: slack-critical
+    slack_configs:
+      - api_url: "https://hooks.slack.com/services/PLACEHOLDER"
+        channel: "#clawchain-alerts-critical"
+        send_resolved: true
+        title: |
+          [{{ .Status | toUpper }}] {{ .GroupLabels.alertname }}
+        text: |
+          *Chain:* {{ .GroupLabels.chain_id }}
+          *Severity:* {{ .CommonLabels.severity }}
+          {{ range .Alerts }}
+          *Alert:* {{ .Labels.alertname }}
+          *Summary:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Runbook:* {{ .Annotations.runbook }}
+          {{ end }}
+        color: '{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}'
+
+  - name: slack-warnings
+    slack_configs:
+      - api_url: "https://hooks.slack.com/services/PLACEHOLDER"
+        channel: "#clawchain-alerts"
+        send_resolved: true
+        title: |
+          [{{ .Status | toUpper }}] {{ .GroupLabels.alertname }}
+        text: |
+          *Chain:* {{ .GroupLabels.chain_id }}
+          {{ range .Alerts }}
+          *Summary:* {{ .Annotations.summary }}
+          {{ end }}
+        color: '{{ if eq .Status "firing" }}warning{{ else }}good{{ end }}'
+
+  - name: pagerduty-critical
+    pagerduty_configs:
+      - service_key: "PLACEHOLDER"
+        severity: critical
+        description: |
+          {{ .GroupLabels.alertname }}: {{ .CommonAnnotations.summary }}
+        details:
+          chain_id: "{{ .GroupLabels.chain_id }}"
+          firing: "{{ .Alerts.Firing | len }}"
+          resolved: "{{ .Alerts.Resolved | len }}"

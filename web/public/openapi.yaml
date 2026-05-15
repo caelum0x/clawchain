@@ -1,0 +1,2130 @@
+openapi: 3.0.3
+info:
+  title: ClawChain API
+  version: 0.1.0
+  description: REST API for the ClawChain AI-Native Blockchain
+  contact:
+    name: ClawChain Team
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+
+servers:
+  - url: http://localhost:1317
+    description: Local development node
+  - url: https://api-testnet.clawchain.io
+    description: ClawChain Testnet
+
+tags:
+  - name: Chain
+    description: Core blockchain queries (blocks, transactions, accounts, balances)
+  - name: Staking
+    description: Validator staking, delegations, and rewards
+  - name: Governance
+    description: On-chain governance proposals and voting
+  - name: Agent
+    description: AI agent registry, tasks, negotiations, and liveness
+  - name: Privacy
+    description: ZK privacy module (Merkle tree, nullifiers, shielded state)
+  - name: Marketplace
+    description: Skill marketplace, escrows, GPU compute resources, and jobs
+  - name: Models
+    description: Model registry, versioning, and inference providers
+  - name: IBC
+    description: Inter-Blockchain Communication channels, connections, and clients
+  - name: Faucet
+    description: Testnet faucet for requesting tokens
+
+paths:
+  # ──────────────────────────────── Chain ────────────────────────────────
+  /cosmos/base/tendermint/v1beta1/blocks/latest:
+    get:
+      tags: [Chain]
+      summary: Get latest block
+      description: Returns the most recent block committed to the chain.
+      operationId: getLatestBlock
+      responses:
+        "200":
+          description: Latest block
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BlockResponse"
+              example:
+                block_id:
+                  hash: "A1B2C3D4E5F6..."
+                block:
+                  header:
+                    height: "12345"
+                    time: "2026-03-07T12:00:00Z"
+                    proposer_address: "clawvalcons1abc..."
+                  data:
+                    txs: []
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /cosmos/base/tendermint/v1beta1/blocks/{height}:
+    get:
+      tags: [Chain]
+      summary: Get block by height
+      description: Returns the block at the specified height.
+      operationId: getBlockByHeight
+      parameters:
+        - name: height
+          in: path
+          required: true
+          description: Block height
+          schema:
+            type: string
+            example: "12345"
+      responses:
+        "200":
+          description: Block at the given height
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BlockResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /cosmos/tx/v1beta1/txs/{hash}:
+    get:
+      tags: [Chain]
+      summary: Get transaction by hash
+      description: Returns a single transaction by its hash.
+      operationId: getTxByHash
+      parameters:
+        - name: hash
+          in: path
+          required: true
+          description: Transaction hash (hex-encoded)
+          schema:
+            type: string
+            example: "E4F7A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6E7F8A9B0C1D2E3F4A5B6C7D8E9F0"
+      responses:
+        "200":
+          description: Transaction details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TxResponse"
+              example:
+                tx_response:
+                  txhash: "E4F7A1..."
+                  height: "12345"
+                  code: 0
+                  gas_used: "80000"
+                  gas_wanted: "200000"
+                  timestamp: "2026-03-07T12:00:00Z"
+                  tx:
+                    body:
+                      memo: ""
+                      messages: []
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /cosmos/bank/v1beta1/balances/{address}:
+    get:
+      tags: [Chain]
+      summary: Get account balances
+      description: Returns all coin balances for the given address.
+      operationId: getBalances
+      parameters:
+        - name: address
+          in: path
+          required: true
+          description: Bech32-encoded account address
+          schema:
+            type: string
+            example: "claw1abc123def456..."
+        - name: pagination.limit
+          in: query
+          required: false
+          description: Maximum number of results
+          schema:
+            type: string
+            default: "100"
+        - name: pagination.offset
+          in: query
+          required: false
+          description: Pagination offset
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Account balances
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  balances:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Coin"
+                  pagination:
+                    $ref: "#/components/schemas/Pagination"
+              example:
+                balances:
+                  - denom: uclaw
+                    amount: "1000000000"
+                pagination:
+                  next_key: null
+                  total: "1"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /cosmos/bank/v1beta1/supply:
+    get:
+      tags: [Chain]
+      summary: Get total supply
+      description: Returns the total supply of all coins on the chain.
+      operationId: getTotalSupply
+      parameters:
+        - name: pagination.limit
+          in: query
+          required: false
+          description: Maximum number of results
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Total supply
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  supply:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Coin"
+                  pagination:
+                    $ref: "#/components/schemas/Pagination"
+              example:
+                supply:
+                  - denom: uclaw
+                    amount: "100000000000000"
+                pagination:
+                  next_key: null
+                  total: "1"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /cosmos/auth/v1beta1/accounts/{address}:
+    get:
+      tags: [Chain]
+      summary: Get account info
+      description: Returns account details including account number and sequence.
+      operationId: getAccount
+      parameters:
+        - name: address
+          in: path
+          required: true
+          description: Bech32-encoded account address
+          schema:
+            type: string
+            example: "claw1abc123def456..."
+      responses:
+        "200":
+          description: Account info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountResponse"
+              example:
+                account:
+                  "@type": "/cosmos.auth.v1beta1.BaseAccount"
+                  address: "claw1abc123def456..."
+                  account_number: "42"
+                  sequence: "7"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  # ──────────────────────────────── Staking ────────────────────────────────
+  /cosmos/staking/v1beta1/validators:
+    get:
+      tags: [Staking]
+      summary: List validators
+      description: Returns all validators, optionally filtered by bonding status.
+      operationId: getValidators
+      parameters:
+        - name: status
+          in: query
+          required: false
+          description: Validator bonding status filter
+          schema:
+            type: string
+            enum:
+              - BOND_STATUS_BONDED
+              - BOND_STATUS_UNBONDED
+              - BOND_STATUS_UNBONDING
+            default: BOND_STATUS_BONDED
+        - name: pagination.limit
+          in: query
+          required: false
+          description: Maximum number of results
+          schema:
+            type: string
+            default: "100"
+      responses:
+        "200":
+          description: List of validators
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  validators:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Validator"
+                  pagination:
+                    $ref: "#/components/schemas/Pagination"
+              example:
+                validators:
+                  - operator_address: "clawvaloper1abc..."
+                    description:
+                      moniker: "ClawNode-1"
+                    tokens: "1000000000"
+                    status: "BOND_STATUS_BONDED"
+                    commission:
+                      commission_rates:
+                        rate: "0.100000000000000000"
+                    jailed: false
+                pagination:
+                  next_key: null
+                  total: "1"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /cosmos/staking/v1beta1/delegations/{delegator}:
+    get:
+      tags: [Staking]
+      summary: Get delegations
+      description: Returns all delegations made by a delegator address.
+      operationId: getDelegations
+      parameters:
+        - name: delegator
+          in: path
+          required: true
+          description: Delegator bech32 address
+          schema:
+            type: string
+            example: "claw1abc123..."
+        - name: pagination.limit
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Delegations for the address
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  delegation_responses:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Delegation"
+                  pagination:
+                    $ref: "#/components/schemas/Pagination"
+              example:
+                delegation_responses:
+                  - delegation:
+                      delegator_address: "claw1abc..."
+                      validator_address: "clawvaloper1xyz..."
+                      shares: "1000000.000000000000000000"
+                    balance:
+                      denom: uclaw
+                      amount: "1000000"
+                pagination:
+                  next_key: null
+                  total: "1"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /cosmos/distribution/v1beta1/delegators/{delegator}/rewards:
+    get:
+      tags: [Staking]
+      summary: Get staking rewards
+      description: Returns outstanding staking rewards for a delegator.
+      operationId: getStakingRewards
+      parameters:
+        - name: delegator
+          in: path
+          required: true
+          description: Delegator bech32 address
+          schema:
+            type: string
+            example: "claw1abc123..."
+      responses:
+        "200":
+          description: Staking rewards
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  rewards:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        validator_address:
+                          type: string
+                        reward:
+                          type: array
+                          items:
+                            $ref: "#/components/schemas/DecCoin"
+                  total:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/DecCoin"
+              example:
+                rewards:
+                  - validator_address: "clawvaloper1xyz..."
+                    reward:
+                      - denom: uclaw
+                        amount: "5000.000000000000000000"
+                total:
+                  - denom: uclaw
+                    amount: "5000.000000000000000000"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  # ──────────────────────────────── Governance ────────────────────────────────
+  /cosmos/gov/v1/proposals:
+    get:
+      tags: [Governance]
+      summary: List proposals
+      description: Returns all governance proposals, optionally filtered by status.
+      operationId: getProposals
+      parameters:
+        - name: proposal_status
+          in: query
+          required: false
+          description: Filter by proposal status
+          schema:
+            type: string
+            enum:
+              - PROPOSAL_STATUS_DEPOSIT_PERIOD
+              - PROPOSAL_STATUS_VOTING_PERIOD
+              - PROPOSAL_STATUS_PASSED
+              - PROPOSAL_STATUS_REJECTED
+              - PROPOSAL_STATUS_FAILED
+        - name: pagination.limit
+          in: query
+          required: false
+          schema:
+            type: string
+            default: "50"
+      responses:
+        "200":
+          description: List of proposals
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  proposals:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Proposal"
+                  pagination:
+                    $ref: "#/components/schemas/Pagination"
+              example:
+                proposals:
+                  - id: "1"
+                    status: "PROPOSAL_STATUS_VOTING_PERIOD"
+                    title: "Increase agent reward rate"
+                    summary: "Proposal to increase mining reward."
+                    submit_time: "2026-03-01T00:00:00Z"
+                    voting_end_time: "2026-03-08T00:00:00Z"
+                pagination:
+                  next_key: null
+                  total: "1"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /cosmos/gov/v1/proposals/{id}:
+    get:
+      tags: [Governance]
+      summary: Get proposal by ID
+      description: Returns a single governance proposal by its numeric ID.
+      operationId: getProposalById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Proposal ID
+          schema:
+            type: string
+            example: "1"
+      responses:
+        "200":
+          description: Proposal details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  proposal:
+                    $ref: "#/components/schemas/Proposal"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  # ──────────────────────────────── Agent ────────────────────────────────
+  /clawchain/agent/v1/agents:
+    get:
+      tags: [Agent]
+      summary: List all registered agents
+      description: Returns all AI agents registered on the chain.
+      operationId: getAgents
+      parameters:
+        - name: pagination.limit
+          in: query
+          required: false
+          schema:
+            type: string
+            default: "100"
+        - name: pagination.offset
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of agents
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  agents:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Agent"
+                  pagination:
+                    $ref: "#/components/schemas/Pagination"
+              example:
+                agents:
+                  - address: "claw1agent..."
+                    name: "GPT-Helper"
+                    endpoint: "https://agent.example.com"
+                    active: true
+                    pubkey: "AjY2..."
+                    supported_tools:
+                      - "web-search"
+                      - "code-exec"
+                pagination:
+                  next_key: null
+                  total: "1"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /clawchain/agent/v1/agent/{address}:
+    get:
+      tags: [Agent]
+      summary: Get agent by address
+      description: Returns a single agent's registration details.
+      operationId: getAgentByAddress
+      parameters:
+        - name: address
+          in: path
+          required: true
+          description: Agent bech32 address
+          schema:
+            type: string
+            example: "claw1agent..."
+      responses:
+        "200":
+          description: Agent details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  agent:
+                    $ref: "#/components/schemas/Agent"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /clawchain/agent/v1/tasks:
+    get:
+      tags: [Agent]
+      summary: List tasks
+      description: Returns all tasks delegated to agents.
+      operationId: getTasks
+      parameters:
+        - name: status
+          in: query
+          required: false
+          description: Filter by task status
+          schema:
+            type: string
+            enum: [pending, accepted, completed, failed]
+        - name: pagination.limit
+          in: query
+          required: false
+          schema:
+            type: string
+            default: "50"
+      responses:
+        "200":
+          description: List of tasks
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tasks:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Task"
+                  pagination:
+                    $ref: "#/components/schemas/Pagination"
+              example:
+                tasks:
+                  - task_id: "1"
+                    delegator_address: "claw1user..."
+                    assignee_address: "claw1agent..."
+                    description: "Summarize document"
+                    budget: "100000"
+                    status: "completed"
+                    result: "Document summary..."
+                    created_at: 12345
+                    completed_at: 12400
+                pagination:
+                  next_key: null
+                  total: "1"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /clawchain/agent/v1/task/{id}:
+    get:
+      tags: [Agent]
+      summary: Get task by ID
+      description: Returns a single task by its numeric ID, including result if completed.
+      operationId: getTaskById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Task ID
+          schema:
+            type: string
+            example: "1"
+      responses:
+        "200":
+          description: Task details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  task:
+                    $ref: "#/components/schemas/Task"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /clawchain/agent/v1/live_agents:
+    get:
+      tags: [Agent]
+      summary: List live agents
+      description: Returns agents that have sent a recent heartbeat and are currently active.
+      operationId: getLiveAgents
+      responses:
+        "200":
+          description: Live agents
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  agents:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Agent"
+              example:
+                agents:
+                  - address: "claw1agent..."
+                    name: "GPT-Helper"
+                    endpoint: "https://agent.example.com"
+                    active: true
+                    pubkey: "AjY2..."
+                    supported_tools: ["web-search"]
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /clawchain/agent/v1/agent_stats:
+    get:
+      tags: [Agent]
+      summary: Get agent network statistics
+      description: Returns aggregate statistics about the agent network (total agents, active count, task counts).
+      operationId: getAgentStats
+      responses:
+        "200":
+          description: Agent statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentStats"
+              example:
+                total_agents: "25"
+                active_agents: "18"
+                total_tasks: "1042"
+                completed_tasks: "987"
+                pending_tasks: "55"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  # ──────────────────────────────── Privacy ────────────────────────────────
+  /clawchain/privacy/v1/params:
+    get:
+      tags: [Privacy]
+      summary: Get privacy module parameters
+      description: Returns the current parameters of the ZK privacy module.
+      operationId: getPrivacyParams
+      responses:
+        "200":
+          description: Privacy module parameters
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  params:
+                    $ref: "#/components/schemas/PrivacyParams"
+              example:
+                params:
+                  tree_depth: "20"
+                  max_batch_size: "8"
+                  shield_fee: "1000"
+                  transfer_fee: "500"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /clawchain/privacy/v1/tree_stats:
+    get:
+      tags: [Privacy]
+      summary: Get Merkle tree statistics
+      description: Returns the current state of the commitment Merkle tree (leaf count, root hash, depth).
+      operationId: getTreeStats
+      responses:
+        "200":
+          description: Tree statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TreeStats"
+              example:
+                leaf_count: "128"
+                root: "0xabcdef1234567890..."
+                depth: "20"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /clawchain/privacy/v1/nullifier_exists/{nullifier}:
+    get:
+      tags: [Privacy]
+      summary: Check if nullifier exists
+      description: Checks whether a nullifier hash has already been spent, preventing double-spending.
+      operationId: nullifierExists
+      parameters:
+        - name: nullifier
+          in: path
+          required: true
+          description: Nullifier hash (hex-encoded)
+          schema:
+            type: string
+            example: "0xdeadbeef..."
+      responses:
+        "200":
+          description: Nullifier existence check
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  exists:
+                    type: boolean
+                    description: Whether the nullifier has been spent
+              example:
+                exists: false
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  # ──────────────────────────────── Marketplace ────────────────────────────────
+  /clawchain/marketplace/v1/listings:
+    get:
+      tags: [Marketplace]
+      summary: List skill listings
+      description: Returns all skill listings available in the marketplace.
+      operationId: getListings
+      parameters:
+        - name: category
+          in: query
+          required: false
+          description: Filter by category
+          schema:
+            type: string
+        - name: owner
+          in: query
+          required: false
+          description: Filter by owner address
+          schema:
+            type: string
+        - name: pagination.limit
+          in: query
+          required: false
+          schema:
+            type: string
+            default: "50"
+      responses:
+        "200":
+          description: Skill listings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  skills:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Listing"
+                  pagination:
+                    $ref: "#/components/schemas/Pagination"
+              example:
+                skills:
+                  - id: "1"
+                    name: "Text Summarizer"
+                    description: "AI-powered text summarization"
+                    owner: "claw1abc..."
+                    price: "50000"
+                    denom: "uclaw"
+                    purchase_count: "12"
+                pagination:
+                  next_key: null
+                  total: "1"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /clawchain/marketplace/v1/listing/{id}:
+    get:
+      tags: [Marketplace]
+      summary: Get listing by ID
+      description: Returns a single skill listing by its ID.
+      operationId: getListingById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Listing/skill ID
+          schema:
+            type: string
+            example: "1"
+      responses:
+        "200":
+          description: Listing details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  skill:
+                    $ref: "#/components/schemas/Listing"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /clawchain/marketplace/v1/escrows:
+    get:
+      tags: [Marketplace]
+      summary: List escrows
+      description: Returns all escrow agreements in the marketplace.
+      operationId: getEscrows
+      parameters:
+        - name: status
+          in: query
+          required: false
+          description: Filter by escrow status
+          schema:
+            type: string
+            enum: [active, completed, disputed, refunded]
+        - name: pagination.limit
+          in: query
+          required: false
+          schema:
+            type: string
+            default: "50"
+      responses:
+        "200":
+          description: Escrow list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  escrows:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Escrow"
+                  pagination:
+                    $ref: "#/components/schemas/Pagination"
+              example:
+                escrows:
+                  - id: "1"
+                    buyer: "claw1buyer..."
+                    seller: "claw1seller..."
+                    amount: "500000"
+                    denom: "uclaw"
+                    status: "active"
+                    milestones: []
+                    created_at: 12345
+                pagination:
+                  next_key: null
+                  total: "1"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /clawchain/marketplace/v1/compute/resources:
+    get:
+      tags: [Marketplace]
+      summary: List GPU compute resources
+      description: Returns available GPU compute resources registered by providers.
+      operationId: getComputeResources
+      parameters:
+        - name: only_available
+          in: query
+          required: false
+          description: Return only unleased resources
+          schema:
+            type: boolean
+            default: false
+      responses:
+        "200":
+          description: Compute resources
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  resources:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ComputeResource"
+                  pagination:
+                    $ref: "#/components/schemas/Pagination"
+              example:
+                resources:
+                  - id: "1"
+                    owner: "claw1provider..."
+                    name: "A100-Cluster-1"
+                    gpu_model: "NVIDIA A100"
+                    gpu_count: 4
+                    vram_gb: 80
+                    cpu_cores: 64
+                    ram_gb: 512
+                    storage_gb: 2000
+                    price_per_hour_uclaw: "100000"
+                    active: true
+                    region: "us-east-1"
+                    tags: ["training", "inference"]
+                pagination:
+                  next_key: null
+                  total: "1"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /clawchain/marketplace/v1/compute/jobs:
+    get:
+      tags: [Marketplace]
+      summary: List compute jobs
+      description: Returns GPU compute jobs, optionally filtered by submitter or resource.
+      operationId: getComputeJobs
+      parameters:
+        - name: address
+          in: query
+          required: false
+          description: Filter by submitter address
+          schema:
+            type: string
+        - name: resource_id
+          in: query
+          required: false
+          description: Filter by compute resource ID
+          schema:
+            type: integer
+        - name: pagination.limit
+          in: query
+          required: false
+          schema:
+            type: string
+            default: "50"
+      responses:
+        "200":
+          description: Compute jobs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  jobs:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ComputeJob"
+                  pagination:
+                    $ref: "#/components/schemas/Pagination"
+              example:
+                jobs:
+                  - id: "1"
+                    resource_id: "1"
+                    submitter: "claw1user..."
+                    provider: "claw1provider..."
+                    name: "training-run-42"
+                    job_type: "training"
+                    execution_type: "docker"
+                    docker_image: "pytorch/pytorch:2.1"
+                    gpu_type: "NVIDIA A100"
+                    gpu_count: 2
+                    status: "running"
+                    submitted_at: 12345
+                pagination:
+                  next_key: null
+                  total: "1"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  # ──────────────────────────────── Models ────────────────────────────────
+  /clawchain/modelregistry/v1/models:
+    get:
+      tags: [Models]
+      summary: List registered models
+      description: Returns all AI models registered on-chain.
+      operationId: getModels
+      parameters:
+        - name: framework
+          in: query
+          required: false
+          description: Filter by ML framework (e.g. pytorch, tensorflow, onnx)
+          schema:
+            type: string
+        - name: only_free
+          in: query
+          required: false
+          description: Return only free-access models
+          schema:
+            type: boolean
+            default: false
+        - name: pagination.limit
+          in: query
+          required: false
+          schema:
+            type: string
+            default: "50"
+      responses:
+        "200":
+          description: Model list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  models:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Model"
+                  pagination:
+                    $ref: "#/components/schemas/Pagination"
+              example:
+                models:
+                  - id: "1"
+                    owner: "claw1researcher..."
+                    name: "ClawGPT-7B"
+                    framework: "pytorch"
+                    architecture: "transformer"
+                    parameter_count: "7000000000"
+                    license: "Apache-2.0"
+                    access_type: "free"
+                    active: true
+                    current_version: 3
+                    total_downloads: 1250
+                    rating: 4.7
+                pagination:
+                  next_key: null
+                  total: "1"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /clawchain/modelregistry/v1/model/{id}:
+    get:
+      tags: [Models]
+      summary: Get model by ID
+      description: Returns a single model record by its numeric ID.
+      operationId: getModelById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Model ID
+          schema:
+            type: string
+            example: "1"
+      responses:
+        "200":
+          description: Model details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  model:
+                    $ref: "#/components/schemas/Model"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /clawchain/modelregistry/v1/inference_providers:
+    get:
+      tags: [Models]
+      summary: List inference providers
+      description: Returns all registered inference providers, optionally filtered by model.
+      operationId: getInferenceProviders
+      parameters:
+        - name: model_id
+          in: query
+          required: false
+          description: Filter by model ID
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Inference providers
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  providers:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/InferenceProvider"
+              example:
+                providers:
+                  - address: "claw1provider..."
+                    model_ids: [1, 3]
+                    max_concurrent: 10
+                    active_jobs: 3
+                    total_jobs: 450
+                    total_earnings: "12000000"
+                    avg_latency_ms: 120
+                    endpoint: "https://inference.example.com"
+                    is_online: true
+                    last_heartbeat: 12400
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  # ──────────────────────────────── IBC ────────────────────────────────
+  /ibc/core/channel/v1/channels:
+    get:
+      tags: [IBC]
+      summary: List IBC channels
+      description: Returns all IBC channels.
+      operationId: getIBCChannels
+      parameters:
+        - name: pagination.limit
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: IBC channels
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  channels:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/IBCChannel"
+                  pagination:
+                    $ref: "#/components/schemas/Pagination"
+              example:
+                channels:
+                  - channel_id: "channel-0"
+                    port_id: "transfer"
+                    state: "STATE_OPEN"
+                    ordering: "ORDER_UNORDERED"
+                    counterparty:
+                      port_id: "transfer"
+                      channel_id: "channel-1"
+                    connection_hops: ["connection-0"]
+                pagination:
+                  next_key: null
+                  total: "1"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /ibc/core/connection/v1/connections:
+    get:
+      tags: [IBC]
+      summary: List IBC connections
+      description: Returns all IBC connections.
+      operationId: getIBCConnections
+      parameters:
+        - name: pagination.limit
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: IBC connections
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  connections:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/IBCConnection"
+                  pagination:
+                    $ref: "#/components/schemas/Pagination"
+              example:
+                connections:
+                  - id: "connection-0"
+                    client_id: "07-tendermint-0"
+                    state: "STATE_OPEN"
+                    counterparty:
+                      client_id: "07-tendermint-1"
+                      connection_id: "connection-0"
+                pagination:
+                  next_key: null
+                  total: "1"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /ibc/core/client/v1/client_states:
+    get:
+      tags: [IBC]
+      summary: List IBC client states
+      description: Returns all IBC light client states.
+      operationId: getIBCClientStates
+      parameters:
+        - name: pagination.limit
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: IBC client states
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  client_states:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/IBCClientState"
+                  pagination:
+                    $ref: "#/components/schemas/Pagination"
+              example:
+                client_states:
+                  - client_id: "07-tendermint-0"
+                    client_state:
+                      "@type": "/ibc.lightclients.tendermint.v1.ClientState"
+                      chain_id: "cosmoshub-4"
+                      trust_level:
+                        numerator: "1"
+                        denominator: "3"
+                pagination:
+                  next_key: null
+                  total: "1"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /ibc/apps/transfer/v1/denom_traces:
+    get:
+      tags: [IBC]
+      summary: List IBC denomination traces
+      description: Returns all IBC denomination traces (foreign tokens transferred via IBC).
+      operationId: getIBCDenomTraces
+      parameters:
+        - name: pagination.limit
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Denomination traces
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  denom_traces:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/IBCDenomTrace"
+                  pagination:
+                    $ref: "#/components/schemas/Pagination"
+              example:
+                denom_traces:
+                  - path: "transfer/channel-0"
+                    base_denom: "uatom"
+                pagination:
+                  next_key: null
+                  total: "1"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  # ──────────────────────────────── Faucet ────────────────────────────────
+  /faucet:
+    post:
+      tags: [Faucet]
+      summary: Request testnet tokens
+      description: Sends testnet CLAW tokens to the provided address. Rate-limited per address.
+      operationId: requestFaucet
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - address
+              properties:
+                address:
+                  type: string
+                  description: Recipient bech32 address
+                  example: "claw1abc123..."
+      responses:
+        "200":
+          description: Tokens sent successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  txHash:
+                    type: string
+              example:
+                message: "Sent 10 CLAW to claw1abc123..."
+                txHash: "A1B2C3..."
+        "400":
+          description: Invalid address or rate-limited
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+              example:
+                error: "Rate limit exceeded. Try again in 60 seconds."
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /faucet/status:
+    get:
+      tags: [Faucet]
+      summary: Get faucet status
+      description: Returns the current faucet status including available balance and rate limit info.
+      operationId: getFaucetStatus
+      responses:
+        "200":
+          description: Faucet status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  available:
+                    type: boolean
+                    description: Whether the faucet is currently operational
+                  balance:
+                    type: string
+                    description: Remaining faucet balance in uclaw
+                  rate_limit_seconds:
+                    type: integer
+                    description: Cooldown period per address in seconds
+              example:
+                available: true
+                balance: "999000000"
+                rate_limit_seconds: 60
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+# ════════════════════════════════════════════════════════════════════════
+#  Components
+# ════════════════════════════════════════════════════════════════════════
+components:
+  schemas:
+    # ── Primitives ──
+    Coin:
+      type: object
+      description: A coin denomination and amount pair.
+      properties:
+        denom:
+          type: string
+          example: "uclaw"
+        amount:
+          type: string
+          example: "1000000"
+
+    DecCoin:
+      type: object
+      description: A decimal coin used for distribution rewards.
+      properties:
+        denom:
+          type: string
+          example: "uclaw"
+        amount:
+          type: string
+          example: "5000.000000000000000000"
+
+    Pagination:
+      type: object
+      description: Standard Cosmos SDK pagination response.
+      properties:
+        next_key:
+          type: string
+          nullable: true
+          description: Key for the next page (null if last page)
+        total:
+          type: string
+          description: Total number of records
+
+    ErrorBody:
+      type: object
+      properties:
+        error:
+          type: string
+        code:
+          type: integer
+        message:
+          type: string
+
+    # ── Chain ──
+    BlockResponse:
+      type: object
+      properties:
+        block_id:
+          type: object
+          properties:
+            hash:
+              type: string
+        block:
+          type: object
+          properties:
+            header:
+              type: object
+              properties:
+                height:
+                  type: string
+                time:
+                  type: string
+                  format: date-time
+                proposer_address:
+                  type: string
+            data:
+              type: object
+              properties:
+                txs:
+                  type: array
+                  items:
+                    type: string
+
+    TxResponse:
+      type: object
+      properties:
+        tx_response:
+          $ref: "#/components/schemas/Transaction"
+
+    Transaction:
+      type: object
+      description: A blockchain transaction with its result.
+      properties:
+        txhash:
+          type: string
+          description: Hex-encoded transaction hash
+        height:
+          type: string
+          description: Block height at which the tx was included
+        code:
+          type: integer
+          description: Result code (0 = success)
+        timestamp:
+          type: string
+          format: date-time
+        gas_used:
+          type: string
+        gas_wanted:
+          type: string
+        tx:
+          type: object
+          properties:
+            body:
+              type: object
+              properties:
+                memo:
+                  type: string
+                messages:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      "@type":
+                        type: string
+                        description: Protobuf type URL
+                    additionalProperties: true
+
+    AccountResponse:
+      type: object
+      properties:
+        account:
+          $ref: "#/components/schemas/Account"
+
+    Account:
+      type: object
+      description: A chain account with sequence information.
+      properties:
+        "@type":
+          type: string
+          description: Account type URL
+        address:
+          type: string
+          description: Bech32-encoded address
+        account_number:
+          type: string
+        sequence:
+          type: string
+
+    # ── Staking ──
+    Validator:
+      type: object
+      description: A validator on the network.
+      properties:
+        operator_address:
+          type: string
+          description: Validator operator bech32 address
+        description:
+          type: object
+          properties:
+            moniker:
+              type: string
+            identity:
+              type: string
+            website:
+              type: string
+            details:
+              type: string
+        tokens:
+          type: string
+          description: Total bonded tokens
+        status:
+          type: string
+          description: Bonding status
+          enum:
+            - BOND_STATUS_BONDED
+            - BOND_STATUS_UNBONDED
+            - BOND_STATUS_UNBONDING
+        commission:
+          type: object
+          properties:
+            commission_rates:
+              type: object
+              properties:
+                rate:
+                  type: string
+                max_rate:
+                  type: string
+                max_change_rate:
+                  type: string
+        jailed:
+          type: boolean
+
+    Delegation:
+      type: object
+      description: A delegation from a delegator to a validator.
+      properties:
+        delegation:
+          type: object
+          properties:
+            delegator_address:
+              type: string
+            validator_address:
+              type: string
+            shares:
+              type: string
+        balance:
+          $ref: "#/components/schemas/Coin"
+
+    # ── Governance ──
+    Proposal:
+      type: object
+      description: A governance proposal.
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          enum:
+            - PROPOSAL_STATUS_DEPOSIT_PERIOD
+            - PROPOSAL_STATUS_VOTING_PERIOD
+            - PROPOSAL_STATUS_PASSED
+            - PROPOSAL_STATUS_REJECTED
+            - PROPOSAL_STATUS_FAILED
+        title:
+          type: string
+        summary:
+          type: string
+        proposer:
+          type: string
+        submit_time:
+          type: string
+          format: date-time
+        deposit_end_time:
+          type: string
+          format: date-time
+        voting_start_time:
+          type: string
+          format: date-time
+        voting_end_time:
+          type: string
+          format: date-time
+        total_deposit:
+          type: array
+          items:
+            $ref: "#/components/schemas/Coin"
+        final_tally_result:
+          type: object
+          properties:
+            yes_count:
+              type: string
+            abstain_count:
+              type: string
+            no_count:
+              type: string
+            no_with_veto_count:
+              type: string
+
+    # ── Agent ──
+    Agent:
+      type: object
+      description: A registered AI agent on ClawChain.
+      properties:
+        address:
+          type: string
+          description: Agent bech32 address
+        name:
+          type: string
+          description: Human-readable agent name
+        endpoint:
+          type: string
+          description: Agent API endpoint URL
+        active:
+          type: boolean
+          description: Whether the agent is currently active
+        pubkey:
+          type: string
+          description: Agent public key
+        supported_tools:
+          type: array
+          items:
+            type: string
+          description: List of tools/capabilities the agent supports
+
+    Task:
+      type: object
+      description: A task delegated to an AI agent.
+      properties:
+        task_id:
+          type: string
+        delegator_address:
+          type: string
+          description: Address of the user who created the task
+        assignee_address:
+          type: string
+          description: Address of the agent assigned to the task
+        description:
+          type: string
+        budget:
+          type: string
+          description: Payment budget in uclaw
+        status:
+          type: string
+          enum: [pending, accepted, completed, failed]
+        result:
+          type: string
+          description: Task result (populated on completion)
+        created_at:
+          type: integer
+          format: int64
+          description: Block height at creation
+        completed_at:
+          type: integer
+          format: int64
+          description: Block height at completion
+
+    AgentStats:
+      type: object
+      description: Aggregate statistics about the agent network.
+      properties:
+        total_agents:
+          type: string
+        active_agents:
+          type: string
+        total_tasks:
+          type: string
+        completed_tasks:
+          type: string
+        pending_tasks:
+          type: string
+
+    # ── Privacy ──
+    PrivacyParams:
+      type: object
+      description: Configuration parameters for the ZK privacy module.
+      properties:
+        tree_depth:
+          type: string
+        max_batch_size:
+          type: string
+        shield_fee:
+          type: string
+        transfer_fee:
+          type: string
+
+    TreeStats:
+      type: object
+      description: Current Merkle tree state.
+      properties:
+        leaf_count:
+          type: string
+          description: Number of commitments in the tree
+        root:
+          type: string
+          description: Current Merkle root hash
+        depth:
+          type: string
+          description: Tree depth
+
+    # ── Marketplace ──
+    Listing:
+      type: object
+      description: A skill listing in the marketplace.
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        owner:
+          type: string
+          description: Owner bech32 address
+        price:
+          type: string
+          description: Price in uclaw
+        denom:
+          type: string
+        purchase_count:
+          type: string
+
+    Escrow:
+      type: object
+      description: An escrow agreement between buyer and seller.
+      properties:
+        id:
+          type: string
+        buyer:
+          type: string
+        seller:
+          type: string
+        amount:
+          type: string
+          description: Escrowed amount in uclaw
+        denom:
+          type: string
+        status:
+          type: string
+          enum: [active, completed, disputed, refunded]
+        milestones:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              description:
+                type: string
+              amount:
+                type: string
+              completed:
+                type: boolean
+        created_at:
+          type: integer
+          format: int64
+
+    ComputeResource:
+      type: object
+      description: A GPU compute resource registered by a provider.
+      properties:
+        id:
+          type: string
+        owner:
+          type: string
+          description: Provider bech32 address
+        name:
+          type: string
+        description:
+          type: string
+        gpu_model:
+          type: string
+          example: "NVIDIA A100"
+        gpu_count:
+          type: integer
+        vram_gb:
+          type: integer
+          description: VRAM per GPU in GB
+        cpu_cores:
+          type: integer
+        ram_gb:
+          type: integer
+        storage_gb:
+          type: integer
+        price_per_hour_uclaw:
+          type: string
+          description: Hourly lease price in uclaw
+        min_lease_hours:
+          type: integer
+        max_lease_hours:
+          type: integer
+        active:
+          type: boolean
+        current_lessee:
+          type: string
+          description: Address of current lessee (empty if available)
+        lease_expires_at:
+          type: integer
+          format: int64
+        region:
+          type: string
+        endpoint:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        total_leases:
+          type: integer
+        total_revenue:
+          type: string
+
+    ComputeJob:
+      type: object
+      description: A GPU compute job submitted to a resource.
+      properties:
+        id:
+          type: string
+        resource_id:
+          type: string
+        lease_id:
+          type: string
+        submitter:
+          type: string
+        provider:
+          type: string
+        name:
+          type: string
+        job_type:
+          type: string
+          description: Job type (e.g. training, inference, general)
+        execution_type:
+          type: string
+          description: Execution type (e.g. docker, script)
+        docker_image:
+          type: string
+        script_content:
+          type: string
+        input_data_uri:
+          type: string
+        output_data_uri:
+          type: string
+        gpu_type:
+          type: string
+        gpu_count:
+          type: integer
+        status:
+          type: string
+          enum: [pending, running, completed, failed, cancelled]
+        result:
+          type: string
+        error_message:
+          type: string
+        submitted_at:
+          type: integer
+          format: int64
+        started_at:
+          type: integer
+          format: int64
+        completed_at:
+          type: integer
+          format: int64
+        params:
+          type: string
+          description: JSON-encoded job parameters
+
+    # ── Model Registry ──
+    Model:
+      type: object
+      description: An AI model registered on ClawChain.
+      properties:
+        id:
+          type: string
+        owner:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        framework:
+          type: string
+          description: ML framework (pytorch, tensorflow, onnx, etc.)
+        architecture:
+          type: string
+          description: Model architecture (transformer, cnn, etc.)
+        parameter_count:
+          type: string
+          description: Number of parameters
+        license:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        storage_type:
+          type: string
+          description: Storage backend (ipfs, arweave, s3, etc.)
+        storage_uri:
+          type: string
+        checksum_sha256:
+          type: string
+        size_bytes:
+          type: integer
+          format: int64
+        access_type:
+          type: string
+          enum: [free, per_query, one_time]
+        price_per_query_uclaw:
+          type: string
+        price_one_time_uclaw:
+          type: string
+        active:
+          type: boolean
+        current_version:
+          type: integer
+        total_downloads:
+          type: integer
+        total_revenue:
+          type: string
+        rating:
+          type: number
+          format: float
+        rating_count:
+          type: integer
+        created_at:
+          type: integer
+          format: int64
+        updated_at:
+          type: integer
+          format: int64
+
+    InferenceProvider:
+      type: object
+      description: A registered inference service provider.
+      properties:
+        address:
+          type: string
+        model_ids:
+          type: array
+          items:
+            type: integer
+          description: Models this provider can serve
+        max_concurrent:
+          type: integer
+        active_jobs:
+          type: integer
+        total_jobs:
+          type: integer
+        total_earnings:
+          type: string
+        avg_latency_ms:
+          type: integer
+        endpoint:
+          type: string
+        is_online:
+          type: boolean
+        last_heartbeat:
+          type: integer
+          format: int64
+
+    # ── IBC ──
+    IBCChannel:
+      type: object
+      description: An IBC channel.
+      properties:
+        channel_id:
+          type: string
+        port_id:
+          type: string
+        state:
+          type: string
+          enum: [STATE_UNINITIALIZED_UNSPECIFIED, STATE_INIT, STATE_TRYOPEN, STATE_OPEN, STATE_CLOSED]
+        ordering:
+          type: string
+          enum: [ORDER_NONE_UNSPECIFIED, ORDER_UNORDERED, ORDER_ORDERED]
+        counterparty:
+          type: object
+          properties:
+            port_id:
+              type: string
+            channel_id:
+              type: string
+        connection_hops:
+          type: array
+          items:
+            type: string
+        version:
+          type: string
+
+    IBCConnection:
+      type: object
+      description: An IBC connection.
+      properties:
+        id:
+          type: string
+        client_id:
+          type: string
+        state:
+          type: string
+          enum: [STATE_UNINITIALIZED_UNSPECIFIED, STATE_INIT, STATE_TRYOPEN, STATE_OPEN]
+        counterparty:
+          type: object
+          properties:
+            client_id:
+              type: string
+            connection_id:
+              type: string
+        delay_period:
+          type: string
+
+    IBCClientState:
+      type: object
+      description: An IBC light client state.
+      properties:
+        client_id:
+          type: string
+        client_state:
+          type: object
+          properties:
+            "@type":
+              type: string
+            chain_id:
+              type: string
+            trust_level:
+              type: object
+              properties:
+                numerator:
+                  type: string
+                denominator:
+                  type: string
+            latest_height:
+              type: object
+              properties:
+                revision_number:
+                  type: string
+                revision_height:
+                  type: string
+
+    IBCDenomTrace:
+      type: object
+      description: An IBC denomination trace showing the origin path of a token.
+      properties:
+        path:
+          type: string
+          description: IBC transfer path (e.g. transfer/channel-0)
+        base_denom:
+          type: string
+          description: Original denomination on the source chain
+
+  responses:
+    BadRequest:
+      description: Bad request - invalid parameters
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorBody"
+          example:
+            error: "invalid request"
+            code: 3
+            message: "invalid parameter format"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorBody"
+          example:
+            error: "not found"
+            code: 5
+            message: "requested resource does not exist"
+
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorBody"
+          example:
+            error: "internal error"
+            code: 13
+            message: "an unexpected error occurred"

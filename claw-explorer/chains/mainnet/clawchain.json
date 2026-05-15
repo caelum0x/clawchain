@@ -1,0 +1,28 @@
+{
+  "chain_name": "clawchain",
+  "registry_name": "ClawChain",
+  "network_type": "mainnet",
+  "theme_color": "#6C5CE7",
+  "api": [
+    { "provider": "ClawChain", "address": "https://api.clawchain.io" }
+  ],
+  "rpc": [
+    { "provider": "ClawChain", "address": "https://rpc.clawchain.io" }
+  ],
+  "sdk_version": "0.53.6",
+  "coin_type": "118",
+  "min_tx_fee": "2000",
+  "addr_prefix": "claw",
+  "logo": "/logos/clawchain.svg",
+  "assets": [
+    {
+      "base": "uclaw",
+      "symbol": "CLAW",
+      "exponent": "6",
+      "coingecko_id": "",
+      "logo": "/logos/clawchain.svg"
+    }
+  ],
+  "features": ["cosmwasm", "ibc-transfer", "ibc-go"],
+  "keplr_features": ["cosmwasm", "ibc-transfer", "ibc-go"]
+}

@@ -1,0 +1,101 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: claw-inference-sidecar
+  namespace: clawchain
+  labels:
+    app.kubernetes.io/name: claw-inference-sidecar
+    app.kubernetes.io/component: inference
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: claw-inference-sidecar
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: claw-inference-sidecar
+        app.kubernetes.io/component: inference
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9091"
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: inference-sidecar
+          image: clawchain/inference-sidecar:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8090
+            - name: metrics
+              containerPort: 9091
+          env:
+            - name: CHAIN_REST
+              value: "http://clawchain-node.clawchain.svc:1317"
+            - name: CHAIN_RPC
+              value: "http://clawchain-node.clawchain.svc:26657"
+            - name: CHAIN_ID
+              value: "clawchain-1"
+            - name: PROVIDER_ADDRESS
+              valueFrom:
+                secretKeyRef:
+                  name: inference-sidecar-secrets
+                  key: provider-address
+            - name: PROVIDER_KEY_HEX
+              valueFrom:
+                secretKeyRef:
+                  name: inference-sidecar-secrets
+                  key: provider-key-hex
+            - name: METRICS_ADDR
+              value: ":9091"
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "2"
+              memory: "4Gi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8090
+            initialDelaySeconds: 15
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8090
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: claw-inference-sidecar
+  namespace: clawchain
+  labels:
+    app.kubernetes.io/name: claw-inference-sidecar
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8090
+    - name: metrics
+      port: 9091
+      targetPort: 9091
+  selector:
+    app.kubernetes.io/name: claw-inference-sidecar
+---
+# Create secrets manually:
+# kubectl create secret generic inference-sidecar-secrets \
+#   --namespace clawchain \
+#   --from-literal=provider-address=claw1... \
+#   --from-literal=provider-key-hex="your provider key hex here"

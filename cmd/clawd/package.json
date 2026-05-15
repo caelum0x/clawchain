@@ -1,0 +1,32 @@
+{
+  "name": "clawd",
+  "version": "0.1.0",
+  "description": "Unified CLI for ClawChain node + OpenClaw gateway",
+  "type": "module",
+  "bin": {
+    "clawd": "./clawd.mjs"
+  },
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "node --import tsx src/main.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@cosmjs/amino": "^0.33.0",
+    "@cosmjs/crypto": "^0.33.0",
+    "@cosmjs/encoding": "^0.33.0",
+    "@cosmjs/proto-signing": "^0.33.0",
+    "@cosmjs/stargate": "^0.33.0",
+    "commander": "^14.0.3"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.21.0",
+    "vitest": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  }
+}

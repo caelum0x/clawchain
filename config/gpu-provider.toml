@@ -1,0 +1,117 @@
+# ClawChain GPU Provider - Configuration
+#
+# This file configures the claw-gpu-provider daemon that connects to the
+# ClawChain network, registers GPU compute resources, and fulfills compute
+# jobs from the on-chain marketplace.
+#
+# Copy this file and fill in your provider-specific values before starting.
+# The daemon also accepts environment variables (uppercased key names with
+# underscores, e.g. CHAIN_REST, CHAIN_RPC) which override values in this file.
+
+###############################################################################
+###                       Chain Connection                                  ###
+###############################################################################
+
+# REST API endpoint of the ClawChain node.
+# Used for querying chain state (jobs, resources, leases).
+chain_rest = "http://localhost:1317"
+
+# RPC endpoint of the ClawChain node.
+# Used for broadcasting transactions and subscribing to events.
+chain_rpc = "http://localhost:26657"
+
+# Chain ID of the target network.
+# Use "clawchain-testnet-1" for testnet, "clawchain-1" for mainnet.
+chain_id = "clawchain-testnet-1"
+
+# Token denomination for fees and payments.
+denom = "uclaw"
+
+###############################################################################
+###                       Provider Identity                                 ###
+###############################################################################
+
+# The on-chain address of this provider (bech32-encoded, claw1... prefix).
+# This address must have a registered agent and compute resource on-chain.
+provider_address = ""
+
+# The on-chain resource ID assigned to this provider's GPU resource.
+# Obtain this from the RegisterComputeResource transaction response.
+resource_id = 0
+
+# Mnemonic phrase for signing transactions.
+# WARNING: Keep this value secret. Consider using the MNEMONIC environment
+# variable instead of storing it in this file.
+# mnemonic = ""
+
+###############################################################################
+###                       Operational Settings                              ###
+###############################################################################
+
+# Port on which the provider exposes Prometheus metrics (/metrics endpoint).
+metrics_port = 9090
+
+# Interval (in seconds) at which the provider sends heartbeat transactions
+# to the chain to signal liveness.
+heartbeat_interval_sec = 60
+
+# Interval (in seconds) at which the provider polls for new jobs.
+job_poll_interval_sec = 15
+
+# Maximum number of jobs that can run concurrently on this provider.
+# Adjust based on your GPU count and VRAM capacity.
+max_concurrent_jobs = 2
+
+# Maximum time (in seconds) a single job is allowed to run before being
+# considered timed out. The provider will mark timed-out jobs as failed.
+job_timeout_sec = 3600
+
+###############################################################################
+###                       Execution Environment                             ###
+###############################################################################
+
+# Enable Docker-based job execution. When true, each job runs in an isolated
+# container. Requires Docker to be installed and the provider process to have
+# access to the Docker socket.
+docker_enabled = true
+
+# Working directory for job artifacts (inputs, outputs, logs).
+# Must have sufficient disk space for model weights and intermediate results.
+work_dir = "/tmp/claw-gpu-jobs"
+
+###############################################################################
+###                       WebSocket / Event Subscription                    ###
+###############################################################################
+
+# Enable WebSocket event subscription for real-time job notifications.
+# When enabled, the provider subscribes to on-chain events instead of polling.
+websocket_enabled = true
+
+# Fall back to REST polling if the WebSocket connection fails.
+poll_fallback = true
+
+# Reconnection interval (in seconds) when the WebSocket connection drops.
+ws_reconnect_sec = 5
+
+###############################################################################
+###                       DanteGPU Integration                              ###
+###############################################################################
+
+# Enable DanteGPU integration for federated GPU scheduling.
+# When enabled, the provider can accept jobs routed through the DanteGPU
+# network in addition to direct on-chain jobs.
+dante_enabled = false
+
+# DanteGPU API endpoint for job coordination.
+dante_api_url = "https://api.dantegpu.com"
+
+# API key for authenticating with DanteGPU.
+# WARNING: Keep this value secret. Consider using the DANTE_API_KEY
+# environment variable instead of storing it in this file.
+dante_api_key = ""
+
+# DanteGPU storage endpoint for uploading/downloading job artifacts.
+dante_storage_url = "https://storage.dantegpu.com"
+
+# Use remote storage (DanteGPU cloud) instead of local storage for job artifacts.
+dante_use_remote_storage = false

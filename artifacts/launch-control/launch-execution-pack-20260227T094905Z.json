@@ -1,0 +1,374 @@
+{
+  "generatedAtUtc": "2026-02-27T09:49:05Z",
+  "git": {
+    "branch": "main",
+    "commit": "53f513522850cb36bd92a351534991e34104fcd3"
+  },
+  "inputs": {
+    "goLivePacket": "artifacts/go-live/go-live-packet-latest.json",
+    "supportSnapshot": "artifacts/support/support-handoff-snapshot-latest.json",
+    "deployProof": "artifacts/testnet/public-deploy-proof-latest.json",
+    "nightlyOps": "artifacts/operations/nightly-ops-pack-latest.json",
+    "weeklyDrill": "artifacts/operations/weekly-incident-drill-pack-latest.json",
+    "monthlyGovernance": "artifacts/governance/monthly-governance-pack-latest.json"
+  },
+  "bundle": {
+    "goLivePacket": {
+      "generatedAtUtc": "2026-02-27T09:27:19Z",
+      "git": {
+        "branch": "main",
+        "commit": "53f513522850cb36bd92a351534991e34104fcd3"
+      },
+      "inputs": {
+        "releaseEvidencePath": "artifacts/release-evidence.json",
+        "manifestLifecyclePath": "testnet/public/manifest-lifecycle.json",
+        "reproducibilityProofPath": "artifacts/testnet/public-reproducibility-proof-20260227T092719Z.json"
+      },
+      "summary": {
+        "releaseOverallStatus": "passed",
+        "reproducibilityStatus": "passed",
+        "manifestSignedUpdate": false,
+        "goLiveReady": false
+      },
+      "artifacts": {
+        "releaseEvidence": {
+          "generated_at_utc": "2026-02-27T09:23:55Z",
+          "git": {
+            "branch": "main",
+            "commit": "53f513522850cb36bd92a351534991e34104fcd3"
+          },
+          "inputs": {
+            "manifest": "https://example.com/manifest.json",
+            "host": "example.com"
+          },
+          "gates": {
+            "protocol_sanity": "passed",
+            "upgrade_readiness": "passed",
+            "mainnet_readiness": "passed",
+            "mainnet_launch_program": "passed",
+            "launch_artifact_completeness": "passed",
+            "production_infrastructure": "passed",
+            "chain_hardening": "passed",
+            "runtime_hardening": "passed",
+            "ecosystem_integrator": "passed",
+            "governance_operations": "passed",
+            "drill_evidence": "passed",
+            "growth_user_layer": "passed",
+            "capacity_slo_evidence": "passed",
+            "production_data_replacement": "passed",
+            "real_world_external_validation": "passed",
+            "mainnet_cutover_rehearsal": "passed",
+            "launch_day_operations": "passed",
+            "first_week_stabilization": "passed",
+            "phase16_automation_evidence_capture": "passed",
+            "phase16_reliability_alerting": "passed",
+            "phase16_operator_ux": "passed",
+            "security_compliance_closure_evidence": "passed",
+            "ecosystem_readiness_proof": "passed",
+            "launch_decision_packet": "passed",
+            "release_artifact_provenance": "passed",
+            "one_command_agent": "passed",
+            "phase17_public_testnet_stability": "passed",
+            "public_testnet_reproducibility": "passed"
+          },
+          "overall_status": "passed",
+          "artifact_policy": {
+            "path": "artifacts/release-evidence.json",
+            "retention": "retain latest 20 release evidence files or 90 days, whichever is greater"
+          }
+        },
+        "manifestLifecycle": {
+          "id": "public-testnet-stable-endpoints-v1",
+          "network": "clawchain-public-testnet",
+          "updatedAtUtc": "2026-02-27T09:27:19Z",
+          "revision": 4,
+          "manifestSha256": "bc59f0e4118250dc7020f2181ad978f9d5dea13a0a627c0acfb35439f15971f9",
+          "previousManifestSha256": "081d3e2573e3756f90928cfecae2b5448a2af5b6092e5e6530a58562eaf3c578",
+          "signedUpdate": false,
+          "signatureCount": 0,
+          "stableEndpointSet": {
+            "rpc": "http://127.0.0.1:26657",
+            "rest": "http://127.0.0.1:1317",
+            "grpc": "127.0.0.1:9090",
+            "faucet": "http://127.0.0.1:8888",
+            "grafana": "http://127.0.0.1:3000",
+            "prometheus": "http://127.0.0.1:9091"
+          }
+        },
+        "reproducibilityProof": {
+          "verifiedAtUtc": "2026-02-27T09:27:19Z",
+          "status": "passed",
+          "manifestRef": "./testnet/public/manifest.json",
+          "statusRef": "./testnet/public/status.json",
+          "strictPublic": false,
+          "chainId": "clawchain-testnet-1",
+          "signatureCount": 0,
+          "manifestLifecycleSignedUpdate": false
+        }
+      }
+    },
+    "supportSnapshot": {
+      "generatedAtUtc": "2026-02-27T09:29:01Z",
+      "git": {
+        "branch": "main",
+        "commit": "53f513522850cb36bd92a351534991e34104fcd3"
+      },
+      "releaseEvidencePath": "artifacts/release-evidence.json",
+      "runtimeReadiness": {
+        "status": "failed",
+        "command": "node ./dist/main.js readiness --json"
+      },
+      "doctor": {
+        "status": "failed",
+        "command": "node ./dist/main.js doctor --json"
+      },
+      "peersSummary": {
+        "chainId": "clawchain-1",
+        "total": 0,
+        "unique": 0,
+        "duplicateCount": 0,
+        "invalidCount": 0,
+        "hosts": {},
+        "duplicates": [],
+        "invalid": []
+      },
+      "releaseSummary": {
+        "status": "failed",
+        "command": "node ./dist/main.js release-summary --json"
+      },
+      "releaseEvidence": {
+        "generated_at_utc": "2026-02-27T09:23:55Z",
+        "git": {
+          "branch": "main",
+          "commit": "53f513522850cb36bd92a351534991e34104fcd3"
+        },
+        "inputs": {
+          "manifest": "https://example.com/manifest.json",
+          "host": "example.com"
+        },
+        "gates": {
+          "protocol_sanity": "passed",
+          "upgrade_readiness": "passed",
+          "mainnet_readiness": "passed",
+          "mainnet_launch_program": "passed",
+          "launch_artifact_completeness": "passed",
+          "production_infrastructure": "passed",
+          "chain_hardening": "passed",
+          "runtime_hardening": "passed",
+          "ecosystem_integrator": "passed",
+          "governance_operations": "passed",
+          "drill_evidence": "passed",
+          "growth_user_layer": "passed",
+          "capacity_slo_evidence": "passed",
+          "production_data_replacement": "passed",
+          "real_world_external_validation": "passed",
+          "mainnet_cutover_rehearsal": "passed",
+          "launch_day_operations": "passed",
+          "first_week_stabilization": "passed",
+          "phase16_automation_evidence_capture": "passed",
+          "phase16_reliability_alerting": "passed",
+          "phase16_operator_ux": "passed",
+          "security_compliance_closure_evidence": "passed",
+          "ecosystem_readiness_proof": "passed",
+          "launch_decision_packet": "passed",
+          "release_artifact_provenance": "passed",
+          "one_command_agent": "passed",
+          "phase17_public_testnet_stability": "passed",
+          "public_testnet_reproducibility": "passed"
+        },
+        "overall_status": "passed",
+        "artifact_policy": {
+          "path": "artifacts/release-evidence.json",
+          "retention": "retain latest 20 release evidence files or 90 days, whichever is greater"
+        }
+      }
+    },
+    "deployProof": {
+      "generatedAtUtc": "2026-02-27T09:33:27Z",
+      "inputs": {
+        "envFile": "./testnet/public.env.example",
+        "manifestFile": "./testnet/public/manifest.json",
+        "statusFile": "./testnet/public/status.json",
+        "lifecycleFile": "./testnet/public/manifest-lifecycle.json"
+      },
+      "summary": {
+        "chainId": "clawchain-testnet-1",
+        "lifecycleRevision": 5,
+        "signedUpdate": true,
+        "signatureCount": 1
+      },
+      "checksums": {
+        "manifestSha256": "0a7dfcb741112b81c7c935fc5dcb5eff93e33df6aed1b5dcc07abd400d7c21d4",
+        "statusSha256": "d269f1579bbf41eb5e3cf91f2051e8569039308c3dc1666b777cccfd875584b4",
+        "lifecycleSha256": "de196bd509f09b2b8f88d0439c994ae5ac047af9058b45be922c76e526fab7d8"
+      },
+      "artifacts": {
+        "manifest": {
+          "network": "clawchain-public-testnet",
+          "publishedAtUtc": "2026-02-27T09:33:27Z",
+          "chainId": "clawchain-testnet-1",
+          "genesis": {
+            "path": "testnet/public/genesis.json",
+            "sha256": "c9ed93f3683335db62a8804d8194a8176cc19a96b932858471efabecdf9e82c1",
+            "url": "https://testnet.clawchain.dev/genesis.json"
+          },
+          "endpoints": {
+            "rpc": "https://rpc.testnet.clawchain.dev",
+            "rest": "https://rest.testnet.clawchain.dev",
+            "grpc": "grpc.testnet.clawchain.dev:443",
+            "faucet": "https://faucet.testnet.clawchain.dev",
+            "explorer": "https://explorer.testnet.clawchain.dev",
+            "grafana": "https://grafana.testnet.clawchain.dev",
+            "prometheus": "https://prometheus.testnet.clawchain.dev"
+          },
+          "seeds": [
+            "REPLACE_NODE_ID@127.0.0.1:26656"
+          ],
+          "signatures": [
+            {
+              "pubkey": "02aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "signature": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            }
+          ],
+          "lifecycle": {
+            "id": "public-testnet-stable-endpoints-v1",
+            "revision": 5,
+            "signedUpdate": true,
+            "signatureCount": 1,
+            "stableEndpointSet": {
+              "rpc": "https://rpc.testnet.clawchain.dev",
+              "rest": "https://rest.testnet.clawchain.dev",
+              "grpc": "grpc.testnet.clawchain.dev:443",
+              "faucet": "https://faucet.testnet.clawchain.dev",
+              "grafana": "https://grafana.testnet.clawchain.dev",
+              "prometheus": "https://prometheus.testnet.clawchain.dev"
+            },
+            "previousManifestSha256": "4452e71bcadb5576c4ba80a0b96eb37288281bd5b9e58bb7ecbd7f863ac2d7f0"
+          },
+          "artifactBaseUrl": "https://testnet.clawchain.dev",
+          "manifestUrl": "https://testnet.clawchain.dev/manifest.json",
+          "statusUrl": "https://testnet.clawchain.dev/status.json"
+        },
+        "status": {
+          "network": "clawchain-public-testnet",
+          "chainId": "clawchain-testnet-1",
+          "updatedAtUtc": "2026-02-27T09:33:27Z",
+          "status": "operational",
+          "components": {
+            "rpc": {
+              "url": "https://rpc.testnet.clawchain.dev",
+              "status": "unknown",
+              "checkedAtUtc": "2026-02-27T09:33:27Z",
+              "probeTarget": "",
+              "error": "probes disabled"
+            },
+            "rest": {
+              "url": "https://rest.testnet.clawchain.dev",
+              "status": "unknown",
+              "checkedAtUtc": "2026-02-27T09:33:27Z",
+              "probeTarget": "",
+              "error": "probes disabled"
+            },
+            "grpc": {
+              "address": "grpc.testnet.clawchain.dev:443",
+              "status": "unknown",
+              "checkedAtUtc": "2026-02-27T09:33:27Z",
+              "probeTarget": "",
+              "error": "probes disabled"
+            },
+            "faucet": {
+              "url": "https://faucet.testnet.clawchain.dev",
+              "status": "unknown",
+              "checkedAtUtc": "2026-02-27T09:33:27Z",
+              "probeTarget": "",
+              "error": "probes disabled"
+            },
+            "grafana": {
+              "url": "https://grafana.testnet.clawchain.dev",
+              "status": "unknown",
+              "checkedAtUtc": "2026-02-27T09:33:27Z",
+              "probeTarget": "",
+              "error": "probes disabled"
+            },
+            "prometheus": {
+              "url": "https://prometheus.testnet.clawchain.dev",
+              "status": "unknown",
+              "checkedAtUtc": "2026-02-27T09:33:27Z",
+              "probeTarget": "",
+              "error": "probes disabled"
+            }
+          },
+          "notes": [
+            "Generated by testnet/publish-public-testnet.sh",
+            "Probe timeout: 3s",
+            "Active probes: 0"
+          ],
+          "manifestLifecycle": {
+            "id": "public-testnet-stable-endpoints-v1",
+            "revision": 5,
+            "manifestSha256": "c69d6473507536abf9c8a3b76cc7961832077b7ba9b29b3d528975809b29ea35",
+            "signedUpdate": true
+          },
+          "artifactBaseUrl": "https://testnet.clawchain.dev",
+          "manifestUrl": "https://testnet.clawchain.dev/manifest.json",
+          "genesisUrl": "https://testnet.clawchain.dev/genesis.json",
+          "statusUrl": "https://testnet.clawchain.dev/status.json"
+        },
+        "lifecycle": {
+          "id": "public-testnet-stable-endpoints-v1",
+          "network": "clawchain-public-testnet",
+          "updatedAtUtc": "2026-02-27T09:33:27Z",
+          "revision": 5,
+          "manifestSha256": "c69d6473507536abf9c8a3b76cc7961832077b7ba9b29b3d528975809b29ea35",
+          "previousManifestSha256": "4452e71bcadb5576c4ba80a0b96eb37288281bd5b9e58bb7ecbd7f863ac2d7f0",
+          "signedUpdate": true,
+          "signatureCount": 1,
+          "stableEndpointSet": {
+            "rpc": "https://rpc.testnet.clawchain.dev",
+            "rest": "https://rest.testnet.clawchain.dev",
+            "grpc": "grpc.testnet.clawchain.dev:443",
+            "faucet": "https://faucet.testnet.clawchain.dev",
+            "grafana": "https://grafana.testnet.clawchain.dev",
+            "prometheus": "https://prometheus.testnet.clawchain.dev"
+          }
+        }
+      }
+    },
+    "nightlyOps": {
+      "generatedAtUtc": "2026-02-27T09:37:40Z",
+      "dayUtc": "20260227",
+      "cronSafe": true,
+      "checks": {
+        "gateSummary": {
+          "status": "failed",
+          "artifact": "artifacts/operations/nightly-gate-summary-20260227.json"
+        },
+        "releaseEvidenceRefresh": {
+          "status": "passed",
+          "artifact": "artifacts/operations/nightly-release-evidence-20260227.json"
+        }
+      },
+      "overallStatus": "failed"
+    },
+    "weeklyDrill": {
+      "generatedAtUtc": "2026-02-27T09:37:40Z",
+      "weekId": "2026-W09",
+      "drill": {
+        "status": "failed",
+        "passedCount": 0,
+        "failedCount": 0,
+        "logArtifact": "artifacts/operations/weekly-incident-drill-2026-W09.log"
+      },
+      "closureStatus": "attention_required"
+    },
+    "monthlyGovernance": {
+      "generatedAtUtc": "2026-02-27T09:37:41Z",
+      "monthId": "2026-02",
+      "governanceReportPath": "artifacts/monthly-reports/2026-02.md",
+      "governanceDecisionLogPath": "docs/governance-decision-log.md",
+      "monthlyReportGateStatus": "passed",
+      "monthlyReportGateOutput": "Monthly Report Gate\n===================\n[PASS] Monthly report found: /Users/arhansubasi/new-blokchain/artifacts/monthly-reports/2026-02.md\n[PASS] Report template exists\n[PASS] Governance decision log exists\n\nMonthly report gate: PASSED",
+      "closureStatus": "closed"
+    }
+  }
+}

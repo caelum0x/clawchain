@@ -1,0 +1,77 @@
+{
+  "generatedAtUtc": "2026-02-27T10:06:01Z",
+  "gitCommit": "53f513522850cb36bd92a351534991e34104fcd3",
+  "weekId": "2026-W09",
+  "checklistFile": "artifacts/launch-control/ops-remediation-checklist-latest.json",
+  "required": true,
+  "openIssuesCount": 3,
+  "checklist": {
+    "generatedAtUtc": "2026-02-27T10:06:01Z",
+    "gitCommit": "53f513522850cb36bd92a351534991e34104fcd3",
+    "weekId": "2026-W09",
+    "summaryFile": "artifacts/launch-control/post-launch-weekly-executive-summary-latest.json",
+    "overallStatus": "attention_required",
+    "required": true,
+    "openIssuesCount": 3,
+    "issues": [
+      {
+        "signal": "nightlyOps",
+        "actual": "failed",
+        "expected": "passed",
+        "artifactPath": "artifacts/operations/nightly-ops-pack-latest.json",
+        "action": "Regenerate nightly ops pack and resolve failing checks before next executive review."
+      },
+      {
+        "signal": "weeklyDrillClosure",
+        "actual": "attention_required",
+        "expected": "closed",
+        "artifactPath": "artifacts/operations/weekly-incident-drill-pack-latest.json",
+        "action": "Close weekly incident drill actions and publish updated closure artifact."
+      },
+      {
+        "signal": "weeklyDrill",
+        "actual": "failed",
+        "expected": "passed",
+        "artifactPath": "artifacts/operations/weekly-incident-drill-pack-latest.json",
+        "action": "Re-run incident drill until all scenarios pass and archive results."
+      }
+    ]
+  },
+  "bundledArtifacts": [
+    {
+      "path": "artifacts/operations/nightly-ops-pack-latest.json",
+      "sha256": "ed92738743433848f5cac96bf8f469b6f7c3389614e4ba731bf3cab8c0448eac",
+      "content": {
+        "generatedAtUtc": "2026-02-27T09:37:40Z",
+        "dayUtc": "20260227",
+        "cronSafe": true,
+        "checks": {
+          "gateSummary": {
+            "status": "failed",
+            "artifact": "artifacts/operations/nightly-gate-summary-20260227.json"
+          },
+          "releaseEvidenceRefresh": {
+            "status": "passed",
+            "artifact": "artifacts/operations/nightly-release-evidence-20260227.json"
+          }
+        },
+        "overallStatus": "failed"
+      }
+    },
+    {
+      "path": "artifacts/operations/weekly-incident-drill-pack-latest.json",
+      "sha256": "568cdefedf61fcb47e53c0c92c124c1320a216bc9d907feb58eecb347d908f09",
+      "content": {
+        "generatedAtUtc": "2026-02-27T09:37:40Z",
+        "weekId": "2026-W09",
+        "drill": {
+          "status": "failed",
+          "passedCount": 0,
+          "failedCount": 0,
+          "logArtifact": "artifacts/operations/weekly-incident-drill-2026-W09.log"
+        },
+        "closureStatus": "attention_required"
+      }
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "generatedAtUtc": "2026-02-27T11:54:19Z",
+  "gitCommit": "53f513522850cb36bd92a351534991e34104fcd3",
+  "weekId": "2026-W09",
+  "overallStatus": "passed",
+  "gateStatus": {
+    "phase20ProductComplete": "passed",
+    "phase21ProgramClosure": "passed",
+    "phase22ClosureDigest": "passed"
+  },
+  "references": {
+    "summaryFile": "artifacts/launch-control/post-launch-weekly-executive-summary-latest.json",
+    "publicationPacket": "artifacts/launch-control/weekly-publication-packet-latest.json",
+    "digestPack": "artifacts/launch-control/weekly-closure-digest-pack-latest.json"
+  }
+}

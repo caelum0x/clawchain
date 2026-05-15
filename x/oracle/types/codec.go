@@ -2,26 +2,39 @@ package types
 
 import (
 	"github.com/cosmos/cosmos-sdk/codec"
-	cdctypes "github.com/cosmos/cosmos-sdk/codec/types"
+	"github.com/cosmos/cosmos-sdk/codec/legacy"
+	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
+	cryptocodec "github.com/cosmos/cosmos-sdk/crypto/codec"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/types/msgservice"
 )
 
-// RegisterCodec registers the oracle module's types on the legacy amino codec.
-func RegisterCodec(cdc *codec.LegacyAmino) {
-	cdc.RegisterConcrete(&MsgDelegateFeeder{}, "clawchain/oracle/MsgDelegateFeeder", nil)
-	cdc.RegisterConcrete(&MsgAggregateExchangeRatePrevote{}, "clawchain/oracle/MsgAggregateExchangeRatePrevote", nil)
-	cdc.RegisterConcrete(&MsgAggregateExchangeRateVote{}, "clawchain/oracle/MsgAggregateExchangeRateVote", nil)
-	cdc.RegisterConcrete(&MsgUpdateOracleParams{}, "clawchain/oracle/MsgUpdateOracleParams", nil)
+// RegisterLegacyAminoCodec registers the necessary x/oracle interfaces and concrete types
+// on the provided LegacyAmino codec. These types are used for Amino JSON serialization.
+func RegisterLegacyAminoCodec(cdc *codec.LegacyAmino) {
+	legacy.RegisterAminoMsg(cdc, &MsgAggregateExchangeRatePrevote{}, "oracle/MsgAggregateExchangeRatePrevote")
+	legacy.RegisterAminoMsg(cdc, &MsgAggregateExchangeRateVote{}, "oracle/MsgAggregateExchangeRateVote")
+	legacy.RegisterAminoMsg(cdc, &MsgDelegateFeedConsent{}, "oracle/MsgDelegateFeedConsent")
 }
 
-// RegisterInterfaces registers the oracle module's interface types.
-func RegisterInterfaces(registry cdctypes.InterfaceRegistry) {
+// RegisterInterfaces registers the x/oracle interfaces types with the interface registry
+func RegisterInterfaces(registry codectypes.InterfaceRegistry) {
 	registry.RegisterImplementations((*sdk.Msg)(nil),
-		&MsgDelegateFeeder{},
+		&MsgDelegateFeedConsent{},
 		&MsgAggregateExchangeRatePrevote{},
 		&MsgAggregateExchangeRateVote{},
-		&MsgUpdateOracleParams{},
 	)
+
 	msgservice.RegisterMsgServiceDesc(registry, &_Msg_serviceDesc)
+}
+
+var (
+	amino     = codec.NewLegacyAmino()
+	ModuleCdc = codec.NewAminoCodec(amino)
+)
+
+func init() {
+	RegisterLegacyAminoCodec(amino)
+	cryptocodec.RegisterCrypto(amino)
+	amino.Seal()
 }

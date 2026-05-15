@@ -84,6 +84,24 @@ fi
 DEV_ADDR=$("$BINARY" keys show "$KEY_NAME" --home "$HOME_DIR" --keyring-backend test -a)
 info "Dev address: $DEV_ADDR"
 
+# ── 4b. Create oracle feeder key ──
+# The oracle module requires a delegated "feeder" account to submit exchange rate
+# votes on behalf of the validator. Using a separate key keeps the validator
+# operator key offline while the feeder key handles routine oracle transactions.
+info "Setting up oracle feeder account..."
+FEEDER_KEY_NAME="oracle-feeder"
+if "$BINARY" keys show "$FEEDER_KEY_NAME" --home "$HOME_DIR" --keyring-backend test &>/dev/null; then
+  info "Key '$FEEDER_KEY_NAME' already exists — skipping"
+else
+  "$BINARY" keys add "$FEEDER_KEY_NAME" \
+    --home "$HOME_DIR" \
+    --keyring-backend test 2>/dev/null
+  ok "Key '$FEEDER_KEY_NAME' created"
+fi
+
+FEEDER_ADDR=$("$BINARY" keys show "$FEEDER_KEY_NAME" --home "$HOME_DIR" --keyring-backend test -a)
+info "Oracle feeder address: $FEEDER_ADDR"
+
 # Add genesis account (skip if already present)
 if grep -q "$DEV_ADDR" "$HOME_DIR/config/genesis.json" 2>/dev/null; then
   info "Genesis account already present — skipping"
@@ -201,6 +219,26 @@ for i in $(seq 1 $RETRIES); do
 done
 echo ""
 
+# ── 8b. Delegate oracle feeder permission ──
+# Now that the chain is live, register the feeder account so it can submit
+# oracle votes on behalf of the local validator. The tx is sent from the
+# validator operator (dev-account) and grants voting rights to the feeder key.
+info "Delegating oracle feed consent to $FEEDER_ADDR..."
+VALIDATOR_ADDR=$("$BINARY" keys show "$KEY_NAME" --home "$HOME_DIR" --keyring-backend test --bech val -a)
+if "$BINARY" tx oracle set-feeder "$FEEDER_ADDR" \
+  --from "$KEY_NAME" \
+  --home "$HOME_DIR" \
+  --keyring-backend test \
+  --chain-id "$CHAIN_ID" \
+  --gas auto \
+  --gas-adjustment 1.4 \
+  -y 2>/dev/null; then
+  ok "Oracle feeder delegated: $VALIDATOR_ADDR -> $FEEDER_ADDR"
+else
+  warn "Could not delegate oracle feeder — oracle module may not be active yet"
+fi
+echo ""
+
 # ── 9. Print endpoint URLs ──
 echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${GREEN} ClawChain Local Development Environment${NC}"
@@ -217,6 +255,7 @@ echo -e "  Landing:        ${CYAN}http://localhost:8090${NC}"
 echo -e "  Docs:           ${CYAN}http://localhost:8091${NC}"
 echo ""
 echo -e "  Dev Account:    ${YELLOW}$DEV_ADDR${NC}"
+echo -e "  Oracle Feeder:  ${YELLOW}$FEEDER_ADDR${NC}"
 echo -e "  Chain PID:      ${YELLOW}$CHAIN_PID${NC}"
 echo -e "  Log file:       ${YELLOW}$LOGFILE${NC}"
 echo ""

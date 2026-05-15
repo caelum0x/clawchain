@@ -1,0 +1,32 @@
+{
+  "generatedAtUtc": "2026-02-27T10:14:21Z",
+  "gitCommit": "53f513522850cb36bd92a351534991e34104fcd3",
+  "weekId": "2026-W09",
+  "summaryFile": "artifacts/launch-control/post-launch-weekly-executive-summary-latest.json",
+  "overallStatus": "attention_required",
+  "required": true,
+  "openIssuesCount": 3,
+  "issues": [
+    {
+      "signal": "nightlyOps",
+      "actual": "failed",
+      "expected": "passed",
+      "artifactPath": "artifacts/operations/nightly-ops-pack-latest.json",
+      "action": "Regenerate nightly ops pack and resolve failing checks before next executive review."
+    },
+    {
+      "signal": "weeklyDrillClosure",
+      "actual": "attention_required",
+      "expected": "closed",
+      "artifactPath": "artifacts/operations/weekly-incident-drill-pack-latest.json",
+      "action": "Close weekly incident drill actions and publish updated closure artifact."
+    },
+    {
+      "signal": "weeklyDrill",
+      "actual": "failed",
+      "expected": "passed",
+      "artifactPath": "artifacts/operations/weekly-incident-drill-pack-latest.json",
+      "action": "Re-run incident drill until all scenarios pass and archive results."
+    }
+  ]
+}

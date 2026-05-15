@@ -1,0 +1,153 @@
+import React, { FC } from "react";
+import { Flex, Heading, useMediaQuery } from "@chakra-ui/react";
+import { StdFee as Fee } from "@cosmjs/stargate";
+import { ONE_TOKEN, MOBILE_MAX_WIDTH } from "constants/constants";
+import DOMPurify from "dompurify";
+import { useFormContext, UseFormReturn } from "react-hook-form";
+import { FormActions, FormTextItem } from "modules/common";
+import { GovProposalFormFooter } from "modules/governance";
+import { Proposal } from "types/common";
+import DepositBox from "components/proposal/DepositBox";
+import ErrorBox from "components/proposal/ErrorBox";
+import {
+  MAX_DESCRIPTION_LENGTH,
+  MAX_LINK_LENGTH,
+  MAX_TITLE_LENGTH,
+  MIN_DESCRIPTION_LENGTH,
+  MIN_LINK_LENGTH,
+  MIN_TITLE_LENGTH,
+} from "constants/proposals";
+
+type Props = {
+  fee?: Fee | undefined;
+  txFeeNotEnough?: boolean;
+  feeIsLoading?: boolean;
+  xClawPrice?: number | undefined;
+  xClawRequired?: string | undefined;
+  xClawBalance?: string | undefined;
+  inputErrors: any;
+  methods: UseFormReturn<Proposal, object>;
+};
+
+const CommonFormProps = (
+  type: "input" | "textarea",
+  id: string,
+  title: string,
+  placeholder?: string
+) => {
+  return { type, id, title, placeholder };
+};
+
+const GovProposalFormInitial: FC<Props> = ({
+  fee,
+  txFeeNotEnough,
+  feeIsLoading,
+  xClawPrice,
+  xClawRequired,
+  xClawBalance,
+  inputErrors,
+  methods,
+}) => {
+  const [isMobile] = useMediaQuery(`(max-width: ${MOBILE_MAX_WIDTH})`);
+  const { watch } = useFormContext();
+  const [title, description, messages, link] = [
+    watch("title"),
+    watch("description"),
+    watch("messages"),
+    watch("link"),
+  ];
+
+  const xClawRequiredTokens = Number(xClawRequired) / ONE_TOKEN || undefined;
+  const xClawBalanceTokens = Number(xClawBalance) / ONE_TOKEN || undefined;
+  const balanceError =
+    (xClawRequiredTokens || 0) > (xClawBalanceTokens || 0) || false;
+
+  return (
+    <>
+      {!isMobile && (
+        <FormActions>
+          <Flex flexDirection="column">
+            <Heading fontSize="lg">Submit Proposal</Heading>
+          </Flex>
+        </FormActions>
+      )}
+
+      {balanceError && <ErrorBox />}
+
+      <FormTextItem
+        {...CommonFormProps(
+          "input",
+          "title",
+          "Set Title:",
+          `Type a title that is between ${MIN_TITLE_LENGTH} and ${MAX_TITLE_LENGTH} characters long`
+        )}
+        value={title}
+        formRegister={methods.register}
+        error={inputErrors?.title || null}
+        onChange={(text) => {
+          methods.setValue("title", DOMPurify.sanitize(text || ""));
+          methods.clearErrors("title");
+        }}
+      />
+      <FormTextItem
+        {...CommonFormProps(
+          "textarea",
+          "description",
+          "Insert Description:",
+          `Type a description that is between ${MIN_DESCRIPTION_LENGTH} and ${MAX_DESCRIPTION_LENGTH} characters long`
+        )}
+        value={description}
+        formRegister={methods.register}
+        error={inputErrors?.description || null}
+        onChange={(text) => {
+          methods.setValue("description", DOMPurify.sanitize(text || ""));
+          methods.clearErrors("description");
+        }}
+      />
+      <FormTextItem
+        {...CommonFormProps("textarea", "messages", "Executable Messages:")}
+        fontFamily="mono"
+        fontSize="sm"
+        _placeholder={{ color: "white.400" }}
+        value={messages}
+        formRegister={methods.register}
+        error={inputErrors?.messages || null}
+        onChange={(text) => {
+          methods.setValue("messages", text);
+          methods.clearErrors("messages");
+        }}
+      />
+      <FormTextItem
+        {...CommonFormProps(
+          "input",
+          "link",
+          "Insert Link to Discussion:",
+          `Add a link that is between ${MIN_LINK_LENGTH} and ${MAX_LINK_LENGTH} characters long`
+        )}
+        value={link}
+        formRegister={methods.register}
+        error={inputErrors?.link || null}
+        onChange={(text) => {
+          methods.setValue("link", (text || "").toLowerCase());
+          methods.clearErrors("link");
+        }}
+      />
+
+      <DepositBox
+        xClawRequiredTokens={xClawRequiredTokens}
+        xClawBalanceTokens={xClawBalanceTokens}
+        xClawPrice={xClawPrice}
+        balanceError={balanceError}
+      />
+
+      <GovProposalFormFooter
+        fee={fee}
+        txFeeNotEnough={!!txFeeNotEnough}
+        feeIsLoading={!!feeIsLoading}
+        balanceError={balanceError}
+      />
+    </>
+  );
+};
+
+export default GovProposalFormInitial;

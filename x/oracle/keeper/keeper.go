@@ -1,495 +1,378 @@
 package keeper
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
-	"sort"
-	"strconv"
-	"strings"
 
-	"cosmossdk.io/collections"
-	corestore "cosmossdk.io/core/store"
+	errorsmod "cosmossdk.io/errors"
+	"cosmossdk.io/log"
+	"cosmossdk.io/math"
+	storetypes "cosmossdk.io/store/types"
+	core "clawchain/types"
+	"clawchain/x/oracle/types"
 	"github.com/cosmos/cosmos-sdk/codec"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-
-	"clawchain/x/oracle/types"
+	paramstypes "github.com/cosmos/cosmos-sdk/x/params/types"
+	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
+	gogotypes "github.com/gogo/protobuf/types"
 )
 
-// Keeper manages the oracle module state.
+// Keeper of the oracle store
 type Keeper struct {
-	cdc          codec.Codec
-	storeService corestore.KVStoreService
-	authority    []byte
+	cdc        codec.BinaryCodec
+	storeKey   storetypes.StoreKey
+	paramSpace paramstypes.Subspace
 
-	stakingKeeper types.StakingKeeper
+	accountKeeper types.AccountKeeper
 	bankKeeper    types.BankKeeper
+	distrKeeper   types.DistributionKeeper
+	StakingKeeper types.StakingKeeper
 
-	Schema            collections.Schema
-	ExchangeRates     collections.Map[string, string]
-	PriceHistory      collections.Map[string, string]
-	Prevotes          collections.Map[string, string]
-	Votes             collections.Map[string, string]
-	FeederDelegations collections.Map[string, string]
-	MissCounters      collections.Map[string, uint64]
-	TWAPStore         collections.Map[string, string]
-	Params            collections.Item[string]
+	distrName string
 }
 
-// NewKeeper creates a new oracle keeper.
+// NewKeeper constructs a new keeper for oracle
 func NewKeeper(
-	storeService corestore.KVStoreService,
-	cdc codec.Codec,
-	authority []byte,
-	stakingKeeper types.StakingKeeper,
+	cdc codec.BinaryCodec,
+	storeKey storetypes.StoreKey,
+	paramspace paramstypes.Subspace,
+	accountKeeper types.AccountKeeper,
 	bankKeeper types.BankKeeper,
+	distrKeeper types.DistributionKeeper,
+	stakingKeeper types.StakingKeeper,
+	distrName string,
 ) Keeper {
-	sb := collections.NewSchemaBuilder(storeService)
+	// ensure oracle module account is set
+	if addr := accountKeeper.GetModuleAddress(types.ModuleName); addr == nil {
+		panic(fmt.Sprintf("%s module account has not been set", types.ModuleName))
+	}
 
-	k := Keeper{
-		cdc:          cdc,
-		storeService: storeService,
-		authority:    authority,
-		stakingKeeper: stakingKeeper,
+	// set KeyTable if it has not already been set
+	if !paramspace.HasKeyTable() {
+		paramspace = paramspace.WithKeyTable(types.ParamKeyTable())
+	}
+
+	return Keeper{
+		cdc:           cdc,
+		storeKey:      storeKey,
+		paramSpace:    paramspace,
+		accountKeeper: accountKeeper,
 		bankKeeper:    bankKeeper,
-
-		ExchangeRates:     collections.NewMap(sb, types.ExchangeRatesCollPrefix, "exchange_rates", collections.StringKey, collections.StringValue),
-		PriceHistory:      collections.NewMap(sb, types.PriceHistoryCollPrefix, "price_history", collections.StringKey, collections.StringValue),
-		Prevotes:          collections.NewMap(sb, types.PrevotesCollPrefix, "prevotes", collections.StringKey, collections.StringValue),
-		Votes:             collections.NewMap(sb, types.VotesCollPrefix, "votes", collections.StringKey, collections.StringValue),
-		FeederDelegations: collections.NewMap(sb, types.FeederDelegationsCollPrefix, "feeder_delegations", collections.StringKey, collections.StringValue),
-		MissCounters:      collections.NewMap(sb, types.MissCountersCollPrefix, "miss_counters", collections.StringKey, collections.Uint64Value),
-		TWAPStore:         collections.NewMap(sb, types.TWAPCollPrefix, "twap", collections.StringKey, collections.StringValue),
-		Params:            collections.NewItem(sb, types.ParamsCollPrefix, "params", collections.StringValue),
+		distrKeeper:   distrKeeper,
+		StakingKeeper: stakingKeeper,
+		distrName:     distrName,
 	}
-
-	schema, err := sb.Build()
-	if err != nil {
-		panic(err)
-	}
-	k.Schema = schema
-
-	return k
 }
 
-// GetAuthority returns the module's authority.
-func (k Keeper) GetAuthority() []byte {
-	return k.authority
+// Logger returns a module-specific logger.
+func (k Keeper) Logger(ctx sdk.Context) log.Logger {
+	return ctx.Logger().With("module", fmt.Sprintf("x/%s", types.ModuleName))
 }
 
-// HandlePrevote stores a prevote for a validator.
-func (k Keeper) HandlePrevote(ctx context.Context, hash string, feeder string, validator string) error {
-	if err := k.validateFeeder(ctx, feeder, validator); err != nil {
-		return err
+//-----------------------------------
+// ExchangeRate logic
+
+// GetLunaExchangeRate gets the consensus exchange rate of Luna denominated in the denom asset from the store.
+func (k Keeper) GetLunaExchangeRate(ctx sdk.Context, denom string) (math.LegacyDec, error) {
+	if denom == core.MicroLunaDenom {
+		return math.LegacyOneDec(), nil
 	}
 
-	if hash == "" {
-		return types.ErrInvalidPrevote
+	store := ctx.KVStore(k.storeKey)
+	b := store.Get(types.GetExchangeRateKey(denom))
+	if b == nil {
+		return math.LegacyZeroDec(), errorsmod.Wrap(types.ErrUnknownDenom, denom)
 	}
 
-	sdkCtx := sdk.UnwrapSDKContext(ctx)
-	prevote := types.AggregateExchangeRatePrevote{
-		Hash:        hash,
-		Voter:       validator,
-		SubmitBlock: uint64(sdkCtx.BlockHeight()),
-	}
-
-	prevoteJSON, _ := json.Marshal(prevote)
-	return k.Prevotes.Set(ctx, validator, string(prevoteJSON))
+	dp := sdk.DecProto{}
+	k.cdc.MustUnmarshal(b, &dp)
+	return dp.Dec, nil
 }
 
-// HandleVote processes a vote reveal and verifies it matches the prevote hash.
-func (k Keeper) HandleVote(ctx context.Context, salt string, exchangeRates string, feeder string, validator string) error {
-	if err := k.validateFeeder(ctx, feeder, validator); err != nil {
-		return err
-	}
-
-	// Get prevote
-	prevoteJSON, err := k.Prevotes.Get(ctx, validator)
-	if err != nil {
-		return types.ErrNoMatchingPrevote
-	}
-
-	var prevote types.AggregateExchangeRatePrevote
-	if err := json.Unmarshal([]byte(prevoteJSON), &prevote); err != nil {
-		return types.ErrNoMatchingPrevote
-	}
-
-	// Verify hash: SHA256(salt + exchange_rates + validator)
-	expectedHash := fmt.Sprintf("%x", sha256Sum([]byte(salt+exchangeRates+validator)))
-	if expectedHash != prevote.Hash {
-		return types.ErrInvalidVote
-	}
-
-	// Store vote
-	vote := types.AggregateExchangeRateVote{
-		ExchangeRates: exchangeRates,
-		Voter:         validator,
-	}
-
-	voteJSON, _ := json.Marshal(vote)
-	if err := k.Votes.Set(ctx, validator, string(voteJSON)); err != nil {
-		return err
-	}
-
-	// Clear prevote
-	return k.Prevotes.Remove(ctx, validator)
+// SetLunaExchangeRate sets the consensus exchange rate of Luna denominated in the denom asset to the store.
+func (k Keeper) SetLunaExchangeRate(ctx sdk.Context, denom string, exchangeRate math.LegacyDec) {
+	store := ctx.KVStore(k.storeKey)
+	bz := k.cdc.MustMarshal(&sdk.DecProto{Dec: exchangeRate})
+	store.Set(types.GetExchangeRateKey(denom), bz)
 }
 
-// HandleDelegateFeeder registers a feeder delegation for a validator.
-func (k Keeper) HandleDelegateFeeder(ctx context.Context, validator string, feeder string) error {
-	if validator == "" || feeder == "" {
-		return types.ErrInvalidFeederDelegation
+// SetLunaExchangeRateWithEvent sets the consensus exchange rate of Luna
+// denominated in the denom asset to the store with ABCI event
+func (k Keeper) SetLunaExchangeRateWithEvent(ctx sdk.Context, denom string, exchangeRate math.LegacyDec) {
+	k.SetLunaExchangeRate(ctx, denom, exchangeRate)
+	ctx.EventManager().EmitEvent(
+		sdk.NewEvent(types.EventTypeExchangeRateUpdate,
+			sdk.NewAttribute(types.AttributeKeyDenom, denom),
+			sdk.NewAttribute(types.AttributeKeyExchangeRate, exchangeRate.String()),
+		),
+	)
+
+	// Prometheus: track exchange rate per denom
+	if rate, err := exchangeRate.Float64(); err == nil {
+		OracleExchangeRateGaugeVec.WithLabelValues(denom).Set(rate)
 	}
-	return k.FeederDelegations.Set(ctx, validator, feeder)
 }
 
-// validateFeeder checks if the feeder is authorized for the given validator.
-func (k Keeper) validateFeeder(ctx context.Context, feeder string, validator string) error {
-	// If feeder == validator, always allowed
-	if feeder == validator {
-		return nil
-	}
-
-	// Check delegation
-	delegated, err := k.FeederDelegations.Get(ctx, validator)
-	if err != nil {
-		return types.ErrUnauthorizedFeeder
-	}
-	if delegated != feeder {
-		return types.ErrUnauthorizedFeeder
-	}
-	return nil
+// DeleteLunaExchangeRate deletes the consensus exchange rate of Luna denominated in the denom asset from the store.
+func (k Keeper) DeleteLunaExchangeRate(ctx sdk.Context, denom string) {
+	store := ctx.KVStore(k.storeKey)
+	store.Delete(types.GetExchangeRateKey(denom))
 }
 
-// GetParams returns the oracle module parameters.
-func (k Keeper) GetParams(ctx context.Context) types.OracleParams {
-	paramsJSON, err := k.Params.Get(ctx)
-	if err != nil {
-		return types.DefaultParams
-	}
-	var params types.OracleParams
-	_ = json.Unmarshal([]byte(paramsJSON), &params)
-	return params
-}
-
-// SetParams stores the oracle module parameters.
-func (k Keeper) SetParams(ctx context.Context, params types.OracleParams) error {
-	data, err := json.Marshal(params)
-	if err != nil {
-		return err
-	}
-	return k.Params.Set(ctx, string(data))
-}
-
-// GetExchangeRate retrieves the current exchange rate for a denom pair.
-func (k Keeper) GetExchangeRate(ctx context.Context, denomPair string) (*types.ExchangeRate, error) {
-	rateJSON, err := k.ExchangeRates.Get(ctx, denomPair)
-	if err != nil {
-		return nil, types.ErrPriceNotAvailable
-	}
-	var rate types.ExchangeRate
-	if err := json.Unmarshal([]byte(rateJSON), &rate); err != nil {
-		return nil, types.ErrPriceNotAvailable
-	}
-	return &rate, nil
-}
-
-// UpdateParam implements the ModuleParamExecutor interface for governance.
-func (k Keeper) UpdateParam(ctx context.Context, paramKey string, newValue string) error {
-	params := k.GetParams(ctx)
-
-	switch paramKey {
-	case "vote_period":
-		val, err := strconv.ParseUint(newValue, 10, 64)
-		if err != nil {
-			return fmt.Errorf("invalid vote_period value: %s", newValue)
-		}
-		params.VotePeriod = val
-	case "vote_threshold":
-		params.VoteThreshold = newValue
-	case "reward_band":
-		params.RewardBand = newValue
-	case "slash_fraction":
-		params.SlashFraction = newValue
-	case "slash_window":
-		val, err := strconv.ParseUint(newValue, 10, 64)
-		if err != nil {
-			return fmt.Errorf("invalid slash_window value: %s", newValue)
-		}
-		params.SlashWindow = val
-	case "min_valid_per_window":
-		params.MinValidPerWindow = newValue
-	case "whitelist":
-		// Accept comma-separated denom pairs, e.g. "CLAW/USD,CLAW/ATOM,ATOM/USD"
-		if newValue == "" {
-			params.Whitelist = []string{}
-		} else {
-			params.Whitelist = strings.Split(newValue, ",")
-		}
-	default:
-		return fmt.Errorf("unknown oracle param key: %s", paramKey)
-	}
-
-	return k.SetParams(ctx, params)
-}
-
-// EndBlocker runs at the end of each block. It aggregates votes at vote period
-// boundaries, computes weighted median prices, updates TWAP, and tracks misses.
-func (k Keeper) EndBlocker(ctx context.Context) error {
-	sdkCtx := sdk.UnwrapSDKContext(ctx)
-	params := k.GetParams(ctx)
-
-	// Only aggregate at vote period boundaries
-	if params.VotePeriod == 0 || uint64(sdkCtx.BlockHeight())%params.VotePeriod != 0 {
-		return nil
-	}
-
-	// Collect all votes
-	denomVotes := make(map[string][]voteEntry)
-	votedValidators := make(map[string]bool)
-
-	err := k.Votes.Walk(ctx, nil, func(validator string, voteJSON string) (bool, error) {
-		var vote types.AggregateExchangeRateVote
-		if err := json.Unmarshal([]byte(voteJSON), &vote); err != nil {
-			return false, nil
-		}
-
-		votedValidators[validator] = true
-
-		// Parse "CLAW/USD:1.5,CLAW/ATOM:0.12"
-		pairs := strings.Split(vote.ExchangeRates, ",")
-		for _, pair := range pairs {
-			parts := strings.SplitN(pair, ":", 2)
-			if len(parts) != 2 {
-				continue
-			}
-			denom := parts[0]
-			price, err := strconv.ParseFloat(parts[1], 64)
-			if err != nil {
-				continue
-			}
-
-			// Get validator power (default 1 if no staking)
-			power := int64(1)
-
-			denomVotes[denom] = append(denomVotes[denom], voteEntry{
-				Validator: validator,
-				Price:     price,
-				Power:     power,
-			})
-		}
-
-		return false, nil
-	})
-	if err != nil {
-		return err
-	}
-
-	// Compute weighted median for each denom pair
-	for denom, votes := range denomVotes {
-		if !k.isDenomWhitelisted(params, denom) {
-			continue
-		}
-
-		medianPrice := weightedMedian(votes)
-
-		rate := types.ExchangeRate{
-			DenomPair:   denom,
-			Price:       fmt.Sprintf("%.6f", medianPrice),
-			BlockHeight: sdkCtx.BlockHeight(),
-			Timestamp:   sdkCtx.BlockTime().Unix(),
-		}
-
-		rateJSON, _ := json.Marshal(rate)
-		_ = k.ExchangeRates.Set(ctx, denom, string(rateJSON))
-
-		// Update TWAP
-		k.updateTWAP(ctx, denom, medianPrice, sdkCtx.BlockHeight(), params.VotePeriod)
-
-		// Append to price history
-		k.appendPriceHistory(ctx, denom, rate)
-	}
-
-	// Track miss counters for validators who didn't vote
-	if k.stakingKeeper != nil {
-		validators, err := k.stakingKeeper.GetBondedValidatorsByPower(ctx)
-		if err == nil {
-			for _, val := range validators {
-				valAddr := val.GetOperator()
-				if !votedValidators[valAddr] {
-					current, _ := k.MissCounters.Get(ctx, valAddr)
-					_ = k.MissCounters.Set(ctx, valAddr, current+1)
-				}
-			}
+// IterateLunaExchangeRates iterates over luna rates in the store
+func (k Keeper) IterateLunaExchangeRates(ctx sdk.Context, handler func(denom string, exchangeRate math.LegacyDec) (stop bool)) {
+	store := ctx.KVStore(k.storeKey)
+	iter := storetypes.KVStorePrefixIterator(store, types.ExchangeRateKey)
+	defer iter.Close()
+	for ; iter.Valid(); iter.Next() {
+		denom := string(iter.Key()[len(types.ExchangeRateKey):])
+		dp := sdk.DecProto{}
+		k.cdc.MustUnmarshal(iter.Value(), &dp)
+		if handler(denom, dp.Dec) {
+			break
 		}
 	}
+}
 
-	// Clear all votes for next period
-	var keysToRemove []string
-	_ = k.Votes.Walk(ctx, nil, func(key string, _ string) (bool, error) {
-		keysToRemove = append(keysToRemove, key)
-		return false, nil
-	})
-	for _, key := range keysToRemove {
-		_ = k.Votes.Remove(ctx, key)
+//-----------------------------------
+// Oracle delegation logic
+
+// GetFeederDelegation gets the account address that the validator operator delegated oracle vote rights to
+func (k Keeper) GetFeederDelegation(ctx sdk.Context, operator sdk.ValAddress) sdk.AccAddress {
+	store := ctx.KVStore(k.storeKey)
+	bz := store.Get(types.GetFeederDelegationKey(operator))
+	if bz == nil {
+		// By default the right is delegated to the validator itself
+		return sdk.AccAddress(operator)
 	}
 
-	return nil
+	return sdk.AccAddress(bz)
 }
 
-type voteEntry struct {
-	Validator string
-	Price     float64
-	Power     int64
+// SetFeederDelegation sets the account address that the validator operator delegated oracle vote rights to
+func (k Keeper) SetFeederDelegation(ctx sdk.Context, operator sdk.ValAddress, delegatedFeeder sdk.AccAddress) {
+	store := ctx.KVStore(k.storeKey)
+	store.Set(types.GetFeederDelegationKey(operator), delegatedFeeder.Bytes())
 }
 
-// weightedMedian: sort by price, accumulate power until >= total/2.
-func weightedMedian(votes []voteEntry) float64 {
-	if len(votes) == 0 {
+// IterateFeederDelegations iterates over the feed delegates and performs a callback function.
+func (k Keeper) IterateFeederDelegations(ctx sdk.Context,
+	handler func(delegator sdk.ValAddress, delegate sdk.AccAddress) (stop bool),
+) {
+	store := ctx.KVStore(k.storeKey)
+	iter := storetypes.KVStorePrefixIterator(store, types.FeederDelegationKey)
+	defer iter.Close()
+	for ; iter.Valid(); iter.Next() {
+		delegator := sdk.ValAddress(iter.Key()[2:])
+		delegate := sdk.AccAddress(iter.Value())
+
+		if handler(delegator, delegate) {
+			break
+		}
+	}
+}
+
+//-----------------------------------
+// Miss counter logic
+
+// GetMissCounter retrieves the # of vote periods missed in this oracle slash window
+func (k Keeper) GetMissCounter(ctx sdk.Context, operator sdk.ValAddress) uint64 {
+	store := ctx.KVStore(k.storeKey)
+	bz := store.Get(types.GetMissCounterKey(operator))
+	if bz == nil {
+		// By default the counter is zero
 		return 0
 	}
 
-	sort.Slice(votes, func(i, j int) bool {
-		return votes[i].Price < votes[j].Price
-	})
+	var missCounter gogotypes.UInt64Value
+	k.cdc.MustUnmarshal(bz, &missCounter)
+	return missCounter.Value
+}
 
-	var totalPower int64
-	for _, v := range votes {
-		totalPower += v.Power
+// SetMissCounter updates the # of vote periods missed in this oracle slash window
+func (k Keeper) SetMissCounter(ctx sdk.Context, operator sdk.ValAddress, missCounter uint64) {
+	store := ctx.KVStore(k.storeKey)
+	bz := k.cdc.MustMarshal(&gogotypes.UInt64Value{Value: missCounter})
+	store.Set(types.GetMissCounterKey(operator), bz)
+}
+
+// DeleteMissCounter removes miss counter for the validator
+func (k Keeper) DeleteMissCounter(ctx sdk.Context, operator sdk.ValAddress) {
+	store := ctx.KVStore(k.storeKey)
+	store.Delete(types.GetMissCounterKey(operator))
+}
+
+// IterateMissCounters iterates over the miss counters and performs a callback function.
+func (k Keeper) IterateMissCounters(ctx sdk.Context,
+	handler func(operator sdk.ValAddress, missCounter uint64) (stop bool),
+) {
+	store := ctx.KVStore(k.storeKey)
+	iter := storetypes.KVStorePrefixIterator(store, types.MissCounterKey)
+	defer iter.Close()
+	for ; iter.Valid(); iter.Next() {
+		operator := sdk.ValAddress(iter.Key()[2:])
+
+		var missCounter gogotypes.UInt64Value
+		k.cdc.MustUnmarshal(iter.Value(), &missCounter)
+
+		if handler(operator, missCounter.Value) {
+			break
+		}
+	}
+}
+
+//-----------------------------------
+// AggregateExchangeRatePrevote logic
+
+// GetAggregateExchangeRatePrevote retrieves an oracle prevote from the store
+func (k Keeper) GetAggregateExchangeRatePrevote(ctx sdk.Context, voter sdk.ValAddress) (aggregatePrevote types.AggregateExchangeRatePrevote, err error) {
+	store := ctx.KVStore(k.storeKey)
+	b := store.Get(types.GetAggregateExchangeRatePrevoteKey(voter))
+	if b == nil {
+		err = errorsmod.Wrap(types.ErrNoAggregatePrevote, voter.String())
+		return aggregatePrevote, err
+	}
+	k.cdc.MustUnmarshal(b, &aggregatePrevote)
+	return aggregatePrevote, err
+}
+
+// SetAggregateExchangeRatePrevote set an oracle aggregate prevote to the store
+func (k Keeper) SetAggregateExchangeRatePrevote(ctx sdk.Context, voter sdk.ValAddress, prevote types.AggregateExchangeRatePrevote) {
+	store := ctx.KVStore(k.storeKey)
+	bz := k.cdc.MustMarshal(&prevote)
+
+	store.Set(types.GetAggregateExchangeRatePrevoteKey(voter), bz)
+}
+
+// DeleteAggregateExchangeRatePrevote deletes an oracle prevote from the store
+func (k Keeper) DeleteAggregateExchangeRatePrevote(ctx sdk.Context, voter sdk.ValAddress) {
+	store := ctx.KVStore(k.storeKey)
+	store.Delete(types.GetAggregateExchangeRatePrevoteKey(voter))
+}
+
+// IterateAggregateExchangeRatePrevotes iterates rate over prevotes in the store
+func (k Keeper) IterateAggregateExchangeRatePrevotes(ctx sdk.Context, handler func(voterAddr sdk.ValAddress, aggregatePrevote types.AggregateExchangeRatePrevote) (stop bool)) {
+	store := ctx.KVStore(k.storeKey)
+	iter := storetypes.KVStorePrefixIterator(store, types.AggregateExchangeRatePrevoteKey)
+	defer iter.Close()
+	for ; iter.Valid(); iter.Next() {
+		voterAddr := sdk.ValAddress(iter.Key()[2:])
+
+		var aggregatePrevote types.AggregateExchangeRatePrevote
+		k.cdc.MustUnmarshal(iter.Value(), &aggregatePrevote)
+		if handler(voterAddr, aggregatePrevote) {
+			break
+		}
+	}
+}
+
+//-----------------------------------
+// AggregateExchangeRateVote logic
+
+// GetAggregateExchangeRateVote retrieves an oracle prevote from the store
+func (k Keeper) GetAggregateExchangeRateVote(ctx sdk.Context, voter sdk.ValAddress) (aggregateVote types.AggregateExchangeRateVote, err error) {
+	store := ctx.KVStore(k.storeKey)
+	b := store.Get(types.GetAggregateExchangeRateVoteKey(voter))
+	if b == nil {
+		err = errorsmod.Wrap(types.ErrNoAggregateVote, voter.String())
+		return aggregateVote, err
+	}
+	k.cdc.MustUnmarshal(b, &aggregateVote)
+	return aggregateVote, err
+}
+
+// SetAggregateExchangeRateVote adds an oracle aggregate prevote to the store
+func (k Keeper) SetAggregateExchangeRateVote(ctx sdk.Context, voter sdk.ValAddress, vote types.AggregateExchangeRateVote) {
+	store := ctx.KVStore(k.storeKey)
+	bz := k.cdc.MustMarshal(&vote)
+	store.Set(types.GetAggregateExchangeRateVoteKey(voter), bz)
+}
+
+// DeleteAggregateExchangeRateVote deletes an oracle prevote from the store
+func (k Keeper) DeleteAggregateExchangeRateVote(ctx sdk.Context, voter sdk.ValAddress) {
+	store := ctx.KVStore(k.storeKey)
+	store.Delete(types.GetAggregateExchangeRateVoteKey(voter))
+}
+
+// IterateAggregateExchangeRateVotes iterates rate over prevotes in the store
+func (k Keeper) IterateAggregateExchangeRateVotes(ctx sdk.Context, handler func(voterAddr sdk.ValAddress, aggregateVote types.AggregateExchangeRateVote) (stop bool)) {
+	store := ctx.KVStore(k.storeKey)
+	iter := storetypes.KVStorePrefixIterator(store, types.AggregateExchangeRateVoteKey)
+	defer iter.Close()
+	for ; iter.Valid(); iter.Next() {
+		voterAddr := sdk.ValAddress(iter.Key()[2:])
+
+		var aggregateVote types.AggregateExchangeRateVote
+		k.cdc.MustUnmarshal(iter.Value(), &aggregateVote)
+		if handler(voterAddr, aggregateVote) {
+			break
+		}
+	}
+}
+
+// GetTobinTax return tobin tax for the denom
+func (k Keeper) GetTobinTax(ctx sdk.Context, denom string) (math.LegacyDec, error) {
+	store := ctx.KVStore(k.storeKey)
+	bz := store.Get(types.GetTobinTaxKey(denom))
+	if bz == nil {
+		err := errorsmod.Wrap(types.ErrNoTobinTax, denom)
+		return math.LegacyDec{}, err
 	}
 
-	var cumPower int64
-	for _, v := range votes {
-		cumPower += v.Power
-		if cumPower*2 >= totalPower {
-			return v.Price
+	tobinTax := sdk.DecProto{}
+	k.cdc.MustUnmarshal(bz, &tobinTax)
+
+	return tobinTax.Dec, nil
+}
+
+// SetTobinTax updates tobin tax for the denom
+func (k Keeper) SetTobinTax(ctx sdk.Context, denom string, tobinTax math.LegacyDec) {
+	store := ctx.KVStore(k.storeKey)
+	bz := k.cdc.MustMarshal(&sdk.DecProto{Dec: tobinTax})
+	store.Set(types.GetTobinTaxKey(denom), bz)
+}
+
+// IterateTobinTaxes iterates rate over tobin taxes in the store
+func (k Keeper) IterateTobinTaxes(ctx sdk.Context, handler func(denom string, tobinTax math.LegacyDec) (stop bool)) {
+	store := ctx.KVStore(k.storeKey)
+	iter := storetypes.KVStorePrefixIterator(store, types.TobinTaxKey)
+	defer iter.Close()
+	for ; iter.Valid(); iter.Next() {
+		denom := types.ExtractDenomFromTobinTaxKey(iter.Key())
+
+		var tobinTax sdk.DecProto
+		k.cdc.MustUnmarshal(iter.Value(), &tobinTax)
+		if handler(denom, tobinTax.Dec) {
+			break
+		}
+	}
+}
+
+// ClearTobinTaxes clears tobin taxes
+func (k Keeper) ClearTobinTaxes(ctx sdk.Context) {
+	store := ctx.KVStore(k.storeKey)
+	iter := storetypes.KVStorePrefixIterator(store, types.TobinTaxKey)
+	defer iter.Close()
+	for ; iter.Valid(); iter.Next() {
+		store.Delete(iter.Key())
+	}
+}
+
+// ValidateFeeder return the given feeder is allowed to feed the message or not
+func (k Keeper) ValidateFeeder(ctx sdk.Context, feederAddr sdk.AccAddress, validatorAddr sdk.ValAddress) error {
+	if !feederAddr.Equals(validatorAddr) {
+		delegate := k.GetFeederDelegation(ctx, validatorAddr)
+		if !delegate.Equals(feederAddr) {
+			return errorsmod.Wrap(types.ErrNoVotingPermission, feederAddr.String())
 		}
 	}
 
-	return votes[len(votes)-1].Price
-}
-
-func (k Keeper) isDenomWhitelisted(params types.OracleParams, denom string) bool {
-	for _, w := range params.Whitelist {
-		if w == denom {
-			return true
+	// Check that the given validator exists
+	if val, err := k.StakingKeeper.Validator(ctx, validatorAddr); val == nil || !val.IsBonded() || err != nil {
+		if err != nil {
+			return err
 		}
-	}
-	return false
-}
-
-func (k Keeper) updateTWAP(ctx context.Context, denom string, price float64, height int64, period uint64) {
-	twapJSON, err := k.TWAPStore.Get(ctx, denom)
-	if err != nil {
-		// First entry
-		entry := types.TWAPEntry{
-			DenomPair:        denom,
-			Twap:             fmt.Sprintf("%.6f", price),
-			LastUpdatedBlock: height,
-			WindowSize:       1,
-		}
-		data, _ := json.Marshal(entry)
-		_ = k.TWAPStore.Set(ctx, denom, string(data))
-		return
+		return errorsmod.Wrapf(stakingtypes.ErrNoValidatorFound, "validator %s is not active set", validatorAddr.String())
 	}
 
-	var entry types.TWAPEntry
-	_ = json.Unmarshal([]byte(twapJSON), &entry)
-
-	oldTwap, _ := strconv.ParseFloat(entry.Twap, 64)
-	durationBlocks := float64(height - entry.LastUpdatedBlock)
-	windowBlocks := float64(period * 10) // 10 vote periods
-
-	// Time-weighted: new_twap = old_twap * (1 - weight) + price * weight
-	weight := durationBlocks / windowBlocks
-	if weight > 1 {
-		weight = 1
-	}
-	newTwap := oldTwap*(1-weight) + price*weight
-
-	entry.Twap = fmt.Sprintf("%.6f", newTwap)
-	entry.LastUpdatedBlock = height
-	entry.WindowSize++
-
-	data, _ := json.Marshal(entry)
-	_ = k.TWAPStore.Set(ctx, denom, string(data))
-}
-
-func (k Keeper) appendPriceHistory(ctx context.Context, denom string, rate types.ExchangeRate) {
-	key := denom
-	historyJSON, err := k.PriceHistory.Get(ctx, key)
-
-	var history []types.PriceHistoryEntry
-	if err == nil {
-		_ = json.Unmarshal([]byte(historyJSON), &history)
-	}
-
-	history = append(history, types.PriceHistoryEntry{
-		Price:       rate.Price,
-		BlockHeight: rate.BlockHeight,
-		Timestamp:   rate.Timestamp,
-	})
-
-	// Cap at 1000 entries
-	if len(history) > 1000 {
-		history = history[len(history)-1000:]
-	}
-
-	data, _ := json.Marshal(history)
-	_ = k.PriceHistory.Set(ctx, key, string(data))
-}
-
-// QueryPrice returns the current exchange rate for a denom pair.
-func (k Keeper) QueryPrice(ctx context.Context, denomPair string) (*types.ExchangeRate, error) {
-	return k.GetExchangeRate(ctx, denomPair)
-}
-
-// QueryPrices returns all current exchange rates.
-func (k Keeper) QueryPrices(ctx context.Context) ([]types.ExchangeRate, error) {
-	var rates []types.ExchangeRate
-	_ = k.ExchangeRates.Walk(ctx, nil, func(_ string, rateJSON string) (bool, error) {
-		var rate types.ExchangeRate
-		_ = json.Unmarshal([]byte(rateJSON), &rate)
-		rates = append(rates, rate)
-		return false, nil
-	})
-	return rates, nil
-}
-
-// QueryPriceHistory returns price history for a denom pair.
-func (k Keeper) QueryPriceHistory(ctx context.Context, denomPair string, limit uint64) ([]types.PriceHistoryEntry, error) {
-	historyJSON, err := k.PriceHistory.Get(ctx, denomPair)
-	if err != nil {
-		return nil, types.ErrPriceNotAvailable
-	}
-
-	var history []types.PriceHistoryEntry
-	if err := json.Unmarshal([]byte(historyJSON), &history); err != nil {
-		return nil, err
-	}
-
-	if limit > 0 && uint64(len(history)) > limit {
-		history = history[uint64(len(history))-limit:]
-	}
-
-	return history, nil
-}
-
-// QueryMissCounter returns the miss counter for a validator.
-func (k Keeper) QueryMissCounter(ctx context.Context, validator string) (uint64, error) {
-	count, err := k.MissCounters.Get(ctx, validator)
-	if err != nil {
-		return 0, nil // no misses
-	}
-	return count, nil
-}
-
-// QueryFeederDelegation returns the feeder delegation for a validator.
-func (k Keeper) QueryFeederDelegation(ctx context.Context, validator string) (string, error) {
-	feeder, err := k.FeederDelegations.Get(ctx, validator)
-	if err != nil {
-		return "", nil // no delegation, validator feeds itself
-	}
-	return feeder, nil
+	return nil
 }

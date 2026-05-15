@@ -1,0 +1,13 @@
+{
+  "artifact": {
+    "name": "clawchaind",
+    "kind": "node-binary",
+    "path": "/Users/arhansubasi/new-blokchain/bin/clawchaind",
+    "sha256": "066735b4382a9e6ab16c581d25c88b0be190fc242b04538386ae8e3e6d8a1975"
+  },
+  "build": {
+    "timestamp_utc": "2026-02-25T22:14:46Z",
+    "git_commit": "53f513522850cb36bd92a351534991e34104fcd3",
+    "git_branch": "main"
+  }
+}

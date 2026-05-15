@@ -1,0 +1,59 @@
+{
+  "name": "@clawchain/sdk",
+  "version": "1.0.0",
+  "description": "Official TypeScript SDK for ClawChain — the AI-native blockchain",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "clawchain",
+    "blockchain",
+    "cosmos",
+    "sdk",
+    "ai-agents",
+    "zk-proofs",
+    "cosmwasm",
+    "ibc"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/clawchain/clawchain",
+    "directory": "sdk"
+  },
+  "homepage": "https://docs.clawchain.io/docs/sdk/overview",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "proto:gen": "node ./scripts/gen-proto-contracts.mjs",
+    "proto:check": "node ./scripts/gen-proto-contracts.mjs --check",
+    "build": "tsc",
+    "test": "node --test 'dist/**/*.test.js'",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@cosmjs/stargate": "^0.33.0",
+    "@cosmjs/proto-signing": "^0.33.0",
+    "@cosmjs/tendermint-rpc": "^0.33.0",
+    "@cosmjs/crypto": "^0.33.0",
+    "@cosmjs/encoding": "^0.33.0",
+    "@walletconnect/sign-client": "^2.17.0",
+    "@walletconnect/types": "^2.17.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "@types/node": "^22.0.0"
+  }
+}

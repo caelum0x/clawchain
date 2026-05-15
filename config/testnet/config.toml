@@ -1,0 +1,284 @@
+# ClawChain Testnet - CometBFT Configuration
+#
+# This file configures the CometBFT consensus engine for a testnet node.
+# Copy this file to ~/.clawchain/config/config.toml and adjust as needed.
+
+###############################################################################
+###                        Base Configuration                               ###
+###############################################################################
+
+# A custom human-readable name for this node.
+# IMPORTANT: Change this to a unique identifier for your node.
+moniker = "my-testnet-node"
+
+# TCP or UNIX socket address of the ABCI application,
+# or the name of an ABCI application compiled in with the CometBFT binary.
+proxy_app = "tcp://127.0.0.1:26658"
+
+# Database backend: goleveldb | cleveldb | boltdb | rocksdb | badgerdb
+db_backend = "goleveldb"
+
+# Database directory
+db_dir = "data"
+
+# Output level for logging: info, debug, error, none
+log_level = "info"
+
+# Output format: 'plain' (colored text) or 'json'
+log_format = "plain"
+
+###############################################################################
+###                          RPC Server                                     ###
+###############################################################################
+
+[rpc]
+
+# TCP or UNIX socket address for the RPC server to listen on.
+# The RPC server handles queries, broadcasting transactions, and subscriptions.
+laddr = "tcp://0.0.0.0:26657"
+
+# A list of origins a cross-domain request can be executed from.
+# Default value '[]' disables cors support.
+# Use '["*"]' to allow any origin.
+cors_allowed_origins = ["*"]
+
+# A list of methods the client is allowed to use with cross-domain requests.
+cors_allowed_methods = ["HEAD", "GET", "POST"]
+
+# A list of non-simple headers the client is allowed to use.
+cors_allowed_headers = ["Origin", "Accept", "Content-Type", "X-Requested-With", "X-Server-Time"]
+
+# TCP or UNIX socket address for the gRPC server to listen on.
+# NOTE: This server only supports /broadcast_tx_commit.
+grpc_laddr = ""
+
+# Maximum number of simultaneous connections (including WebSocket).
+# If you want to accept a larger number than the default, make sure
+# you increase your OS limits.
+# 0 - unlimited.
+max_open_connections = 900
+
+# Maximum number of unique clientIDs that can /subscribe.
+max_subscription_clients = 100
+
+# Maximum number of unique queries a given client can /subscribe to.
+max_subscriptions_per_client = 5
+
+# Experimental parameter to specify the maximum number of events a node will
+# buffer, per subscription, before starting to drop events.
+experimental_subscription_buffer_size = 200
+
+# Experimental parameter to specify the maximum number of RPC responses that
+# can be buffered per WebSocket client.
+experimental_websocket_write_buffer_size = 200
+
+# experimental_close_on_slow_client specifies whether to close a slow client.
+experimental_close_on_slow_client = false
+
+# Timeout for each broadcast tx commit (in seconds).
+timeout_broadcast_tx_commit = "10s"
+
+# Maximum size of request body, in bytes.
+max_body_bytes = 1000000
+
+# Maximum size of request header, in bytes.
+max_header_bytes = 1048576
+
+# The name of a file containing certificate that is used to create the HTTPS server.
+tls_cert_file = ""
+
+# The name of a file containing matching private key that is used to create the HTTPS server.
+tls_key_file = ""
+
+# pprof listen address (https://golang.org/pkg/net/http/pprof)
+pprof_laddr = ""
+
+###############################################################################
+###                         P2P Configuration                               ###
+###############################################################################
+
+[p2p]
+
+# Address to listen for incoming connections.
+laddr = "tcp://0.0.0.0:26656"
+
+# Address to advertise to peers for them to dial. If empty, will use the same
+# port as the laddr, and will introspect on the listener to figure out the
+# address. IP and port are required. Example: 159.89.10.97:26656
+external_address = ""
+
+# Comma separated list of seed nodes to connect to.
+# Seed nodes provide initial peer discovery for joining the network.
+# IMPORTANT: Replace with the actual testnet seed node addresses.
+seeds = "seed1-id@seed1.testnet.clawchain.io:26656,seed2-id@seed2.testnet.clawchain.io:26656"
+
+# Comma separated list of nodes to keep persistent connections to.
+persistent_peers = ""
+
+# Set true to enable the peer-exchange reactor.
+pex = true
+
+# Seed mode, in which node constantly crawls the network and looks for
+# peers. If another node asks it for addresses, it responds and disconnects.
+seed_mode = false
+
+# Maximum number of inbound peers.
+max_num_inbound_peers = 40
+
+# Maximum number of outbound peers to connect to, excluding persistent peers.
+max_num_outbound_peers = 10
+
+# Time to wait before flushing messages out on the connection.
+flush_throttle_timeout = "100ms"
+
+# Maximum size of a message packet payload, in bytes.
+max_packet_msg_payload_size = 1024
+
+# Rate at which packets can be sent, in bytes/second.
+send_rate = 5120000
+
+# Rate at which packets can be received, in bytes/second.
+recv_rate = 5120000
+
+# List of node IDs, to which a connection will be (re)established ignoring any existing limits.
+unconditional_peer_ids = ""
+
+# Maximum pause when redialing a persistent peer (if zero, exponential backoff is used).
+persistent_peers_max_dial_period = "0s"
+
+# UPNP port forwarding.
+upnp = false
+
+# Path to address book.
+addr_book_file = "config/addrbook.json"
+
+# Set true for strict address routability rules.
+# Set false for private or local networks.
+addr_book_strict = false
+
+# Allow duplicate IP addresses in the address book.
+allow_duplicate_ip = true
+
+# Handshake timeout.
+handshake_timeout = "20s"
+
+# Dial timeout.
+dial_timeout = "3s"
+
+###############################################################################
+###                        Mempool Configuration                            ###
+###############################################################################
+
+[mempool]
+
+# Mempool version to use: "v0" (FIFO) or "v1" (priority).
+version = "v1"
+
+# Recheck transactions in the mempool after a block is committed.
+recheck = true
+
+# Broadcast transactions to other peers.
+broadcast = true
+
+# Maximum number of transactions in the mempool.
+size = 5000
+
+# Limit the total size of all txs in the mempool.
+# This only accounts for raw transactions (e.g. given 1MB transactions and
+# max_txs_bytes=5MB, mempool will only accept 5 transactions).
+max_txs_bytes = 1073741824
+
+# Size of the cache (used to filter transactions we saw earlier) in transactions.
+cache_size = 10000
+
+# Do not remove invalid transactions from the cache (default: false).
+keep-invalid-txs-in-cache = false
+
+# Maximum size of a single transaction, in bytes.
+max_tx_bytes = 1048576
+
+###############################################################################
+###                      Consensus Configuration                            ###
+###############################################################################
+
+[consensus]
+
+# EmptyBlocks: if true, the node will create empty blocks even if there are
+# no transactions. Set to true for consistent block production.
+create_empty_blocks = true
+
+# Interval between empty blocks (if create_empty_blocks is true).
+create_empty_blocks_interval = "0s"
+
+# Reactor-level timeout values.
+# These control the speed of consensus rounds.
+timeout_propose = "3s"
+timeout_propose_delta = "500ms"
+timeout_prevote = "1s"
+timeout_prevote_delta = "500ms"
+timeout_precommit = "1s"
+timeout_precommit_delta = "500ms"
+
+# How long the node waits after committing a block, before starting on the
+# next height. This provides time for late votes to propagate.
+# 5s is conservative for testnet; gives room for network latency.
+timeout_commit = "5s"
+
+# Make progress as soon as we have all the precommits (as if TimeoutCommit = 0).
+skip_timeout_commit = false
+
+# Peer gossip sleep duration.
+peer_gossip_sleep_duration = "100ms"
+
+# Peer query sleep duration for the majority.
+peer_query_maj23_sleep_duration = "2s"
+
+###############################################################################
+###                      Instrumentation Configuration                      ###
+###############################################################################
+
+[instrumentation]
+
+# When true, Prometheus metrics are served under /metrics on
+# PrometheusListenAddr. Check your Prometheus or Grafana dashboards for
+# chain performance data.
+prometheus = true
+
+# Address to listen for Prometheus collector(s) connections.
+prometheus_listen_addr = ":26660"
+
+# Maximum number of simultaneous connections.
+max_open_connections = 3
+
+# Instrumentation namespace.
+namespace = "cometbft"
+
+###############################################################################
+###                         Storage Configuration                           ###
+###############################################################################
+
+[storage]
+
+# Set to true to discard ABCI responses from the state store, which can
+# reduce disk usage significantly but makes querying past block results
+# impossible.
+discard_abci_responses = false
+
+###############################################################################
+###                       Transaction Indexer                                ###
+###############################################################################
+
+[tx_index]
+
+# What indexer to use for transactions.
+# The application will set which txs to index. In some cases a node operator
+# will be able to decide which txs to index based on configuration set in the
+# application.
+# Options:
+#   1) "null" - no indexing
+#   2) "kv" (default) - index by key-value pairs (uses LevelDB)
+#   3) "psql" - index into PostgreSQL (requires psql-conn)
+indexer = "kv"
+
+# The PostgreSQL connection string when using psql indexer.
+# psql-conn = ""

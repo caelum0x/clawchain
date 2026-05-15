@@ -1,0 +1,42 @@
+[Unit]
+Description=ClawChain Faucet Service
+Documentation=https://github.com/clawchain/clawchain
+After=network-online.target clawchaind.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=clawchain
+Group=clawchain
+ExecStart=/usr/local/bin/claw-faucet
+Restart=on-failure
+RestartSec=10
+StartLimitInterval=200
+StartLimitBurst=5
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=claw-faucet
+
+# Environment
+Environment="CHAIN_REST=http://localhost:1317"
+Environment="CHAIN_RPC=http://localhost:26657"
+Environment="CHAIN_ID=clawchain-1"
+Environment="FAUCET_MNEMONIC="
+Environment="FAUCET_AMOUNT=10000000uclaw"
+EnvironmentFile=-/etc/clawchain/faucet.env
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/clawchain
+
+# Resource limits
+LimitNOFILE=4096
+MemoryMax=512M
+
+[Install]
+WantedBy=multi-user.target

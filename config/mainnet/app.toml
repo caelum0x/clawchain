@@ -1,0 +1,188 @@
+# ClawChain Mainnet - Application Configuration
+#
+# This file configures the Cosmos SDK application layer for a mainnet node.
+# Copy this file to ~/.clawchain/config/app.toml and adjust as needed.
+#
+# IMPORTANT: Review all settings carefully before running a mainnet validator.
+# Incorrect configuration can lead to slashing or missed blocks.
+
+###############################################################################
+###                        Base Configuration                               ###
+###############################################################################
+
+# The minimum gas prices a validator is willing to accept for processing a
+# transaction. A transaction's fees must meet the minimum of any denomination
+# specified in this config (e.g. 0.01uclaw).
+# Mainnet uses a higher minimum than testnet to prevent spam.
+minimum-gas-prices = "0.01uclaw"
+
+# The amount of history versions to keep when pruning application state.
+# "custom" allows fine-grained control over how much state to retain.
+# For validators, custom pruning balances disk usage with query capability.
+pruning = "custom"
+
+# Number of recent states to keep. 100 blocks is sufficient for most queries
+# and IBC relayer operations.
+pruning-keep-recent = "100"
+
+# Interval at which pruning occurs. Lower values prune more frequently,
+# which uses slightly more CPU but keeps disk usage lower.
+pruning-interval = "10"
+
+# HaltHeight contains a non-zero block height at which a node will gracefully
+# halt and shutdown that can be used to assist upgrades and testing.
+halt-height = 0
+
+# HaltTime contains a non-zero minimum block time (in Unix seconds) at which
+# a node will gracefully halt and shutdown.
+halt-time = 0
+
+# MinRetainBlocks defines the minimum block height offset from the current
+# block being committed, such that all blocks past this offset are pruned
+# from CometBFT. A value of 0 indicates all blocks are kept.
+min-retain-blocks = 0
+
+# Inter-block cache size. Setting this to 0 disables the cache.
+inter-block-cache = true
+
+# IndexEvents defines the set of events in the form {eventType}.{attributeKey},
+# which informs CometBFT what to index. If empty, all events will be indexed.
+# For mainnet, consider indexing only the events you need for better performance.
+index-events = []
+
+# IavlCacheSize set the size of the iavl tree cache (in number of nodes).
+iavl-cache-size = 781250
+
+# IAVLDisableFastNode enables or disables the fast node feature of IAVL.
+iavl-disable-fastnode = false
+
+# AppDBBackend defines the database backend type to use for application and
+# snapshots DBs. Options: "goleveldb", "pebbledb"
+# app-db-backend = ""
+
+###############################################################################
+###                         Telemetry Configuration                         ###
+###############################################################################
+
+[telemetry]
+
+# Prefixed with keys to separate services.
+service-name = ""
+
+# Enabled enables the application telemetry functionality. When enabled,
+# an in-memory sink is also enabled by default. Operators may also enable
+# other sinks such as Prometheus.
+enabled = true
+
+# Enable prefixing gauge values with hostname.
+enable-hostname = true
+
+# Enable adding hostname to labels.
+enable-hostname-label = true
+
+# Enable adding service to labels.
+enable-service-label = true
+
+# PrometheusRetentionTime defines the retention duration (in seconds) for
+# Prometheus metrics. Mainnet uses a longer retention for better observability.
+prometheus-retention-time = 120
+
+# GlobalLabels defines a global set of name/value label tuples applied to all
+# metrics emitted using the wrapper functions defined in telemetry package.
+global-labels = [["chain_id", "clawchain-1"]]
+
+###############################################################################
+###                           API Configuration                             ###
+###############################################################################
+
+[api]
+
+# Enable defines if the API server should be enabled.
+# Required for external queries, wallets, and block explorers.
+enable = true
+
+# Swagger defines if swagger documentation should automatically be registered.
+# Disable on mainnet validators that do not serve public API traffic.
+swagger = false
+
+# Address defines the API server to listen on.
+address = "tcp://0.0.0.0:1317"
+
+# MaxOpenConnections defines the number of maximum open connections.
+max-open-connections = 1000
+
+# RPCReadTimeout defines the CometBFT RPC read timeout (in seconds).
+# Mainnet uses a longer timeout to handle bursts of queries.
+rpc-read-timeout = 15
+
+# RPCWriteTimeout defines the CometBFT RPC write timeout (in seconds).
+rpc-write-timeout = 15
+
+# RPCMaxBodyBytes defines the CometBFT maximum request body (in bytes).
+rpc-max-body-bytes = 1000000
+
+# EnableUnsafeCORS defines if CORS should be enabled.
+# WARNING: Do NOT enable on public-facing mainnet validators.
+enabled-unsafe-cors = false
+
+###############################################################################
+###                         gRPC Configuration                              ###
+###############################################################################
+
+[grpc]
+
+# Enable defines if the gRPC server should be enabled.
+enable = true
+
+# Address defines the gRPC server address to bind to.
+address = "0.0.0.0:9090"
+
+# MaxRecvMsgSize defines the max message size in bytes the server can receive.
+max-recv-msg-size = "10485760"
+
+# MaxSendMsgSize defines the max message size in bytes the server can send.
+max-send-msg-size = "2147483647"
+
+###############################################################################
+###                        gRPC Web Configuration                           ###
+###############################################################################
+
+[grpc-web]
+
+# GRPCWebEnable defines if the gRPC-web should be enabled.
+enable = true
+
+# Address defines the gRPC-web server address to bind to.
+address = "0.0.0.0:9091"
+
+# EnableUnsafeCORS defines if CORS should be enabled.
+# WARNING: Do NOT enable on public-facing mainnet validators.
+enable-unsafe-cors = false
+
+###############################################################################
+###                        State Sync Configuration                         ###
+###############################################################################
+
+[state-sync]
+
+# State sync snapshots allow other nodes to rapidly catch up without replaying
+# historical blocks. Enabling this is recommended for mainnet validators to
+# help new nodes join the network quickly.
+
+# snapshot-interval specifies the block interval at which local state sync
+# snapshots are taken. Set to a non-zero value to enable snapshot creation.
+# Recommended: 1000-2000 for mainnet.
+snapshot-interval = 1000
+
+# snapshot-keep-recent specifies the number of recent snapshots to keep.
+# Keeping 2-3 ensures availability even during snapshot creation.
+snapshot-keep-recent = 2
+
+###############################################################################
+###                        Mempool Configuration                            ###
+###############################################################################
+
+[mempool]
+
+# max-txs specifies the maximum number of transactions in the mempool.
+max-txs = 5000

@@ -1,0 +1,20 @@
+{
+  "generated_at_utc": "2026-03-02T00:00:00Z",
+  "status": "complete",
+  "release_commit": "53f513522850cb36bd92a351534991e34104fcd3",
+  "artifacts": [
+    {
+      "name": "clawchaind",
+      "kind": "node-binary",
+      "path": "artifacts/provenance/clawchaind.provenance.json",
+      "sha256": "066735b4382a9e6ab16c581d25c88b0be190fc242b04538386ae8e3e6d8a1975"
+    },
+    {
+      "name": "openclaw-runtime",
+      "kind": "runtime-package",
+      "path": "artifacts/provenance/openclaw-runtime.provenance.json",
+      "sha256": "eff7b1bb98071f0d310c7871851215417fbdd5daf6919e180154fae21aaaca9e"
+    }
+  ],
+  "notes": "Aggregate index for release provenance artifacts consumed by launch/readiness documents."
+}

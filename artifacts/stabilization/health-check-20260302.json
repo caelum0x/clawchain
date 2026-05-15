@@ -1,0 +1,48 @@
+{
+    "timestamp": "2026-02-26T17:57:18Z",
+    "status": "critical",
+    "endpoints": {
+        "rpc": "http://localhost:26657",
+        "grpc_gateway": "http://localhost:1317",
+        "rest": "http://localhost:1317"
+    },
+    "checks": [
+        {
+            "name": "rpc",
+            "status": "critical",
+            "message": "RPC unreachable at http://localhost:26657"
+        },
+        {
+            "name": "grpc_gateway",
+            "status": "degraded",
+            "message": "gRPC-gateway returned HTTP 000000"
+        },
+        {
+            "name": "rest_api",
+            "status": "degraded",
+            "message": "REST API returned HTTP 000000"
+        },
+        {
+            "name": "block_production",
+            "status": "critical",
+            "message": "Cannot fetch latest block (RPC down)"
+        },
+        {
+            "name": "validator_signing",
+            "status": "degraded",
+            "message": "Cannot fetch validator info (RPC down)"
+        },
+        {
+            "name": "disk_space",
+            "status": "healthy",
+            "message": "Disk 31% used on /System/Volumes/Data",
+            "mount_point": "/System/Volumes/Data",
+            "used_percent": 31
+        },
+        {
+            "name": "memory",
+            "status": "degraded",
+            "message": "clawchaind process not found"
+        }
+    ]
+}

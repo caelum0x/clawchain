@@ -1,0 +1,56 @@
+groups:
+  - name: oracle
+    rules:
+      - alert: OracleNoVotePeriods
+        expr: rate(clawchain_oracle_vote_periods_total[10m]) == 0
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Oracle vote periods have stopped"
+          description: "No oracle vote periods completed in the last 10 minutes. The oracle EndBlocker may not be running."
+
+      - alert: OracleNoActiveRates
+        expr: clawchain_oracle_active_exchange_rates == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "No active oracle exchange rates"
+          description: "Zero exchange rates are active. Price feeds are down — DEX and oracle-dependent features are broken."
+
+      - alert: OracleHighMissRate
+        expr: clawchain_oracle_total_miss_counter > 50
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High oracle miss counter"
+          description: "Total oracle miss counter across all validators is {{ $value }}. Validators may be slashed at the end of the slash window."
+
+      - alert: OracleValidatorSlashed
+        expr: increase(clawchain_oracle_slashes_total[1h]) > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Oracle validator slashed"
+          description: "{{ $value }} oracle slash(es) occurred in the last hour. A validator was jailed for missing too many votes."
+
+      - alert: OracleLowVoterParticipation
+        expr: clawchain_oracle_voting_validators < 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low oracle voter participation"
+          description: "Only {{ $value }} validator(s) participating in oracle voting. Minimum 2 recommended for price accuracy."
+
+      - alert: OracleNoRewards
+        expr: clawchain_oracle_rewards_distributed_uclaw == 0 and clawchain_oracle_vote_periods_total > 10
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "No oracle rewards being distributed"
+          description: "Oracle reward pool appears empty — no uclaw distributed to voters in 30+ minutes."

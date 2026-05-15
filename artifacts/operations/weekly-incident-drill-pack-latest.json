@@ -1,0 +1,11 @@
+{
+  "generatedAtUtc": "2026-02-27T09:37:40Z",
+  "weekId": "2026-W09",
+  "drill": {
+    "status": "failed",
+    "passedCount": 0,
+    "failedCount": 0,
+    "logArtifact": "artifacts/operations/weekly-incident-drill-2026-W09.log"
+  },
+  "closureStatus": "attention_required"
+}

@@ -1,0 +1,49 @@
+name: Publish SDK to npm
+
+on:
+  push:
+    tags: ["sdk-v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    name: Build & Publish @clawchain/sdk
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install dependencies
+        working-directory: sdk
+        run: npm install
+
+      - name: Type check
+        working-directory: sdk
+        run: npx tsc --noEmit
+
+      - name: Build
+        working-directory: sdk
+        run: npm run build
+
+      - name: Run tests
+        working-directory: sdk
+        run: npm test
+
+      - name: Verify package
+        working-directory: sdk
+        run: npm pack --dry-run
+
+      - name: Publish
+        working-directory: sdk
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

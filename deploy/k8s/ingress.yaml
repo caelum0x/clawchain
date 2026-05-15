@@ -1,0 +1,132 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: clawchain-api-ingress
+  namespace: clawchain
+  labels:
+    app.kubernetes.io/name: clawchain
+    app.kubernetes.io/component: api-gateway
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "1m"
+    nginx.ingress.kubernetes.io/rate-limit: "30"
+    nginx.ingress.kubernetes.io/rate-limit-window: "1s"
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "Content-Type, Authorization, x-cosmos-block-height"
+spec:
+  tls:
+    - hosts:
+        - api.clawchain.io
+        - rpc.clawchain.io
+        - grpc.clawchain.io
+      secretName: clawchain-api-tls
+    - hosts:
+        - app.clawchain.io
+      secretName: clawchain-web-tls
+    - hosts:
+        - faucet.clawchain.io
+      secretName: clawchain-services-tls
+  rules:
+    # REST/LCD API
+    - host: api.clawchain.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: clawchain-node
+                port:
+                  number: 1317
+    # CometBFT RPC
+    - host: rpc.clawchain.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: clawchain-node
+                port:
+                  number: 26657
+    # gRPC
+    - host: grpc.clawchain.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: clawchain-node
+                port:
+                  number: 9090
+    # Web dashboard
+    - host: app.clawchain.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: clawchain-web
+                port:
+                  number: 80
+    # Faucet
+    - host: faucet.clawchain.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: clawchain-faucet
+                port:
+                  number: 8888
+---
+# Testnet variants
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: clawchain-testnet-ingress
+  namespace: clawchain
+  labels:
+    app.kubernetes.io/name: clawchain
+    app.kubernetes.io/component: api-gateway
+    app.kubernetes.io/environment: testnet
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+spec:
+  tls:
+    - hosts:
+        - api-testnet.clawchain.io
+        - rpc-testnet.clawchain.io
+      secretName: clawchain-testnet-tls
+  rules:
+    - host: api-testnet.clawchain.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: clawchain-node
+                port:
+                  number: 1317
+    - host: rpc-testnet.clawchain.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: clawchain-node
+                port:
+                  number: 26657

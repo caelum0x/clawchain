@@ -1,0 +1,123 @@
+name: Docker Build & Publish
+
+on:
+  push:
+    tags: ["v*"]
+    branches: [main]
+  pull_request:
+    branches: [main]
+    paths:
+      - "**/Dockerfile"
+      - "cmd/**"
+      - "app/**"
+      - "x/**"
+      - "web/**"
+      - "claw-explorer/**"
+      - "dex-app/**"
+      - "landing/**"
+      - "docs-site/**"
+      - "go.mod"
+      - "go.sum"
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  build-and-push:
+    name: Build & Push ${{ matrix.image }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: clawchain
+            context: .
+            dockerfile: Dockerfile
+          - image: clawchain-clawd
+            context: ./cmd/clawd
+            dockerfile: Dockerfile
+          - image: clawchain-faucet
+            context: .
+            dockerfile: cmd/claw-faucet/Dockerfile
+          - image: clawchain-eventsd
+            context: .
+            dockerfile: cmd/claw-eventsd/Dockerfile
+          - image: clawchain-notifyd
+            context: .
+            dockerfile: cmd/claw-notifyd/Dockerfile
+          - image: clawchain-inference
+            context: .
+            dockerfile: cmd/claw-inference-sidecar/Dockerfile
+          - image: clawchain-gpu-provider
+            context: .
+            dockerfile: cmd/claw-gpu-provider/Dockerfile
+          - image: clawchain-web
+            context: ./web
+            dockerfile: Dockerfile
+          - image: clawchain-explorer
+            context: ./claw-explorer
+            dockerfile: Dockerfile
+          - image: clawchain-dex
+            context: ./dex-app
+            dockerfile: Dockerfile
+          - image: clawchain-landing
+            context: ./landing
+            dockerfile: Dockerfile
+          - image: clawchain-docs
+            context: ./docs-site
+            dockerfile: Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix=
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.context }}/${{ matrix.dockerfile }}
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+
+      - name: Generate SBOM
+        if: github.event_name != 'pull_request' && matrix.image == 'clawchain'
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image }}:${{ github.sha }}
+          format: spdx-json
+          output-file: sbom.spdx.json
+
+      - name: Upload SBOM
+        if: github.event_name != 'pull_request' && matrix.image == 'clawchain'
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.spdx.json

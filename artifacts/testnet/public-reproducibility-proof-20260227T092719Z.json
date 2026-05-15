@@ -1,0 +1,10 @@
+{
+  "verifiedAtUtc": "2026-02-27T09:27:19Z",
+  "status": "passed",
+  "manifestRef": "./testnet/public/manifest.json",
+  "statusRef": "./testnet/public/status.json",
+  "strictPublic": false,
+  "chainId": "clawchain-testnet-1",
+  "signatureCount": 0,
+  "manifestLifecycleSignedUpdate": false
+}

@@ -1,0 +1,93 @@
+config_dir = "clawchain-provider-config"
+
+gas_adjustment = 1
+provider_timeout = "1000000s"
+
+[server]
+listen_addr = "0.0.0.0:7171"
+read_timeout = "20s"
+verbose_cors = true
+write_timeout = "20s"
+
+[account]
+address = "claw1r5v5srda7xfth3hn2s26txvrcrntldju3ufu0h"
+chain_id = "clawchain-local"
+validator = "clawvaloper1r5v5srda7xfth3hn2s26txvrcrntldjuXXXXXX"
+
+[keyring]
+backend = "test"
+dir = "/Users/username/.clawchain"
+
+[rpc]
+grpc_endpoint = "localhost:9090"
+rpc_timeout = "100ms"
+tmrpc_endpoint = "http://localhost:26657"
+
+[telemetry]
+enable-hostname = true
+enable-hostname-label = true
+enable-service-label = true
+enabled = true
+global-labels = [["chain_id", "clawchain-local"]]
+service-name = "claw-price-feeder"
+prometheus-retention-time = 100
+
+# ---------------------------------------------------------------------------
+# ClawChain Oracle Currency Pairs
+# These must match the oracle module whitelist denoms (x/oracle/types/params.go)
+# Base = the token being priced, Quote = the denomination unit
+# ---------------------------------------------------------------------------
+
+# ATOM/USD — primary reference pair (highest liquidity)
+[[currency_pairs]]
+base = "ATOM"
+quote = "USD"
+providers = ["binance", "coinbase", "kraken", "okx"]
+
+# USDT/USD — stablecoin peg
+[[currency_pairs]]
+base = "USDT"
+quote = "USD"
+providers = ["binance", "coinbase", "kraken", "okx", "gate"]
+
+# USDC/USD — stablecoin peg
+[[currency_pairs]]
+base = "USDC"
+quote = "USD"
+providers = ["binance", "coinbase", "kraken", "okx"]
+
+# BTC/USD — bitcoin reference
+[[currency_pairs]]
+base = "BTC"
+quote = "USD"
+providers = ["binance", "coinbase", "kraken", "okx", "bitget"]
+
+# ETH/USD — ethereum reference
+[[currency_pairs]]
+base = "ETH"
+quote = "USD"
+providers = ["binance", "coinbase", "kraken", "okx", "bitget"]
+
+# ---------------------------------------------------------------------------
+# Deviation thresholds — max standard deviations from median before filtering
+# ---------------------------------------------------------------------------
+
+[[deviation_thresholds]]
+base = "ATOM"
+threshold = "2"
+
+[[deviation_thresholds]]
+base = "USDT"
+threshold = "1.5"
+
+[[deviation_thresholds]]
+base = "USDC"
+threshold = "1.5"
+
+[[deviation_thresholds]]
+base = "BTC"
+threshold = "2"
+
+[[deviation_thresholds]]
+base = "ETH"
+threshold = "2"

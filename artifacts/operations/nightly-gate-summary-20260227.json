@@ -1,0 +1,18 @@
+{
+  "timestamp": "2026-02-27T09:37:38Z",
+  "total": 8,
+  "passed": 1,
+  "failed": 6,
+  "skipped": 1,
+  "allPassed": false,
+  "gates": [
+    {"gate":"protocol-sanity","status":"skipped","reason":"script not found"},
+    {"gate":"health-check","status":"failed","remediation":"Ensure chain is running ('make testnet-start' or 'clawchaind start'). Check RPC on port 26657"},
+    {"gate":"endpoint-smoke","status":"failed","remediation":"Enable REST API in app.toml (api.enable=true) and restart chain"},
+    {"gate":"incident-drill","status":"failed","remediation":"Check chain is running and RPC accessible. Review drill output: 'make incident-drill 2>&1'"},
+    {"gate":"validate-upgrade","status":"failed","remediation":"Ensure chain binary is built ('go build ./...') and state is exportable"},
+    {"gate":"load-test","status":"failed","remediation":"Check chain is running with funded accounts. Review: 'make load-test 2>&1'"},
+    {"gate":"go-build","status":"failed","remediation":"Run 'go build ./...' and fix compile errors"},
+    {"gate":"sdk-typecheck","status":"passed"}
+  ]
+}

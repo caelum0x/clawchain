@@ -1,0 +1,16 @@
+{
+  "generatedAtUtc": "2026-02-27T09:37:40Z",
+  "dayUtc": "20260227",
+  "cronSafe": true,
+  "checks": {
+    "gateSummary": {
+      "status": "failed",
+      "artifact": "artifacts/operations/nightly-gate-summary-20260227.json"
+    },
+    "releaseEvidenceRefresh": {
+      "status": "passed",
+      "artifact": "artifacts/operations/nightly-release-evidence-20260227.json"
+    }
+  },
+  "overallStatus": "failed"
+}

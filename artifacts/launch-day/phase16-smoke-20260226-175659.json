@@ -1,0 +1,8 @@
+{
+  "label": "phase16-smoke",
+  "start_utc": "2026-02-26T17:56:59Z",
+  "end_utc": "2026-02-26T17:56:59Z",
+  "status": "passed",
+  "exit_code": 0,
+  "log_artifact": "artifacts/launch-day/phase16-smoke-20260226-175659.log"
+}

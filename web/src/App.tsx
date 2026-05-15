@@ -45,6 +45,7 @@ const GPUProviders = lazy(() => import("./pages/GPUProviders.tsx"));
 const Bridge = lazy(() => import("./pages/Bridge.tsx"));
 const Operations = lazy(() => import("./pages/Operations.tsx"));
 const Oracle = lazy(() => import("./pages/Oracle.tsx"));
+const ValidatorOracle = lazy(() => import("./pages/ValidatorOracle.tsx"));
 const Settings = lazy(() => import("./pages/Settings.tsx"));
 const NotFound = lazy(() => import("./pages/NotFound.tsx"));
 
@@ -104,6 +105,7 @@ export default function App() {
             <Route path="/gpu-providers" element={<GPUProviders />} />
             <Route path="/bridge" element={<Bridge />} />
             <Route path="/oracle" element={<Oracle />} />
+            <Route path="/validator-oracle" element={<ValidatorOracle />} />
             <Route path="/operations" element={<Operations />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="*" element={<NotFound />} />

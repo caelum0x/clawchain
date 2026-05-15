@@ -1,0 +1,89 @@
+/**
+ * ClawChain documentation theme
+ * Primary: dark indigo (#6366f1)
+ */
+
+:root {
+  --ifm-color-primary: #6366f1;
+  --ifm-color-primary-dark: #4f46e5;
+  --ifm-color-primary-darker: #4338ca;
+  --ifm-color-primary-darkest: #3730a3;
+  --ifm-color-primary-light: #818cf8;
+  --ifm-color-primary-lighter: #a5b4fc;
+  --ifm-color-primary-lightest: #c7d2fe;
+  --ifm-code-font-size: 95%;
+  --ifm-font-family-base: 'Inter', system-ui, -apple-system, sans-serif;
+  --docusaurus-highlighted-code-line-bg: rgba(99, 102, 241, 0.1);
+}
+
+[data-theme='dark'] {
+  --ifm-color-primary: #818cf8;
+  --ifm-color-primary-dark: #6366f1;
+  --ifm-color-primary-darker: #4f46e5;
+  --ifm-color-primary-darkest: #4338ca;
+  --ifm-color-primary-light: #a5b4fc;
+  --ifm-color-primary-lighter: #c7d2fe;
+  --ifm-color-primary-lightest: #e0e7ff;
+  --ifm-background-color: #0f0f23;
+  --ifm-background-surface-color: #161632;
+  --docusaurus-highlighted-code-line-bg: rgba(129, 140, 248, 0.15);
+}
+
+/* Navbar */
+[data-theme='dark'] .navbar {
+  background-color: #0f0f23;
+  border-bottom: 1px solid rgba(129, 140, 248, 0.1);
+}
+
+/* Hero section */
+.hero--primary {
+  background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4338ca 100%);
+}
+
+[data-theme='dark'] .hero--primary {
+  background: linear-gradient(135deg, #0f0f23 0%, #1e1b4b 50%, #312e81 100%);
+}
+
+/* Footer */
+.footer--dark {
+  background-color: #0a0a1a;
+  border-top: 1px solid rgba(129, 140, 248, 0.1);
+}
+
+/* Sidebar */
+[data-theme='dark'] .menu {
+  background-color: #0f0f23;
+}
+
+/* Code blocks */
+[data-theme='dark'] .prism-code {
+  background-color: #1a1a2e !important;
+}
+
+/* Table styling */
+[data-theme='dark'] table {
+  border-color: rgba(129, 140, 248, 0.15);
+}
+
+[data-theme='dark'] table th {
+  background-color: rgba(129, 140, 248, 0.08);
+}
+
+[data-theme='dark'] table tr:nth-child(even) {
+  background-color: rgba(129, 140, 248, 0.03);
+}
+
+/* Admonition (note/tip/warning boxes) */
+[data-theme='dark'] .alert {
+  border-left-color: var(--ifm-color-primary);
+}
+
+/* Scrollbar */
+[data-theme='dark'] ::-webkit-scrollbar-track {
+  background: #0f0f23;
+}
+
+[data-theme='dark'] ::-webkit-scrollbar-thumb {
+  background-color: #312e81;
+  border-radius: 4px;
+}

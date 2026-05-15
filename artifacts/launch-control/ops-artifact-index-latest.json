@@ -1,0 +1,38 @@
+{
+  "generatedAtUtc": "2026-02-27T11:54:17Z",
+  "gitCommit": "53f513522850cb36bd92a351534991e34104fcd3",
+  "weekId": "2026-W09",
+  "summaryFile": "artifacts/launch-control/post-launch-weekly-executive-summary-latest.json",
+  "entries": [
+    {
+      "path": "artifacts/launch-control/post-launch-weekly-executive-summary-latest.json",
+      "sha256": "56cef77bdeb886c6b798702f74365392b24949276820d0f113a1ccdb6dae9a32",
+      "sizeBytes": 4211
+    },
+    {
+      "path": "artifacts/launch-control/executive-trend-7d-latest.json",
+      "sha256": "3f8ad2097ff31c3a166363fb55e6a786d2361350465ba1f2e2d488d6f80cf29d",
+      "sizeBytes": 1675
+    },
+    {
+      "path": "artifacts/launch-control/ops-remediation-checklist-latest.json",
+      "sha256": "ea1425691ec284001ff06a60dcab4763686d52eed679dad00a56d676d7db72ba",
+      "sizeBytes": 1165
+    },
+    {
+      "path": "artifacts/launch-control/ops-remediation-bundle-latest.json",
+      "sha256": "5d146856d93367bb6f7ac790ef586b481a6f7d7da5f1a3c370a4b4765a39dce1",
+      "sizeBytes": 2740
+    },
+    {
+      "path": "artifacts/launch-control/ops-maturity-packet-latest.json",
+      "sha256": "1c6211026a48fdb19c7884d6666911eb4abc1eaf5f5e8121eeb96565c59838d9",
+      "sizeBytes": 13607
+    },
+    {
+      "path": "artifacts/release-evidence.json",
+      "sha256": "1a0758ca8d250d88cc4143671009d490583892867d6f0fcf6726d17929952bfc",
+      "sizeBytes": 1719
+    }
+  ]
+}

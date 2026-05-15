@@ -1,0 +1,597 @@
+{
+  "app_name": "<appd>",
+  "app_version": "",
+  "genesis_time": "2026-03-01T11:42:33.706369Z",
+  "chain_id": "clawchain-1",
+  "initial_height": 1,
+  "app_hash": null,
+  "app_state": {
+    "06-solomachine": null,
+    "07-tendermint": null,
+    "agent": {
+      "params": {
+        "max_heartbeat_gap_blocks": "200",
+        "max_actions_per_block": "8",
+        "min_heartbeat_interval_blocks": "10",
+        "max_intents_per_block": "4",
+        "max_tasks_per_block": "4",
+        "max_payload_bytes": "4096",
+        "min_agent_deposit_uclaw": "1000000",
+        "deposit_slash_per_penalty_bps": "100",
+        "min_task_budget_uclaw": "1",
+        "high_impact_min_deposit_uclaw": "1000000",
+        "standard_task_min_budget_uclaw": "10",
+        "expedited_task_min_budget_uclaw": "100",
+        "expedited_task_max_deadline_blocks": "100",
+        "agent_reward_pool_fraction_bps": "1000",
+        "min_reputation_for_reward_bps": "5000",
+        "reward_distribution_interval_blocks": "100"
+      }
+    },
+    "auth": {
+      "params": {
+        "max_memo_characters": "256",
+        "tx_sig_limit": "7",
+        "tx_size_cost_per_byte": "10",
+        "sig_verify_cost_ed25519": "590",
+        "sig_verify_cost_secp256k1": "1000"
+      },
+      "accounts": [
+        {
+          "@type": "/cosmos.auth.v1beta1.BaseAccount",
+          "address": "claw1mlm4fyxmafs6c0k9tsvvat3r3m2ngqhme757yc",
+          "pub_key": null,
+          "account_number": "0",
+          "sequence": "0"
+        },
+        {
+          "@type": "/cosmos.auth.v1beta1.BaseAccount",
+          "address": "claw1ewydn7hfmcfvcu3xya8yzdy7f2zj4tstml2a56",
+          "pub_key": null,
+          "account_number": "1",
+          "sequence": "0"
+        },
+        {
+          "@type": "/cosmos.auth.v1beta1.BaseAccount",
+          "address": "claw1j04hh4jtl0z6md62u650dm6009w9c6z3s4p0lx",
+          "pub_key": null,
+          "account_number": "2",
+          "sequence": "0"
+        },
+        {
+          "@type": "/cosmos.auth.v1beta1.BaseAccount",
+          "address": "claw1vwv8quh4exltjqrpezxdxmmq24tx984nxa67na",
+          "pub_key": null,
+          "account_number": "3",
+          "sequence": "0"
+        },
+        {
+          "@type": "/cosmos.auth.v1beta1.BaseAccount",
+          "address": "claw1nx6xjxxuzx0w34ej8jrhccfkh606szddzlg8fs",
+          "pub_key": null,
+          "account_number": "4",
+          "sequence": "0"
+        },
+        {
+          "@type": "/cosmos.auth.v1beta1.BaseAccount",
+          "address": "claw1245asd5u0xn09qc2qp8396uu5u4p7wt6e7jnym",
+          "pub_key": null,
+          "account_number": "5",
+          "sequence": "0"
+        },
+        {
+          "@type": "/cosmos.auth.v1beta1.BaseAccount",
+          "address": "claw1aa9w294yzzsqtp8fqkh58pqal84ee4xnt9gnra",
+          "pub_key": null,
+          "account_number": "6",
+          "sequence": "0"
+        }
+      ]
+    },
+    "authz": {
+      "authorization": []
+    },
+    "bank": {
+      "params": {
+        "send_enabled": [],
+        "default_send_enabled": true
+      },
+      "balances": [
+        {
+          "address": "claw1245asd5u0xn09qc2qp8396uu5u4p7wt6e7jnym",
+          "coins": [
+            {
+              "denom": "uclaw",
+              "amount": "50000000000000"
+            }
+          ]
+        },
+        {
+          "address": "claw1vwv8quh4exltjqrpezxdxmmq24tx984nxa67na",
+          "coins": [
+            {
+              "denom": "uclaw",
+              "amount": "100000000000000"
+            }
+          ]
+        },
+        {
+          "address": "claw1j04hh4jtl0z6md62u650dm6009w9c6z3s4p0lx",
+          "coins": [
+            {
+              "denom": "uclaw",
+              "amount": "200000000000000"
+            }
+          ]
+        },
+        {
+          "address": "claw1nx6xjxxuzx0w34ej8jrhccfkh606szddzlg8fs",
+          "coins": [
+            {
+              "denom": "uclaw",
+              "amount": "100000000000000"
+            }
+          ]
+        },
+        {
+          "address": "claw1ewydn7hfmcfvcu3xya8yzdy7f2zj4tstml2a56",
+          "coins": [
+            {
+              "denom": "uclaw",
+              "amount": "150000000000000"
+            }
+          ]
+        },
+        {
+          "address": "claw1mlm4fyxmafs6c0k9tsvvat3r3m2ngqhme757yc",
+          "coins": [
+            {
+              "denom": "uclaw",
+              "amount": "400000000000000"
+            }
+          ]
+        },
+        {
+          "address": "claw1aa9w294yzzsqtp8fqkh58pqal84ee4xnt9gnra",
+          "coins": [
+            {
+              "denom": "uclaw",
+              "amount": "1000000000"
+            }
+          ]
+        }
+      ],
+      "supply": [
+        {
+          "denom": "uclaw",
+          "amount": "1000001000000000"
+        }
+      ],
+      "denom_metadata": [
+        {
+          "description": "The native staking and governance token of ClawChain",
+          "denom_units": [
+            {
+              "denom": "uclaw",
+              "exponent": 0,
+              "aliases": [
+                "microclaw"
+              ]
+            },
+            {
+              "denom": "mclaw",
+              "exponent": 3,
+              "aliases": [
+                "milliclaw"
+              ]
+            },
+            {
+              "denom": "claw",
+              "exponent": 6,
+              "aliases": [
+                "CLAW"
+              ]
+            }
+          ],
+          "base": "uclaw",
+          "display": "claw",
+          "name": "CLAW",
+          "symbol": "CLAW"
+        }
+      ],
+      "send_enabled": []
+    },
+    "circuit": {
+      "account_permissions": [],
+      "disabled_type_urls": []
+    },
+    "clawchain": {
+      "params": {}
+    },
+    "clawgovernance": {
+      "params": {},
+      "proposals": [],
+      "votes": []
+    },
+    "consensus": null,
+    "distribution": {
+      "params": {
+        "community_tax": "0.020000000000000000",
+        "base_proposer_reward": "0.000000000000000000",
+        "bonus_proposer_reward": "0.000000000000000000",
+        "withdraw_addr_enabled": true
+      },
+      "fee_pool": {
+        "community_pool": []
+      },
+      "delegator_withdraw_infos": [],
+      "previous_proposer": "",
+      "outstanding_rewards": [],
+      "validator_accumulated_commissions": [],
+      "validator_historical_rewards": [],
+      "validator_current_rewards": [],
+      "delegator_starting_infos": [],
+      "validator_slash_events": []
+    },
+    "epochs": {
+      "epochs": [
+        {
+          "identifier": "day",
+          "start_time": "0001-01-01T00:00:00Z",
+          "duration": "86400s",
+          "current_epoch": "0",
+          "current_epoch_start_time": "0001-01-01T00:00:00Z",
+          "epoch_counting_started": false,
+          "current_epoch_start_height": "0"
+        },
+        {
+          "identifier": "hour",
+          "start_time": "0001-01-01T00:00:00Z",
+          "duration": "3600s",
+          "current_epoch": "0",
+          "current_epoch_start_time": "0001-01-01T00:00:00Z",
+          "epoch_counting_started": false,
+          "current_epoch_start_height": "0"
+        },
+        {
+          "identifier": "minute",
+          "start_time": "0001-01-01T00:00:00Z",
+          "duration": "60s",
+          "current_epoch": "0",
+          "current_epoch_start_time": "0001-01-01T00:00:00Z",
+          "epoch_counting_started": false,
+          "current_epoch_start_height": "0"
+        },
+        {
+          "identifier": "week",
+          "start_time": "0001-01-01T00:00:00Z",
+          "duration": "604800s",
+          "current_epoch": "0",
+          "current_epoch_start_time": "0001-01-01T00:00:00Z",
+          "epoch_counting_started": false,
+          "current_epoch_start_height": "0"
+        }
+      ]
+    },
+    "evidence": {
+      "evidence": []
+    },
+    "feegrant": {
+      "allowances": []
+    },
+    "genutil": {
+      "gen_txs": [
+        {
+          "body": {
+            "messages": [
+              {
+                "@type": "/cosmos.staking.v1beta1.MsgCreateValidator",
+                "description": {
+                  "moniker": "ClawChain Genesis Validator",
+                  "identity": "",
+                  "website": "",
+                  "security_contact": "",
+                  "details": ""
+                },
+                "commission": {
+                  "rate": "0.100000000000000000",
+                  "max_rate": "0.200000000000000000",
+                  "max_change_rate": "0.010000000000000000"
+                },
+                "min_self_delegation": "1",
+                "delegator_address": "",
+                "validator_address": "clawvaloper1aa9w294yzzsqtp8fqkh58pqal84ee4xnmqkjur",
+                "pubkey": {
+                  "@type": "/cosmos.crypto.ed25519.PubKey",
+                  "key": "/u67gRqcE/aaodwaeVT8FnnINwNTZ4V8TwChhzdYvlY="
+                },
+                "value": {
+                  "denom": "uclaw",
+                  "amount": "500000000"
+                }
+              }
+            ],
+            "memo": "d9b1c721b0461e61773e531fcc5673c151cbf7eb@192.168.0.11:26656",
+            "timeout_height": "0",
+            "unordered": false,
+            "timeout_timestamp": null,
+            "extension_options": [],
+            "non_critical_extension_options": []
+          },
+          "auth_info": {
+            "signer_infos": [
+              {
+                "public_key": {
+                  "@type": "/cosmos.crypto.secp256k1.PubKey",
+                  "key": "AkLGRjuFN7zdWR4t/S/43kIWWRmCH2mFPNTMb6MN0OS8"
+                },
+                "mode_info": {
+                  "single": {
+                    "mode": "SIGN_MODE_DIRECT"
+                  }
+                },
+                "sequence": "0"
+              }
+            ],
+            "fee": {
+              "amount": [],
+              "gas_limit": "200000",
+              "payer": "",
+              "granter": ""
+            },
+            "tip": null
+          },
+          "signatures": [
+            "3joTzYUNo31tEf5h+dRTF23Fo8HkSi+2wFtJt+wOEB821Fs7SNPU1tkBD5y/4zlN5XOmEUxc8yCNVEzgwCwIiA=="
+          ]
+        }
+      ]
+    },
+    "gov": {
+      "starting_proposal_id": "1",
+      "deposits": [],
+      "votes": [],
+      "proposals": [],
+      "deposit_params": null,
+      "voting_params": null,
+      "tally_params": null,
+      "params": {
+        "min_deposit": [
+          {
+            "denom": "uclaw",
+            "amount": "100000000"
+          }
+        ],
+        "max_deposit_period": "604800s",
+        "voting_period": "604800s",
+        "quorum": "0.334000000000000000",
+        "threshold": "0.500000000000000000",
+        "veto_threshold": "0.334000000000000000",
+        "min_initial_deposit_ratio": "0.000000000000000000",
+        "proposal_cancel_ratio": "0.500000000000000000",
+        "proposal_cancel_dest": "",
+        "expedited_voting_period": "86400s",
+        "expedited_threshold": "0.667000000000000000",
+        "expedited_min_deposit": [
+          {
+            "denom": "uclaw",
+            "amount": "500000000"
+          }
+        ],
+        "burn_vote_quorum": false,
+        "burn_proposal_deposit_prevote": false,
+        "burn_vote_veto": true,
+        "min_deposit_ratio": "0.010000000000000000"
+      },
+      "constitution": ""
+    },
+    "group": {
+      "group_seq": "0",
+      "groups": [],
+      "group_members": [],
+      "group_policy_seq": "0",
+      "group_policies": [],
+      "proposal_seq": "0",
+      "proposals": [],
+      "votes": []
+    },
+    "ibc": {
+      "client_genesis": {
+        "clients": [],
+        "clients_consensus": [],
+        "clients_metadata": [],
+        "params": {
+          "allowed_clients": [
+            "*"
+          ]
+        },
+        "create_localhost": false,
+        "next_client_sequence": "0"
+      },
+      "connection_genesis": {
+        "connections": [],
+        "client_connection_paths": [],
+        "next_connection_sequence": "0",
+        "params": {
+          "max_expected_time_per_block": "30000000000"
+        }
+      },
+      "channel_genesis": {
+        "channels": [],
+        "acknowledgements": [],
+        "commitments": [],
+        "receipts": [],
+        "send_sequences": [],
+        "recv_sequences": [],
+        "ack_sequences": [],
+        "next_channel_sequence": "0"
+      },
+      "client_v2_genesis": {
+        "counterparty_infos": []
+      },
+      "channel_v2_genesis": {
+        "acknowledgements": [],
+        "commitments": [],
+        "receipts": [],
+        "async_packets": [],
+        "send_sequences": []
+      }
+    },
+    "interchainaccounts": {
+      "controller_genesis_state": {
+        "active_channels": [],
+        "interchain_accounts": [],
+        "ports": [],
+        "params": {
+          "controller_enabled": true
+        }
+      },
+      "host_genesis_state": {
+        "active_channels": [],
+        "interchain_accounts": [],
+        "port": "icahost",
+        "params": {
+          "host_enabled": true,
+          "allow_messages": [
+            "*"
+          ]
+        }
+      }
+    },
+    "marketplace": {
+      "params": {
+        "max_skills_per_agent": "50"
+      }
+    },
+    "messaging": {
+      "params": {
+        "max_message_size": "4096"
+      }
+    },
+    "mint": {
+      "minter": {
+        "inflation": "0.100000000000000000",
+        "annual_provisions": "0.000000000000000000"
+      },
+      "params": {
+        "mint_denom": "uclaw",
+        "inflation_rate_change": "0.060000000000000000",
+        "inflation_max": "0.150000000000000000",
+        "inflation_min": "0.050000000000000000",
+        "goal_bonded": "0.670000000000000000",
+        "blocks_per_year": "6311520"
+      }
+    },
+    "modelregistry": {
+      "models": []
+    },
+    "nft": {
+      "classes": [],
+      "entries": []
+    },
+    "params": null,
+    "privacy": {
+      "params": {
+        "max_privacy_tx_per_block": "50"
+      }
+    },
+    "reputation": {
+      "params": {
+        "max_comment_length": "280",
+        "heartbeat_penalty_bps": "500",
+        "heartbeat_recovery_bps": "100",
+        "task_sla_on_time_reward_bps": "50",
+        "task_sla_late_penalty_bps": "100",
+        "task_sla_lateness_step_blocks": "100"
+      }
+    },
+    "runtime": null,
+    "slashing": {
+      "params": {
+        "signed_blocks_window": "100",
+        "min_signed_per_window": "0.500000000000000000",
+        "downtime_jail_duration": "600s",
+        "slash_fraction_double_sign": "0.050000000000000000",
+        "slash_fraction_downtime": "0.010000000000000000"
+      },
+      "signing_infos": [],
+      "missed_blocks": []
+    },
+    "staking": {
+      "params": {
+        "unbonding_time": "1814400s",
+        "max_validators": 100,
+        "max_entries": 7,
+        "historical_entries": 10000,
+        "bond_denom": "uclaw",
+        "min_commission_rate": "0.050000000000000000"
+      },
+      "last_total_power": "0",
+      "last_validator_powers": [],
+      "validators": [],
+      "delegations": [],
+      "unbonding_delegations": [],
+      "redelegations": [],
+      "exported": false
+    },
+    "transfer": {
+      "port_id": "transfer",
+      "denoms": [],
+      "params": {
+        "send_enabled": true,
+        "receive_enabled": true
+      },
+      "total_escrowed": []
+    },
+    "upgrade": {},
+    "vesting": {},
+    "wasm": {
+      "params": {
+        "code_upload_access": {
+          "permission": "Everybody",
+          "addresses": []
+        },
+        "instantiate_default_permission": "Everybody"
+      },
+      "codes": [],
+      "contracts": [],
+      "sequences": []
+    }
+  },
+  "consensus": {
+    "params": {
+      "block": {
+        "max_bytes": "22020096",
+        "max_gas": "-1"
+      },
+      "evidence": {
+        "max_age_num_blocks": "100000",
+        "max_age_duration": "172800000000000",
+        "max_bytes": "1048576"
+      },
+      "validator": {
+        "pub_key_types": [
+          "ed25519"
+        ]
+      },
+      "version": {
+        "app": "0"
+      },
+      "abci": {
+        "vote_extensions_enable_height": "0"
+      }
+    }
+  },
+  "_meta": {
+    "description": "ClawChain Mainnet Genesis - AI-native blockchain with privacy, agent economy, and GPU compute marketplace",
+    "total_supply": "1,000,001,000 CLAW (includes 1000 CLAW for genesis validator)",
+    "token_distribution": {
+      "foundation": "40% - Community fund, ecosystem grants, partnerships",
+      "validator_rewards": "20% - Staking rewards pool",
+      "team": "15% - Core contributors",
+      "privacy_pool": "10% - Initial privacy pool liquidity",
+      "airdrop": "10% - Community airdrop and retroactive grants",
+      "faucet": "5% - Developer faucet"
+    }
+  }
+}

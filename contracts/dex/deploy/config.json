@@ -1,0 +1,51 @@
+{
+  "factory": {
+    "pair_configs": [
+      {
+        "code_id": 0,
+        "pair_type": { "xyk": {} },
+        "total_fee_bps": 30,
+        "maker_fee_bps": 10,
+        "is_disabled": false,
+        "is_generator_disabled": false,
+        "permissioned": false
+      },
+      {
+        "code_id": 0,
+        "pair_type": { "stable": {} },
+        "total_fee_bps": 5,
+        "maker_fee_bps": 2,
+        "is_disabled": false,
+        "is_generator_disabled": false,
+        "permissioned": false
+      },
+      {
+        "code_id": 0,
+        "pair_type": { "custom": "concentrated" },
+        "total_fee_bps": 30,
+        "maker_fee_bps": 10,
+        "is_disabled": false,
+        "is_generator_disabled": false,
+        "permissioned": false
+      }
+    ],
+    "fee_address": null,
+    "owner": ""
+  },
+  "router": {
+    "astroport_factory": ""
+  },
+  "oracle": {
+    "factory_contract": "",
+    "period": 86400
+  },
+  "initial_pools": [
+    {
+      "asset_infos": [
+        { "native_token": { "denom": "uclaw" } },
+        { "native_token": { "denom": "ibc/27394FB092D2ECCD56123C74F36E4C1F926001CEADA9CA97EA622B25F41E5EB2" } }
+      ],
+      "pair_type": { "xyk": {} }
+    }
+  ]
+}

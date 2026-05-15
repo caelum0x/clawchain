@@ -1,34 +1,54 @@
 package types
 
-import "fmt"
+import (
+	"encoding/json"
 
-// GenesisState defines the oracle module's genesis state.
-type GenesisState struct {
-	Params             OracleParams      `json:"params"`
-	ExchangeRates      []ExchangeRate    `json:"exchange_rates"`
-	FeederDelegations  map[string]string `json:"feeder_delegations"`
-	MissCounters       map[string]uint64 `json:"miss_counters"`
-	PriceHistory       []PriceHistoryEntry `json:"price_history"`
-}
+	"github.com/cosmos/cosmos-sdk/codec"
+)
 
-// DefaultGenesis returns the default genesis state.
-func DefaultGenesis() *GenesisState {
+// NewGenesisState creates a new GenesisState object
+func NewGenesisState(
+	params Params, rates []ExchangeRateTuple,
+	feederDelegations []FeederDelegation, missCounters []MissCounter,
+	aggregateExchangeRatePrevotes []AggregateExchangeRatePrevote,
+	aggregateExchangeRateVotes []AggregateExchangeRateVote,
+	tobinTaxes []TobinTax,
+) *GenesisState {
 	return &GenesisState{
-		Params:            DefaultParams,
-		ExchangeRates:     []ExchangeRate{},
-		FeederDelegations: map[string]string{},
-		MissCounters:      map[string]uint64{},
-		PriceHistory:      []PriceHistoryEntry{},
+		Params:                        params,
+		ExchangeRates:                 rates,
+		FeederDelegations:             feederDelegations,
+		MissCounters:                  missCounters,
+		AggregateExchangeRatePrevotes: aggregateExchangeRatePrevotes,
+		AggregateExchangeRateVotes:    aggregateExchangeRateVotes,
+		TobinTaxes:                    tobinTaxes,
 	}
 }
 
-// Validate validates the genesis state.
-func (gs GenesisState) Validate() error {
-	if gs.Params.VotePeriod == 0 {
-		return fmt.Errorf("vote period must be positive")
+// DefaultGenesisState - default GenesisState used by columbus-2
+func DefaultGenesisState() *GenesisState {
+	return NewGenesisState(DefaultParams(),
+		[]ExchangeRateTuple{},
+		[]FeederDelegation{},
+		[]MissCounter{},
+		[]AggregateExchangeRatePrevote{},
+		[]AggregateExchangeRateVote{},
+		[]TobinTax{})
+}
+
+// ValidateGenesis validates the oracle genesis state
+func ValidateGenesis(data *GenesisState) error {
+	return data.Params.Validate()
+}
+
+// GetGenesisStateFromAppState returns x/oracle GenesisState given raw application
+// genesis state.
+func GetGenesisStateFromAppState(cdc codec.JSONCodec, appState map[string]json.RawMessage) *GenesisState {
+	var genesisState GenesisState
+
+	if appState[ModuleName] != nil {
+		cdc.MustUnmarshalJSON(appState[ModuleName], &genesisState)
 	}
-	if len(gs.Params.Whitelist) == 0 {
-		return fmt.Errorf("whitelist must not be empty")
-	}
-	return nil
+
+	return &genesisState
 }

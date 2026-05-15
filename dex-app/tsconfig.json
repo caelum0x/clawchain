@@ -1,0 +1,44 @@
+{
+  "compilerOptions": {
+    "target": "es5",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "strictNullChecks": true,
+    "allowUnreachableCode": false,
+    "allowUnusedLabels": false,
+    "exactOptionalPropertyTypes": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    // Had to disable due to dependency typescript errors: @chakra-ui/descendant
+    // "noPropertyAccessFromIndexSignature": true,
+    "noUncheckedIndexedAccess": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "forceConsistentCasingInFileNames": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "baseUrl": ".",
+    "paths": {
+      "*": ["/*"],
+      "components/*": ["components/*"],
+      "libs/*": ["libs/*"],
+      "context/*": ["context/*"],
+      "hooks/*": ["hooks/*"],
+      "pages/*": ["pages/*"],
+      "types/*": ["types/*"],
+      "constants/*": ["constants/*"],
+      "modules/*": ["modules/*", "@modules/*"]
+    },
+    "incremental": true
+  },
+  "exclude": ["node_modules/*"],
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx"]
+}

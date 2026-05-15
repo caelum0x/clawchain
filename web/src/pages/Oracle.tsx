@@ -1,46 +1,36 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import useDocTitle from '../hooks/useDocTitle.ts';
 import { chainConfig } from '../lib/config';
+import { isKeplrAvailable, connectKeplr, type WalletState } from '../lib/wallet.ts';
 
-interface PriceEntry {
-  denom_pair: string;
-  price: string;
-  updated_at: string;
+/* ------------------------------------------------------------------ */
+/* Types matching Terra-forked oracle REST responses                   */
+/* ------------------------------------------------------------------ */
+
+interface ExchangeRateEntry {
+  denom: string;
+  exchange_rate: string;
 }
 
-interface PriceHistoryEntry {
-  price: string;
-  timestamp: string;
-  block_height: string;
+interface WhitelistEntry {
+  name: string;
+  tobin_tax: string;
 }
 
 interface OracleParams {
-  admin: string;
-  max_age_seconds: string;
-  allowed_denoms: string[];
+  vote_period: string;
+  vote_threshold: string;
+  reward_band: string;
+  reward_distribution_window: string;
+  whitelist: WhitelistEntry[];
+  slash_fraction: string;
+  slash_window: string;
+  min_valid_per_window: string;
 }
 
 function getRestBase(): string {
   const rest = chainConfig.restEndpoint;
   return rest.startsWith('http') ? rest : `${window.location.origin}${rest}`;
-}
-
-function formatTimestamp(ts: string): string {
-  if (!ts || ts === '0') return 'N/A';
-  try {
-    const date = new Date(ts);
-    if (isNaN(date.getTime())) {
-      // Try parsing as unix seconds
-      const unix = parseInt(ts, 10);
-      if (!isNaN(unix) && unix > 0) {
-        return new Date(unix * 1000).toLocaleString();
-      }
-      return ts;
-    }
-    return date.toLocaleString();
-  } catch {
-    return ts;
-  }
 }
 
 function formatPrice(price: string): string {
@@ -53,61 +43,152 @@ function formatPrice(price: string): string {
 export default function Oracle() {
   useDocTitle('Oracle');
 
-  const [prices, setPrices] = useState<PriceEntry[]>([]);
+  const [exchangeRates, setExchangeRates] = useState<ExchangeRateEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [selectedPair, setSelectedPair] = useState<string | null>(null);
-  const [history, setHistory] = useState<PriceHistoryEntry[]>([]);
-  const [historyLoading, setHistoryLoading] = useState(false);
-  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [activeDenoms, setActiveDenoms] = useState<string[]>([]);
+  const [activesLoading, setActivesLoading] = useState(false);
+  const [activesError, setActivesError] = useState<string | null>(null);
+
+  const [voteTargets, setVoteTargets] = useState<string[]>([]);
+  const [voteTargetsLoading, setVoteTargetsLoading] = useState(false);
+  const [voteTargetsError, setVoteTargetsError] = useState<string | null>(null);
+
+  const [selectedDenom, setSelectedDenom] = useState<string | null>(null);
+  const [singleRate, setSingleRate] = useState<string | null>(null);
+  const [singleRateLoading, setSingleRateLoading] = useState(false);
+  const [singleRateError, setSingleRateError] = useState<string | null>(null);
 
   const [params, setParams] = useState<OracleParams | null>(null);
   const [paramsOpen, setParamsOpen] = useState(false);
   const [paramsLoading, setParamsLoading] = useState(false);
   const [paramsError, setParamsError] = useState<string | null>(null);
 
+  const [wallet, setWallet] = useState<WalletState | null>(null);
+  const [missCount, setMissCount] = useState<string | null>(null);
+  const [missLoading, setMissLoading] = useState(false);
+  const [missError, setMissError] = useState<string | null>(null);
+
+  const refreshTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+
   useEffect(() => {
-    loadPrices();
+    loadExchangeRates();
+    loadActiveDenoms();
+    loadVoteTargets();
+    refreshTimer.current = setInterval(() => {
+      loadExchangeRates();
+    }, 30_000);
+    return () => {
+      if (refreshTimer.current) clearInterval(refreshTimer.current);
+    };
   }, []);
 
-  async function loadPrices() {
+  async function loadExchangeRates() {
     setLoading(true);
     setError(null);
     try {
       const rest = getRestBase();
-      const resp = await fetch(`${rest}/clawchain/oracle/v1/prices`);
+      const resp = await fetch(`${rest}/clawchain/oracle/v1beta1/denoms/exchange_rates`);
       if (!resp.ok) {
         throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
       }
       const data = await resp.json();
-      setPrices(data.prices || []);
-    } catch (e: any) {
-      console.error('Failed to load oracle prices:', e);
-      setError(e.message || 'Failed to load prices');
+      setExchangeRates(data.exchange_rates || []);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Failed to load exchange rates';
+      setError(msg);
     } finally {
       setLoading(false);
     }
   }
 
-  async function loadHistory(denomPair: string) {
-    setSelectedPair(denomPair);
-    setHistoryLoading(true);
-    setHistoryError(null);
-    setHistory([]);
+  async function loadActiveDenoms() {
+    setActivesLoading(true);
+    setActivesError(null);
     try {
       const rest = getRestBase();
-      const resp = await fetch(`${rest}/clawchain/oracle/v1/price_history/${denomPair}?limit=20`);
+      const resp = await fetch(`${rest}/clawchain/oracle/v1beta1/denoms/actives`);
       if (!resp.ok) {
         throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
       }
       const data = await resp.json();
-      setHistory(data.history || []);
-    } catch (e: any) {
-      console.error('Failed to load price history:', e);
-      setHistoryError(e.message || 'Failed to load price history');
+      setActiveDenoms(data.actives || []);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Failed to load active denoms';
+      setActivesError(msg);
     } finally {
-      setHistoryLoading(false);
+      setActivesLoading(false);
+    }
+  }
+
+  async function loadVoteTargets() {
+    setVoteTargetsLoading(true);
+    setVoteTargetsError(null);
+    try {
+      const rest = getRestBase();
+      const resp = await fetch(`${rest}/clawchain/oracle/v1beta1/denoms/vote_targets`);
+      if (!resp.ok) {
+        throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
+      }
+      const data = await resp.json();
+      setVoteTargets(data.vote_targets || []);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Failed to load vote targets';
+      setVoteTargetsError(msg);
+    } finally {
+      setVoteTargetsLoading(false);
+    }
+  }
+
+  async function loadSingleRate(denom: string) {
+    setSelectedDenom(denom);
+    setSingleRateLoading(true);
+    setSingleRateError(null);
+    setSingleRate(null);
+    try {
+      const rest = getRestBase();
+      const resp = await fetch(`${rest}/clawchain/oracle/v1beta1/denoms/${encodeURIComponent(denom)}/exchange_rate`);
+      if (!resp.ok) {
+        throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
+      }
+      const data = await resp.json();
+      setSingleRate(data.exchange_rate ?? null);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Failed to load exchange rate';
+      setSingleRateError(msg);
+    } finally {
+      setSingleRateLoading(false);
+    }
+  }
+
+  async function handleConnectWallet() {
+    try {
+      const state = await connectKeplr();
+      setWallet(state);
+      loadMissCounter(state.address);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Failed to connect wallet';
+      setMissError(msg);
+    }
+  }
+
+  async function loadMissCounter(validatorAddr: string) {
+    setMissLoading(true);
+    setMissError(null);
+    try {
+      const rest = getRestBase();
+      const resp = await fetch(`${rest}/clawchain/oracle/v1beta1/validators/${encodeURIComponent(validatorAddr)}/miss`);
+      if (!resp.ok) {
+        throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
+      }
+      const data = await resp.json();
+      setMissCount(data.miss_counter ?? '0');
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Failed to load miss counter';
+      setMissError(msg);
+    } finally {
+      setMissLoading(false);
     }
   }
 
@@ -122,15 +203,15 @@ export default function Oracle() {
     setParamsError(null);
     try {
       const rest = getRestBase();
-      const resp = await fetch(`${rest}/clawchain/oracle/v1/params`);
+      const resp = await fetch(`${rest}/clawchain/oracle/v1beta1/params`);
       if (!resp.ok) {
         throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
       }
       const data = await resp.json();
       setParams(data.params || null);
-    } catch (e: any) {
-      console.error('Failed to load oracle params:', e);
-      setParamsError(e.message || 'Failed to load oracle parameters');
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Failed to load oracle parameters';
+      setParamsError(msg);
     } finally {
       setParamsLoading(false);
     }
@@ -141,11 +222,11 @@ export default function Oracle() {
       <h1>Oracle</h1>
       <p className="subtitle">Real-time price feeds from the on-chain oracle module.</p>
 
-      {/* Price Table */}
+      {/* Exchange Rates Table */}
       <div className="card" style={{ marginBottom: '1.5rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-          <h3 style={{ margin: 0 }}>Price Feeds</h3>
-          <button className="btn" onClick={loadPrices} disabled={loading}>
+          <h3 style={{ margin: 0 }}>Exchange Rates</h3>
+          <button className="btn" onClick={loadExchangeRates} disabled={loading}>
             {loading ? 'Refreshing...' : 'Refresh'}
           </button>
         </div>
@@ -156,42 +237,40 @@ export default function Oracle() {
           <div style={{ padding: '0.75rem', borderRadius: '0.5rem', background: 'rgba(239,68,68,0.15)', color: '#ef4444' }}>
             {error}
           </div>
-        ) : prices.length === 0 ? (
+        ) : exchangeRates.length === 0 ? (
           <p>No oracle price feeds available yet.</p>
         ) : (
           <div className="table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th>Denom Pair</th>
-                  <th>Price</th>
-                  <th>Last Updated</th>
+                  <th>Denom</th>
+                  <th>Exchange Rate</th>
                   <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {prices.map((p) => (
+                {exchangeRates.map((entry) => (
                   <tr
-                    key={p.denom_pair}
+                    key={entry.denom}
                     style={{
                       cursor: 'pointer',
-                      background: selectedPair === p.denom_pair ? 'rgba(59,130,246,0.1)' : undefined,
+                      background: selectedDenom === entry.denom ? 'rgba(59,130,246,0.1)' : undefined,
                     }}
-                    onClick={() => loadHistory(p.denom_pair)}
+                    onClick={() => loadSingleRate(entry.denom)}
                   >
-                    <td><strong>{p.denom_pair}</strong></td>
-                    <td>{formatPrice(p.price)}</td>
-                    <td>{formatTimestamp(p.updated_at)}</td>
+                    <td><strong>{entry.denom}</strong></td>
+                    <td>{formatPrice(entry.exchange_rate)}</td>
                     <td>
                       <button
                         className="btn"
                         style={{ padding: '0.25rem 0.5rem', fontSize: '0.85rem' }}
                         onClick={(e) => {
                           e.stopPropagation();
-                          loadHistory(p.denom_pair);
+                          loadSingleRate(entry.denom);
                         }}
                       >
-                        History
+                        Details
                       </button>
                     </td>
                   </tr>
@@ -202,57 +281,113 @@ export default function Oracle() {
         )}
       </div>
 
-      {/* Price History */}
-      {selectedPair && (
+      {/* Single Denom Exchange Rate Detail */}
+      {selectedDenom && (
         <div className="card" style={{ marginBottom: '1.5rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-            <h3 style={{ margin: 0 }}>Price History: {selectedPair}</h3>
+            <h3 style={{ margin: 0 }}>Exchange Rate: {selectedDenom}</h3>
             <button
               className="btn"
               style={{ padding: '0.25rem 0.5rem', fontSize: '0.85rem' }}
               onClick={() => {
-                setSelectedPair(null);
-                setHistory([]);
+                setSelectedDenom(null);
+                setSingleRate(null);
               }}
             >
               Close
             </button>
           </div>
 
-          {historyLoading ? (
-            <p>Loading history...</p>
-          ) : historyError ? (
+          {singleRateLoading ? (
+            <p>Loading exchange rate...</p>
+          ) : singleRateError ? (
             <div style={{ padding: '0.75rem', borderRadius: '0.5rem', background: 'rgba(239,68,68,0.15)', color: '#ef4444' }}>
-              {historyError}
+              {singleRateError}
             </div>
-          ) : history.length === 0 ? (
-            <p>No price history entries found for {selectedPair}.</p>
-          ) : (
+          ) : singleRate !== null ? (
             <div className="table-wrap">
               <table>
                 <thead>
                   <tr>
-                    <th>#</th>
-                    <th>Price</th>
-                    <th>Timestamp</th>
-                    <th>Block Height</th>
+                    <th>Denom</th>
+                    <th>Exchange Rate</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {history.map((h, i) => (
-                    <tr key={i}>
-                      <td>{i + 1}</td>
-                      <td>{formatPrice(h.price)}</td>
-                      <td>{formatTimestamp(h.timestamp)}</td>
-                      <td>{h.block_height || 'N/A'}</td>
-                    </tr>
-                  ))}
+                  <tr>
+                    <td><strong>{selectedDenom}</strong></td>
+                    <td>{formatPrice(singleRate)}</td>
+                  </tr>
                 </tbody>
               </table>
             </div>
+          ) : (
+            <p>No exchange rate available for {selectedDenom}.</p>
           )}
         </div>
       )}
+
+      {/* Active Denoms */}
+      <div className="card" style={{ marginBottom: '1.5rem' }}>
+        <h3 style={{ margin: '0 0 1rem 0' }}>Active Denoms</h3>
+        {activesLoading ? (
+          <p>Loading active denoms...</p>
+        ) : activesError ? (
+          <div style={{ padding: '0.75rem', borderRadius: '0.5rem', background: 'rgba(239,68,68,0.15)', color: '#ef4444' }}>
+            {activesError}
+          </div>
+        ) : activeDenoms.length === 0 ? (
+          <p>No active denoms reported.</p>
+        ) : (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+            {activeDenoms.map((d) => (
+              <span
+                key={d}
+                style={{
+                  padding: '0.25rem 0.75rem',
+                  borderRadius: '1rem',
+                  background: 'rgba(59,130,246,0.15)',
+                  fontSize: '0.9rem',
+                  fontFamily: 'monospace',
+                }}
+              >
+                {d}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Vote Targets */}
+      <div className="card" style={{ marginBottom: '1.5rem' }}>
+        <h3 style={{ margin: '0 0 1rem 0' }}>Vote Targets</h3>
+        {voteTargetsLoading ? (
+          <p>Loading vote targets...</p>
+        ) : voteTargetsError ? (
+          <div style={{ padding: '0.75rem', borderRadius: '0.5rem', background: 'rgba(239,68,68,0.15)', color: '#ef4444' }}>
+            {voteTargetsError}
+          </div>
+        ) : voteTargets.length === 0 ? (
+          <p>No vote targets reported.</p>
+        ) : (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+            {voteTargets.map((t) => (
+              <span
+                key={t}
+                style={{
+                  padding: '0.25rem 0.75rem',
+                  borderRadius: '1rem',
+                  background: 'rgba(16,185,129,0.15)',
+                  fontSize: '0.9rem',
+                  fontFamily: 'monospace',
+                }}
+              >
+                {t}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Oracle Parameters (collapsible) */}
       <div className="card">
@@ -285,18 +420,38 @@ export default function Oracle() {
                   </thead>
                   <tbody>
                     <tr>
-                      <td><strong>Admin</strong></td>
-                      <td style={{ fontFamily: 'monospace', fontSize: '0.9rem' }}>{params.admin || 'N/A'}</td>
+                      <td><strong>Vote Period</strong></td>
+                      <td>{params.vote_period || 'N/A'}</td>
                     </tr>
                     <tr>
-                      <td><strong>Max Age (seconds)</strong></td>
-                      <td>{params.max_age_seconds || 'N/A'}</td>
+                      <td><strong>Vote Threshold</strong></td>
+                      <td>{params.vote_threshold || 'N/A'}</td>
                     </tr>
                     <tr>
-                      <td><strong>Allowed Denoms</strong></td>
+                      <td><strong>Reward Band</strong></td>
+                      <td>{params.reward_band || 'N/A'}</td>
+                    </tr>
+                    <tr>
+                      <td><strong>Reward Distribution Window</strong></td>
+                      <td>{params.reward_distribution_window || 'N/A'}</td>
+                    </tr>
+                    <tr>
+                      <td><strong>Slash Fraction</strong></td>
+                      <td>{params.slash_fraction || 'N/A'}</td>
+                    </tr>
+                    <tr>
+                      <td><strong>Slash Window</strong></td>
+                      <td>{params.slash_window || 'N/A'}</td>
+                    </tr>
+                    <tr>
+                      <td><strong>Min Valid Per Window</strong></td>
+                      <td>{params.min_valid_per_window || 'N/A'}</td>
+                    </tr>
+                    <tr>
+                      <td><strong>Whitelist</strong></td>
                       <td>
-                        {params.allowed_denoms && params.allowed_denoms.length > 0
-                          ? params.allowed_denoms.join(', ')
+                        {params.whitelist && params.whitelist.length > 0
+                          ? params.whitelist.map((w) => `${w.name} (tobin: ${w.tobin_tax})`).join(', ')
                           : 'None configured'}
                       </td>
                     </tr>
@@ -305,6 +460,68 @@ export default function Oracle() {
               </div>
             ) : (
               <p>No parameters available.</p>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Validator Miss Counts */}
+      <div className="card" style={{ marginTop: '1.5rem' }}>
+        <h3 style={{ margin: '0 0 1rem 0' }}>Validator Miss Counter</h3>
+        {wallet?.connected ? (
+          <div>
+            <p style={{ marginBottom: '0.75rem', fontSize: '0.9rem' }}>
+              Connected: <strong style={{ fontFamily: 'monospace' }}>{wallet.address}</strong>
+            </p>
+            {missLoading ? (
+              <p>Loading miss counter...</p>
+            ) : missError ? (
+              <div style={{ padding: '0.75rem', borderRadius: '0.5rem', background: 'rgba(239,68,68,0.15)', color: '#ef4444' }}>
+                {missError}
+              </div>
+            ) : (
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Validator</th>
+                      <th>Miss Count</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td style={{ fontFamily: 'monospace', fontSize: '0.9rem' }}>{wallet.address}</td>
+                      <td>{missCount ?? '0'}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <button
+              className="btn"
+              style={{ marginTop: '0.75rem', padding: '0.25rem 0.5rem', fontSize: '0.85rem' }}
+              onClick={() => loadMissCounter(wallet.address)}
+              disabled={missLoading}
+            >
+              Refresh
+            </button>
+          </div>
+        ) : (
+          <div>
+            <p>Connect your wallet to view miss counter for your validator.</p>
+            {isKeplrAvailable() ? (
+              <button className="btn" onClick={handleConnectWallet}>
+                Connect Keplr
+              </button>
+            ) : (
+              <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary, #888)' }}>
+                Keplr wallet extension not detected.
+              </p>
+            )}
+            {missError && (
+              <div style={{ marginTop: '0.75rem', padding: '0.75rem', borderRadius: '0.5rem', background: 'rgba(239,68,68,0.15)', color: '#ef4444' }}>
+                {missError}
+              </div>
             )}
           </div>
         )}

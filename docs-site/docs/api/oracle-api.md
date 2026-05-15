@@ -5,70 +5,185 @@ title: Oracle Module API
 
 # Oracle Module API
 
-The Oracle module provides decentralized price feeds from validator-submitted exchange rates, using a prevote/vote commit-reveal scheme with TWAP calculation and miss-count slashing.
+The Oracle module provides decentralized price feeds from validator-submitted exchange rates, using a prevote/vote commit-reveal scheme with weighted median aggregation and miss-count slashing.
 
-**Proto package:** `clawchain.oracle.v1`
-**Base path:** `/clawchain/oracle/v1`
+**Proto package:** `terra.oracle.v1beta1`
+**Base path:** `/clawchain/oracle/v1beta1`
+
+> Forked from Terra Classic v4.0.0. Proto package retains `terra.oracle.v1beta1` for wire compatibility.
 
 ---
 
-## Query Endpoints
+## Denom Queries
 
-### GET /clawchain/oracle/v1/price/\{denom_pair\}
+### GET /clawchain/oracle/v1beta1/denoms/\{denom\}/exchange_rate
 
-Returns the current spot price and TWAP for a specific denom pair.
+Returns the current exchange rate for a specific denom.
 
 **Path Parameters:**
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `denom_pair` | string | The denom pair identifier (e.g., `uclaw/uusd`) |
+| `denom` | string | The denom identifier (e.g., `uusd`) |
 
 **Response:**
 
 ```json
 {
-  "price": {
-    "denom_pair": "uclaw/uusd",
-    "exchange_rate": "1.500000000000000000",
-    "twap": "1.498500000000000000",
-    "block_height": "12345",
-    "timestamp": "2026-03-17T12:00:00Z"
+  "exchange_rate": "1.500000000000000000"
+}
+```
+
+---
+
+### GET /clawchain/oracle/v1beta1/denoms/exchange_rates
+
+Returns all active exchange rates.
+
+**Response:**
+
+```json
+{
+  "exchange_rates": [
+    { "denom": "uusd", "exchange_rate": "1.500000000000000000" },
+    { "denom": "uatom", "exchange_rate": "0.080000000000000000" },
+    { "denom": "uusdt", "exchange_rate": "1.001000000000000000" },
+    { "denom": "uusdc", "exchange_rate": "0.999800000000000000" },
+    { "denom": "ubtc", "exchange_rate": "0.000015000000000000" },
+    { "denom": "ueth", "exchange_rate": "0.000400000000000000" }
+  ]
+}
+```
+
+---
+
+### GET /clawchain/oracle/v1beta1/denoms/\{denom\}/tobin_tax
+
+Returns the Tobin tax (spread fee) for a specific denom.
+
+**Response:**
+
+```json
+{
+  "tobin_tax": "0.002500000000000000"
+}
+```
+
+---
+
+### GET /clawchain/oracle/v1beta1/denoms/tobin_taxes
+
+Returns Tobin taxes for all whitelisted denoms.
+
+**Response:**
+
+```json
+{
+  "tobin_taxes": [
+    { "denom": "uusd", "tobin_tax": "0.002500000000000000" },
+    { "denom": "uatom", "tobin_tax": "0.002500000000000000" },
+    { "denom": "ubtc", "tobin_tax": "0.010000000000000000" }
+  ]
+}
+```
+
+---
+
+### GET /clawchain/oracle/v1beta1/denoms/actives
+
+Returns the list of active denominations with exchange rates.
+
+**Response:**
+
+```json
+{
+  "actives": ["uusd", "uatom", "uusdt", "uusdc", "ubtc", "ueth"]
+}
+```
+
+---
+
+### GET /clawchain/oracle/v1beta1/denoms/vote_targets
+
+Returns the list of denominations validators should vote on.
+
+**Response:**
+
+```json
+{
+  "vote_targets": ["uusd", "uatom", "uusdt", "uusdc", "ubtc", "ueth"]
+}
+```
+
+---
+
+## Validator Queries
+
+### GET /clawchain/oracle/v1beta1/validators/\{validator_addr\}/feeder
+
+Returns the delegated feeder address for a validator.
+
+**Path Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `validator_addr` | string | Validator operator address (`clawvaloper1...`) |
+
+**Response:**
+
+```json
+{
+  "feeder_addr": "claw1feeder..."
+}
+```
+
+---
+
+### GET /clawchain/oracle/v1beta1/validators/\{validator_addr\}/miss
+
+Returns the miss counter for a validator in the current slash window.
+
+**Response:**
+
+```json
+{
+  "miss_counter": "5"
+}
+```
+
+---
+
+### GET /clawchain/oracle/v1beta1/validators/\{validator_addr\}/aggregate_prevote
+
+Returns the pending aggregate prevote for a validator.
+
+**Response:**
+
+```json
+{
+  "aggregate_prevote": {
+    "hash": "a1b2c3d4...",
+    "voter": "clawvaloper1...",
+    "submit_block": "12345"
   }
 }
 ```
 
-**Errors:**
-
-| Code | Description |
-|------|-------------|
-| 400 | Invalid denom pair format |
-| 404 | Denom pair not found or not whitelisted |
-
 ---
 
-### GET /clawchain/oracle/v1/prices
+### GET /clawchain/oracle/v1beta1/validators/aggregate_prevotes
 
-Returns current prices for all whitelisted denom pairs.
+Returns all pending aggregate prevotes.
 
 **Response:**
 
 ```json
 {
-  "prices": [
+  "aggregate_prevotes": [
     {
-      "denom_pair": "uclaw/uusd",
-      "exchange_rate": "1.500000000000000000",
-      "twap": "1.498500000000000000",
-      "block_height": "12345",
-      "timestamp": "2026-03-17T12:00:00Z"
-    },
-    {
-      "denom_pair": "uclaw/uatom",
-      "exchange_rate": "0.080000000000000000",
-      "twap": "0.079800000000000000",
-      "block_height": "12345",
-      "timestamp": "2026-03-17T12:00:00Z"
+      "hash": "a1b2c3d4...",
+      "voter": "clawvaloper1...",
+      "submit_block": "12345"
     }
   ]
 }
@@ -76,55 +191,35 @@ Returns current prices for all whitelisted denom pairs.
 
 ---
 
-### GET /clawchain/oracle/v1/price_history/\{denom_pair\}
+### GET /clawchain/oracle/v1beta1/validators/\{validator_addr\}/aggregate_vote
 
-Returns historical price records for a denom pair, ordered by block height descending.
-
-**Path Parameters:**
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `denom_pair` | string | The denom pair identifier (e.g., `uclaw/uusd`) |
-
-**Query Parameters:**
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `limit` | uint64 | 100 | Maximum number of records to return |
+Returns the aggregate vote for a validator.
 
 **Response:**
 
 ```json
 {
-  "history": [
-    {
-      "denom_pair": "uclaw/uusd",
-      "exchange_rate": "1.500000000000000000",
-      "twap": "1.498500000000000000",
-      "block_height": "12345",
-      "timestamp": "2026-03-17T12:00:00Z"
-    },
-    {
-      "denom_pair": "uclaw/uusd",
-      "exchange_rate": "1.495000000000000000",
-      "twap": "1.497000000000000000",
-      "block_height": "12340",
-      "timestamp": "2026-03-17T11:59:30Z"
-    }
-  ]
+  "aggregate_vote": {
+    "exchange_rate_tuples": [
+      { "denom": "uusd", "exchange_rate": "1.500000000000000000" },
+      { "denom": "uatom", "exchange_rate": "0.080000000000000000" }
+    ],
+    "voter": "clawvaloper1..."
+  }
 }
 ```
 
-**Errors:**
+---
 
-| Code | Description |
-|------|-------------|
-| 400 | Invalid denom pair format |
-| 404 | Denom pair not found or no history available |
+### GET /clawchain/oracle/v1beta1/validators/aggregate_votes
+
+Returns all aggregate votes.
 
 ---
 
-### GET /clawchain/oracle/v1/params
+## Parameters
+
+### GET /clawchain/oracle/v1beta1/params
 
 Returns the oracle module parameters.
 
@@ -133,73 +228,24 @@ Returns the oracle module parameters.
 ```json
 {
   "params": {
-    "vote_period": "5",
+    "vote_period": "6",
     "vote_threshold": "0.500000000000000000",
     "reward_band": "0.020000000000000000",
-    "slash_fraction": "0.000100000000000000",
-    "slash_window": "100800",
-    "min_valid_per_window": "0.050000000000000000",
+    "reward_distribution_window": "6307200",
     "whitelist": [
-      { "name": "uclaw/uusd" },
-      { "name": "uclaw/uatom" }
-    ]
+      { "name": "uusd", "tobin_tax": "0.002500000000000000" },
+      { "name": "uatom", "tobin_tax": "0.002500000000000000" },
+      { "name": "uusdt", "tobin_tax": "0.002500000000000000" },
+      { "name": "uusdc", "tobin_tax": "0.002500000000000000" },
+      { "name": "ubtc", "tobin_tax": "0.010000000000000000" },
+      { "name": "ueth", "tobin_tax": "0.010000000000000000" }
+    ],
+    "slash_fraction": "0.000100000000000000",
+    "slash_window": "120960",
+    "min_valid_per_window": "0.050000000000000000"
   }
 }
 ```
-
----
-
-### GET /clawchain/oracle/v1/feeder/\{validator\}
-
-Returns the delegated feeder address for a validator. If no feeder has been delegated, the validator's own operator address is returned.
-
-**Path Parameters:**
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `validator` | string | Validator operator address (e.g., `clawvaloper1abc...`) |
-
-**Response:**
-
-```json
-{
-  "feeder_address": "claw1feeder..."
-}
-```
-
-**Errors:**
-
-| Code | Description |
-|------|-------------|
-| 400 | Invalid validator address |
-| 404 | Validator not found |
-
----
-
-### GET /clawchain/oracle/v1/miss/\{validator\}
-
-Returns the miss counter for a validator in the current slash window. The counter resets at the end of each slash window.
-
-**Path Parameters:**
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `validator` | string | Validator operator address (e.g., `clawvaloper1abc...`) |
-
-**Response:**
-
-```json
-{
-  "miss_counter": "42"
-}
-```
-
-**Errors:**
-
-| Code | Description |
-|------|-------------|
-| 400 | Invalid validator address |
-| 404 | Validator not found |
 
 ---
 
@@ -207,143 +253,39 @@ Returns the miss counter for a validator in the current slash window. The counte
 
 ### MsgAggregateExchangeRatePrevote
 
-Submit a hash commitment of exchange rates (phase 1 of the commit-reveal scheme).
-
-**Fields:**
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `hash` | string | SHA256 hash: `SHA256(salt + ":" + exchange_rates + ":" + validator_address)` |
-| `feeder` | string | Address of the feeder submitting the prevote |
-| `validator` | string | Validator operator address being voted for |
-
-**Example:**
+Submit a hash commitment of exchange rates (phase 1 of commit-reveal).
 
 ```json
 {
-  "@type": "/clawchain.oracle.v1.MsgAggregateExchangeRatePrevote",
-  "hash": "a1b2c3d4e5f6...",
-  "feeder": "claw1feeder...",
-  "validator": "clawvaloper1abc..."
+  "@type": "/terra.oracle.v1beta1.MsgAggregateExchangeRatePrevote",
+  "hash": "sha256_hex_string",
+  "feeder": "claw1...",
+  "validator": "clawvaloper1..."
 }
 ```
-
----
 
 ### MsgAggregateExchangeRateVote
 
 Reveal exchange rates matching a previous prevote (phase 2).
 
-**Fields:**
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `salt` | string | The salt used in the prevote hash |
-| `exchange_rates` | string | Comma-separated `denom:rate` pairs (e.g., `uclaw/uusd:1.5,uclaw/uatom:0.08`) |
-| `feeder` | string | Address of the feeder submitting the vote |
-| `validator` | string | Validator operator address |
-
-**Example:**
-
 ```json
 {
-  "@type": "/clawchain.oracle.v1.MsgAggregateExchangeRateVote",
-  "salt": "random_salt_string",
-  "exchange_rates": "uclaw/uusd:1.5,uclaw/uatom:0.08",
-  "feeder": "claw1feeder...",
-  "validator": "clawvaloper1abc..."
+  "@type": "/terra.oracle.v1beta1.MsgAggregateExchangeRateVote",
+  "salt": "random_salt",
+  "exchange_rates": "1.5uusd,0.08uatom,1.001uusdt",
+  "feeder": "claw1...",
+  "validator": "clawvaloper1..."
 }
 ```
 
----
-
-### MsgDelegateFeeder
+### MsgDelegateFeedConsent
 
 Delegate oracle vote submission rights to a feeder address.
 
-**Fields:**
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `validator` | string | Validator operator address (must be the signer) |
-| `feeder_address` | string | Address authorized to submit prevotes and votes |
-
-**Example:**
-
 ```json
 {
-  "@type": "/clawchain.oracle.v1.MsgDelegateFeeder",
-  "validator": "clawvaloper1abc...",
-  "feeder_address": "claw1feeder..."
+  "@type": "/terra.oracle.v1beta1.MsgDelegateFeedConsent",
+  "operator": "clawvaloper1...",
+  "delegate": "claw1feeder..."
 }
-```
-
----
-
-### MsgUpdateParams
-
-Update oracle module parameters. Restricted to the governance module authority.
-
-**Fields:**
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `authority` | string | Governance module address |
-| `params` | Params | Complete parameter object |
-
-**Example:**
-
-```json
-{
-  "@type": "/clawchain.oracle.v1.MsgUpdateParams",
-  "authority": "claw10d07y265gmmuvt4z0w9aw880jnsr700j4zf3jf",
-  "params": {
-    "vote_period": "5",
-    "vote_threshold": "0.500000000000000000",
-    "reward_band": "0.020000000000000000",
-    "slash_fraction": "0.000100000000000000",
-    "slash_window": "100800",
-    "min_valid_per_window": "0.050000000000000000",
-    "whitelist": [
-      { "name": "uclaw/uusd" },
-      { "name": "uclaw/uatom" }
-    ]
-  }
-}
-```
-
----
-
-## gRPC Service
-
-```protobuf
-service Query {
-  rpc Price(QueryPriceRequest) returns (QueryPriceResponse);
-  rpc Prices(QueryPricesRequest) returns (QueryPricesResponse);
-  rpc PriceHistory(QueryPriceHistoryRequest) returns (QueryPriceHistoryResponse);
-  rpc Params(QueryParamsRequest) returns (QueryParamsResponse);
-  rpc FeederDelegation(QueryFeederDelegationRequest) returns (QueryFeederDelegationResponse);
-  rpc MissCounter(QueryMissCounterRequest) returns (QueryMissCounterResponse);
-}
-
-service Msg {
-  rpc AggregateExchangeRatePrevote(MsgAggregateExchangeRatePrevote) returns (MsgAggregateExchangeRatePrevoteResponse);
-  rpc AggregateExchangeRateVote(MsgAggregateExchangeRateVote) returns (MsgAggregateExchangeRateVoteResponse);
-  rpc DelegateFeeder(MsgDelegateFeeder) returns (MsgDelegateFeederResponse);
-  rpc UpdateParams(MsgUpdateParams) returns (MsgUpdateParamsResponse);
-}
-```
-
-**gRPC endpoint:** `localhost:9090`
-
-```bash
-# Query current prices via grpcurl
-grpcurl -plaintext localhost:9090 clawchain.oracle.v1.Query/Prices
-
-# Query price for a specific pair
-grpcurl -plaintext -d '{"denom_pair": "uclaw/uusd"}' \
-  localhost:9090 clawchain.oracle.v1.Query/Price
-
-# Query oracle params
-grpcurl -plaintext localhost:9090 clawchain.oracle.v1.Query/Params
 ```

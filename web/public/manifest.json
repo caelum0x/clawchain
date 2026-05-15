@@ -1,0 +1,17 @@
+{
+  "name": "ClawChain Dashboard",
+  "short_name": "ClawChain",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#38bdf8",
+  "description": "ClawChain blockchain dashboard for managing agents, privacy transactions, staking, and governance.",
+  "icons": [
+    {
+      "src": "/claw.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

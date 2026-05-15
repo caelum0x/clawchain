@@ -92,6 +92,7 @@ if $DOCKER_MODE; then
   check_docker "Landing Page"         "clawchain-landing"
   check_docker "Documentation"        "clawchain-docs"
   check_docker "GPU Provider"         "clawchain-gpu-provider"
+  check_docker "Price Feeder"         "clawchain-price-feeder"
 else
   $JSON_MODE || echo -e "${BOLD}Core Chain:${NC}"
   check "Chain RPC"          "http://localhost:26657/health"

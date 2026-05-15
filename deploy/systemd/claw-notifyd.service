@@ -1,0 +1,39 @@
+[Unit]
+Description=ClawChain Notification Daemon
+Documentation=https://github.com/clawchain/clawchain
+After=network-online.target clawchaind.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=clawchain
+Group=clawchain
+ExecStart=/usr/local/bin/claw-notifyd
+Restart=on-failure
+RestartSec=10
+StartLimitInterval=200
+StartLimitBurst=5
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=claw-notifyd
+
+# Environment
+Environment="CHAIN_REST=http://localhost:1317"
+Environment="CHAIN_RPC=http://localhost:26657"
+EnvironmentFile=-/etc/clawchain/notifyd.env
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/clawchain
+
+# Resource limits
+LimitNOFILE=4096
+MemoryMax=512M
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,77 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: clawchain-node-config
+  namespace: clawchain
+  labels:
+    app.kubernetes.io/name: clawchain-node
+    app.kubernetes.io/component: validator
+data:
+  # CometBFT configuration overrides applied at startup.
+  config-overlay.toml: |
+    [rpc]
+    laddr = "tcp://0.0.0.0:26657"
+    cors_allowed_origins = ["*"]
+
+    [p2p]
+    laddr = "tcp://0.0.0.0:26656"
+    addr_book_strict = false
+    allow_duplicate_ip = true
+
+    [instrumentation]
+    prometheus = true
+    prometheus_listen_addr = ":26660"
+
+  # Cosmos SDK app configuration overrides.
+  app-overlay.toml: |
+    [api]
+    enable = true
+    swagger = false
+    address = "tcp://0.0.0.0:1317"
+
+    [grpc]
+    enable = true
+    address = "0.0.0.0:9090"
+
+    [telemetry]
+    enabled = true
+    prometheus-retention-time = 600
+
+    minimum-gas-prices = "0.025uclaw"
+
+  # Init script that applies config overlays and starts the node.
+  entrypoint.sh: |
+    #!/bin/sh
+    set -e
+
+    CHAIN_HOME="${CHAIN_HOME:-/root/.clawchain}"
+
+    # Initialize chain if not already done.
+    if [ ! -f "$CHAIN_HOME/config/genesis.json" ]; then
+      echo "Initializing chain..."
+      clawchaind init "$MONIKER" --chain-id "$CHAIN_ID" --home "$CHAIN_HOME"
+      # If a genesis file is mounted, use it.
+      if [ -f /genesis/genesis.json ]; then
+        cp /genesis/genesis.json "$CHAIN_HOME/config/genesis.json"
+      fi
+    fi
+
+    # Apply config overlays.
+    if [ -f /config/config-overlay.toml ]; then
+      echo "Applying CometBFT config overlay..."
+      # Simple merge: append overlay values (CometBFT uses last-wins for dupes).
+      cat /config/config-overlay.toml >> "$CHAIN_HOME/config/config.toml"
+    fi
+    if [ -f /config/app-overlay.toml ]; then
+      echo "Applying app config overlay..."
+      cat /config/app-overlay.toml >> "$CHAIN_HOME/config/app.toml"
+    fi
+
+    # Apply persistent peers if provided.
+    if [ -n "$PERSISTENT_PEERS" ]; then
+      sed -i "s/^persistent_peers = .*/persistent_peers = \"$PERSISTENT_PEERS\"/" \
+        "$CHAIN_HOME/config/config.toml"
+    fi
+
+    echo "Starting clawchaind..."
+    exec clawchaind start --home "$CHAIN_HOME" "$@"

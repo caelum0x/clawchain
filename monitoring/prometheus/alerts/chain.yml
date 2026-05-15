@@ -1,0 +1,212 @@
+# ClawChain Chain Health Alert Rules
+# Monitors CometBFT consensus, validators, peers, and mempool.
+
+groups:
+  - name: clawchain_chain_health
+    rules:
+      # -------------------------------------------------------
+      # ChainHalted - No new blocks produced
+      # Severity: critical
+      # Runbook: docs/observability.md#chainhalted
+      # -------------------------------------------------------
+      - alert: ChainHalted
+        expr: rate(cometbft_consensus_height[5m]) == 0
+        for: 2m
+        labels:
+          severity: critical
+          chain_id: "clawchain-1"
+        annotations:
+          summary: "ClawChain block production halted"
+          description: >-
+            No new blocks produced for 2 minutes. The consensus height has
+            not increased, indicating a possible chain halt. Immediate
+            investigation is required.
+          runbook: "docs/observability.md#chainhalted"
+
+      # -------------------------------------------------------
+      # HighBlockTime - Average block interval > 10s
+      # Severity: warning
+      # -------------------------------------------------------
+      - alert: HighBlockTime
+        expr: |
+          rate(cometbft_consensus_height[5m]) > 0
+            and
+          (
+            increase(cometbft_consensus_block_interval_seconds_sum[5m])
+            /
+            increase(cometbft_consensus_block_interval_seconds_count[5m])
+          ) > 10
+        for: 5m
+        labels:
+          severity: warning
+          chain_id: "clawchain-1"
+        annotations:
+          summary: "Block time exceeding 10s"
+          description: >-
+            The average block interval over the last 5 minutes exceeds 10 seconds.
+            This may indicate network congestion, insufficient validator participation,
+            or infrastructure degradation.
+          runbook: "docs/observability.md#slowblocktime"
+
+      # -------------------------------------------------------
+      # ValidatorMissing - No active validators
+      # Severity: critical
+      # -------------------------------------------------------
+      - alert: ValidatorMissing
+        expr: cometbft_consensus_validators < 1
+        for: 1m
+        labels:
+          severity: critical
+          chain_id: "clawchain-1"
+        annotations:
+          summary: "No active validators"
+          description: >-
+            The number of active validators has dropped to zero. The chain
+            cannot produce blocks without validators.
+
+      # -------------------------------------------------------
+      # LowPeerCount - Fewer than 2 connected peers
+      # Severity: warning
+      # -------------------------------------------------------
+      - alert: LowPeerCount
+        expr: cometbft_p2p_peers < 2
+        for: 5m
+        labels:
+          severity: warning
+          chain_id: "clawchain-1"
+        annotations:
+          summary: "Low peer count (< 2)"
+          description: >-
+            The node has fewer than 2 connected peers. Low peer count increases
+            the risk of network isolation and delayed block propagation.
+          runbook: "docs/observability.md#peercountlow"
+
+      # -------------------------------------------------------
+      # ConsensusRoundHigh - Consensus round > 2
+      # Severity: warning
+      # -------------------------------------------------------
+      - alert: ConsensusRoundHigh
+        expr: cometbft_consensus_rounds > 2
+        for: 60s
+        labels:
+          severity: warning
+          chain_id: "clawchain-1"
+        annotations:
+          summary: "Consensus round is high (>2)"
+          description: >-
+            Multiple consensus rounds indicate validators are failing to reach
+            agreement promptly. Check for network partitions or validator downtime.
+          runbook: "docs/observability.md#consensusroundhigh"
+
+      # -------------------------------------------------------
+      # TxPoolBacklog - Mempool exceeds 1000 transactions
+      # Severity: warning
+      # -------------------------------------------------------
+      - alert: TxPoolBacklog
+        expr: cometbft_mempool_size > 1000
+        for: 2m
+        labels:
+          severity: warning
+          chain_id: "clawchain-1"
+        annotations:
+          summary: "Mempool backlog is high (>1000 txs)"
+          description: >-
+            The mempool contains more than 1000 pending transactions. Block
+            production may not be keeping up with submission rate.
+          runbook: "docs/observability.md#txpoolbacklog"
+
+      # -------------------------------------------------------
+      # MissedBlocks - Validator missed blocks
+      # Severity: warning
+      # -------------------------------------------------------
+      - alert: MissedBlocks
+        expr: increase(cometbft_consensus_missing_validators_power[10m]) > 10
+        for: 60s
+        labels:
+          severity: warning
+          chain_id: "clawchain-1"
+        annotations:
+          summary: "Validator has missed >10 blocks in the signing window"
+          description: >-
+            Continued misses will lead to jailing and slashing. Check the
+            validator node health, connectivity, and signing key availability.
+          runbook: "docs/observability.md#missedblocks"
+
+      # -------------------------------------------------------
+      # PeerChurnDetected - Rapid peer count changes
+      # Severity: warning
+      # -------------------------------------------------------
+      - alert: PeerChurnDetected
+        expr: changes(cometbft_p2p_peers[10m]) > 20
+        for: 2m
+        labels:
+          severity: warning
+          chain_id: "clawchain-1"
+        annotations:
+          summary: "Peer churn is high (>20 peer-count changes in 10m)"
+          description: >-
+            Connected peer count is changing rapidly, which can indicate
+            unstable peering, network partition behavior, or seed churn.
+
+  - name: clawchain_system_resources
+    rules:
+      # -------------------------------------------------------
+      # HighMemoryUsage - System memory > 80%
+      # Severity: warning
+      # -------------------------------------------------------
+      - alert: HighMemoryUsage
+        expr: |
+          (
+            1 - (
+              node_memory_MemAvailable_bytes
+              /
+              node_memory_MemTotal_bytes
+            )
+          ) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+          chain_id: "clawchain-1"
+        annotations:
+          summary: "Memory usage is high (>80%)"
+          description: >-
+            System memory usage has exceeded 80% for 5 minutes.
+          runbook: "docs/observability.md#highmemoryusage"
+
+      # -------------------------------------------------------
+      # DiskSpaceLow - Less than 10% free disk space
+      # Severity: critical
+      # -------------------------------------------------------
+      - alert: DiskSpaceLow
+        expr: |
+          (
+            node_filesystem_avail_bytes{mountpoint="/"}
+            /
+            node_filesystem_size_bytes{mountpoint="/"}
+          ) * 100 < 10
+        for: 5m
+        labels:
+          severity: critical
+          chain_id: "clawchain-1"
+        annotations:
+          summary: "Disk space is critically low (<10% free)"
+          description: >-
+            Less than 10% of disk space remains on the root filesystem.
+          runbook: "docs/observability.md#diskspacelow"
+
+      # -------------------------------------------------------
+      # HighCPUUsage - CPU usage > 90%
+      # Severity: warning
+      # -------------------------------------------------------
+      - alert: HighCPUUsage
+        expr: |
+          100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 90
+        for: 10m
+        labels:
+          severity: warning
+          chain_id: "clawchain-1"
+        annotations:
+          summary: "CPU usage exceeding 90% for 10 minutes"
+          description: >-
+            Sustained high CPU usage can degrade block production and consensus
+            participation.

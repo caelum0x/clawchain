@@ -1,0 +1,39 @@
+[Unit]
+Description=ClawChain Event Streaming Daemon
+Documentation=https://github.com/clawchain/clawchain
+After=network-online.target clawchaind.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=clawchain
+Group=clawchain
+ExecStart=/usr/local/bin/claw-eventsd
+Restart=on-failure
+RestartSec=10
+StartLimitInterval=200
+StartLimitBurst=5
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=claw-eventsd
+
+# Environment
+Environment="CHAIN_RPC=http://localhost:26657"
+Environment="CHAIN_WS=ws://localhost:26657/websocket"
+EnvironmentFile=-/etc/clawchain/eventsd.env
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/clawchain
+
+# Resource limits
+LimitNOFILE=4096
+MemoryMax=256M
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,39 @@
+[Unit]
+Description=ClawChain Oracle Price Feeder (Ojo fork)
+Documentation=https://github.com/clawchain/clawchain
+After=network-online.target clawchaind.service
+Wants=network-online.target
+Requires=clawchaind.service
+
+[Service]
+Type=simple
+User=clawchain
+Group=clawchain
+ExecStart=/usr/local/bin/claw-price-feeder /etc/clawchain/price-feeder.toml
+Restart=on-failure
+RestartSec=10
+StartLimitInterval=300
+StartLimitBurst=10
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=claw-price-feeder
+
+# Environment
+Environment="PRICE_FEEDER_PASS="
+EnvironmentFile=-/etc/default/claw-price-feeder
+
+# Security hardening
+NoNewPrivileges=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/clawchain
+PrivateTmp=true
+
+# Resource limits — price feeder is lightweight
+LimitNOFILE=4096
+MemoryMax=512M
+
+[Install]
+WantedBy=multi-user.target

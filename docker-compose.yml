@@ -71,6 +71,23 @@ services:
       - clawnet
     restart: unless-stopped
 
+  # -- Oracle Price Feeder ---------------------------------------------------
+  claw-price-feeder:
+    build:
+      context: ./cmd/claw-price-feeder
+      dockerfile: Dockerfile
+    container_name: clawchain-price-feeder
+    volumes:
+      - ./cmd/claw-price-feeder/price-feeder.example.toml:/app/price-feeder.toml:ro
+    environment:
+      - PRICE_FEEDER_PASS=${PRICE_FEEDER_PASS:-password}
+    depends_on:
+      clawchain:
+        condition: service_healthy
+    networks:
+      - clawnet
+    restart: unless-stopped
+
   # -- Token Faucet ----------------------------------------------------------
   claw-faucet:
     build:

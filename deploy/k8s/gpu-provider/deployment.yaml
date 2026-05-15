@@ -1,0 +1,114 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: claw-gpu-provider
+  namespace: clawchain
+  labels:
+    app.kubernetes.io/name: claw-gpu-provider
+    app.kubernetes.io/component: gpu-provider
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: claw-gpu-provider
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: claw-gpu-provider
+        app.kubernetes.io/component: gpu-provider
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+    spec:
+      serviceAccountName: claw-gpu-provider
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: gpu-provider
+          image: clawchain/gpu-provider:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: metrics
+              containerPort: 9090
+          env:
+            - name: CHAIN_REST
+              value: "http://clawchain-node.clawchain.svc:1317"
+            - name: CHAIN_RPC
+              value: "http://clawchain-node.clawchain.svc:26657"
+            - name: CHAIN_ID
+              value: "clawchain-1"
+            - name: PROVIDER_ADDRESS
+              valueFrom:
+                secretKeyRef:
+                  name: gpu-provider-secrets
+                  key: provider-address
+            - name: MNEMONIC
+              valueFrom:
+                secretKeyRef:
+                  name: gpu-provider-secrets
+                  key: mnemonic
+            - name: RESOURCE_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: gpu-provider-config
+                  key: resource-id
+            - name: WEBSOCKET_ENABLED
+              value: "true"
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "4"
+              memory: "8Gi"
+              nvidia.com/gpu: "1"
+          volumeMounts:
+            - name: work
+              mountPath: /tmp/claw-gpu-jobs
+            - name: docker-sock
+              mountPath: /var/run/docker.sock
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 9090
+            initialDelaySeconds: 15
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 9090
+            initialDelaySeconds: 5
+            periodSeconds: 10
+      volumes:
+        - name: work
+          emptyDir:
+            sizeLimit: 50Gi
+        - name: docker-sock
+          hostPath:
+            path: /var/run/docker.sock
+            type: Socket
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+      nodeSelector:
+        gpu: "true"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gpu-provider-config
+  namespace: clawchain
+data:
+  resource-id: "0"
+---
+# Create secrets manually:
+# kubectl create secret generic gpu-provider-secrets \
+#   --namespace clawchain \
+#   --from-literal=provider-address=claw1... \
+#   --from-literal=mnemonic="your mnemonic here"

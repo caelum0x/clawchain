@@ -1,0 +1,76 @@
+{
+  "generatedAtUtc": "2026-02-27T09:29:01Z",
+  "git": {
+    "branch": "main",
+    "commit": "53f513522850cb36bd92a351534991e34104fcd3"
+  },
+  "releaseEvidencePath": "artifacts/release-evidence.json",
+  "runtimeReadiness": {
+    "status": "failed",
+    "command": "node ./dist/main.js readiness --json"
+  },
+  "doctor": {
+    "status": "failed",
+    "command": "node ./dist/main.js doctor --json"
+  },
+  "peersSummary": {
+    "chainId": "clawchain-1",
+    "total": 0,
+    "unique": 0,
+    "duplicateCount": 0,
+    "invalidCount": 0,
+    "hosts": {},
+    "duplicates": [],
+    "invalid": []
+  },
+  "releaseSummary": {
+    "status": "failed",
+    "command": "node ./dist/main.js release-summary --json"
+  },
+  "releaseEvidence": {
+    "generated_at_utc": "2026-02-27T09:23:55Z",
+    "git": {
+      "branch": "main",
+      "commit": "53f513522850cb36bd92a351534991e34104fcd3"
+    },
+    "inputs": {
+      "manifest": "https://example.com/manifest.json",
+      "host": "example.com"
+    },
+    "gates": {
+      "protocol_sanity": "passed",
+      "upgrade_readiness": "passed",
+      "mainnet_readiness": "passed",
+      "mainnet_launch_program": "passed",
+      "launch_artifact_completeness": "passed",
+      "production_infrastructure": "passed",
+      "chain_hardening": "passed",
+      "runtime_hardening": "passed",
+      "ecosystem_integrator": "passed",
+      "governance_operations": "passed",
+      "drill_evidence": "passed",
+      "growth_user_layer": "passed",
+      "capacity_slo_evidence": "passed",
+      "production_data_replacement": "passed",
+      "real_world_external_validation": "passed",
+      "mainnet_cutover_rehearsal": "passed",
+      "launch_day_operations": "passed",
+      "first_week_stabilization": "passed",
+      "phase16_automation_evidence_capture": "passed",
+      "phase16_reliability_alerting": "passed",
+      "phase16_operator_ux": "passed",
+      "security_compliance_closure_evidence": "passed",
+      "ecosystem_readiness_proof": "passed",
+      "launch_decision_packet": "passed",
+      "release_artifact_provenance": "passed",
+      "one_command_agent": "passed",
+      "phase17_public_testnet_stability": "passed",
+      "public_testnet_reproducibility": "passed"
+    },
+    "overall_status": "passed",
+    "artifact_policy": {
+      "path": "artifacts/release-evidence.json",
+      "retention": "retain latest 20 release evidence files or 90 days, whichever is greater"
+    }
+  }
+}

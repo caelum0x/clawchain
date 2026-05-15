@@ -1,0 +1,33 @@
+{
+  "chain_id": "clawchain-local",
+  "deployed_at": "2026-03-11",
+  "code_ids": {
+    "factory": 2,
+    "pair": 3,
+    "pair_concentrated": 4,
+    "router": 5,
+    "oracle": 6,
+    "xastro_token": 7,
+    "native_coin_registry": 8
+  },
+  "contracts": {
+    "factory": "claw1nc5tatafv6eyq7llkr2gv50ff9e22mnf70qgjlv737ktmt4eswrq8zg8a2",
+    "router": "claw1ufs3tlq4umljk0qfe8k5ya0x6hpavn897u2cnf9k0en9jr7qarqq45vx02",
+    "native_coin_registry": "claw1qeyjez6a9dwlghf9d6cy44fxmsajztw257586akk6xn6k88x0gustz47t4"
+  },
+  "pairs": {
+    "uclaw-uatom": {
+      "pair_contract": "claw1qwlgtx52gsdu7dtp0cekka5zehdl0uj3fhp9acg325fvgs8jdzksc8kcrg",
+      "pair_type": "xyk",
+      "lp_denom": "factory/claw1qwlgtx52gsdu7dtp0cekka5zehdl0uj3fhp9acg325fvgs8jdzksc8kcrg/astroport/share",
+      "assets": ["uclaw", "uatom"],
+      "initial_liquidity": "10000000000 each"
+    }
+  },
+  "verified_operations": {
+    "create_pair": true,
+    "provide_liquidity": true,
+    "swap": true,
+    "lp_token_minting": true
+  }
+}

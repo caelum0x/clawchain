@@ -1,0 +1,65 @@
+import React, { FC } from "react";
+import Link from "next/link";
+import { Button, Flex, HStack } from "@chakra-ui/react";
+
+import { ClaimLockdropRewardBtn } from "modules/reward";
+
+type Props = {
+  name: string;
+  duration: number;
+  isClaimable: boolean;
+  isClaimed: boolean;
+  txFeeNotEnough?: boolean;
+  clawLpToken: string;
+};
+
+const MyLockActionsTd: FC<Props> = ({
+  name,
+  duration,
+  isClaimable,
+  isClaimed,
+  txFeeNotEnough,
+  clawLpToken,
+}) => {
+  if (!isClaimable) {
+    return (
+      <HStack justify="flex-end">
+        <ClaimLockdropRewardBtn
+          contract={name}
+          duration={duration}
+          txFeeNotEnough={!!txFeeNotEnough}
+        />
+        <Button as="div" variant="silent" size="sm" isDisabled flex="1">
+          Locked
+        </Button>
+      </HStack>
+    );
+  }
+
+  if (isClaimed) {
+    return (
+      <Flex justify="flex-end">
+        <Button as="a" variant="silent" size="sm" isFullWidth isDisabled>
+          Claimed
+        </Button>
+      </Flex>
+    );
+  }
+
+  return (
+    <HStack justify="flex-end">
+      <ClaimLockdropRewardBtn
+        contract={name}
+        duration={duration}
+        txFeeNotEnough={!!txFeeNotEnough}
+      />
+      <Link href={`/unlock/${name}/${duration}/${clawLpToken}`} passHref>
+        <Button as="a" variant="primary" size="sm" flex="1">
+          Manage
+        </Button>
+      </Link>
+    </HStack>
+  );
+};
+
+export default MyLockActionsTd;

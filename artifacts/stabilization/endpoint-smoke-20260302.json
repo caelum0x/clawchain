@@ -1,0 +1,39 @@
+ClawChain Endpoint Smoke Test
+=============================
+
+RPC:          http://localhost:26657
+gRPC-gateway: http://localhost:1317
+REST:         http://localhost:1317
+
+-- RPC Endpoints --
+  RPC /status                             FAIL  (HTTP 000000)
+  RPC /health                             FAIL  (HTTP 000000)
+  RPC /net_info                           FAIL  (HTTP 000000)
+  RPC /abci_info                          FAIL  (HTTP 000000)
+  RPC /consensus_state                    FAIL  (HTTP 000000)
+
+-- REST / gRPC-gateway Endpoints --
+  REST /node_info                         FAIL  (HTTP 000000)
+  REST /syncing                           FAIL  (HTTP 000000)
+  REST /latest_block                      FAIL  (HTTP 000000)
+  REST /bank/supply                       FAIL  (HTTP 000000)
+  REST /staking/validators                FAIL  (HTTP 000000)
+  REST /slashing/signing_infos            FAIL  (HTTP 000000)
+  REST /gov/params                        FAIL  (HTTP 000000)
+
+-- ClawChain Module Endpoints --
+  Agent /params                           FAIL  (HTTP 000000)
+  Privacy /params                         FAIL  (HTTP 000000)
+
+=============================
+Results: 0/14 passed, 14 failed
+
+{
+  "timestamp": "2026-02-26T17:57:18Z",
+  "passed": 0,
+  "failed": 14,
+  "total": 14,
+  "tests": [{"test":"RPC /status","status":"fail","http_code":000000},{"test":"RPC /health","status":"fail","http_code":000000},{"test":"RPC /net_info","status":"fail","http_code":000000},{"test":"RPC /abci_info","status":"fail","http_code":000000},{"test":"RPC /consensus_state","status":"fail","http_code":000000},{"test":"REST /node_info","status":"fail","http_code":000000},{"test":"REST /syncing","status":"fail","http_code":000000},{"test":"REST /latest_block","status":"fail","http_code":000000},{"test":"REST /bank/supply","status":"fail","http_code":000000},{"test":"REST /staking/validators","status":"fail","http_code":000000},{"test":"REST /slashing/signing_infos","status":"fail","http_code":000000},{"test":"REST /gov/params","status":"fail","http_code":000000},{"test":"Agent /params","status":"fail","http_code":000000},{"test":"Privacy /params","status":"fail","http_code":000000}]
+}
+
+SMOKE TEST FAILED -- 14 endpoint(s) not responding correctly.

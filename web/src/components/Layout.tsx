@@ -104,6 +104,9 @@ export default function Layout({ children }: { children: ReactNode }) {
           <NavLink to="/oracle" onClick={closeMenu} className={({ isActive }) => isActive ? "active" : ""}>
             Oracle
           </NavLink>
+          <NavLink to="/validator-oracle" onClick={closeMenu} className={({ isActive }) => isActive ? "active" : ""}>
+            Validator Oracle
+          </NavLink>
           <NavLink to="/ibc" onClick={closeMenu} className={({ isActive }) => isActive ? "active" : ""}>
             IBC
           </NavLink>

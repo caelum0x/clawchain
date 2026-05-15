@@ -116,8 +116,8 @@ func DefaultGenesisState(cdc codec.Codec) map[string]json.RawMessage {
 	}
 	genesis[modelregistrymoduletypes.ModuleName] = bz
 
-	// Oracle module (plain struct)
-	oracleGen := oraclemoduletypes.DefaultGenesis()
+	// Oracle module (Terra fork — uses DefaultGenesisState)
+	oracleGen := oraclemoduletypes.DefaultGenesisState()
 	bz, err = json.Marshal(oracleGen)
 	if err != nil {
 		panic(fmt.Sprintf("failed to marshal oracle genesis: %v", err))
@@ -241,7 +241,7 @@ func ValidateGenesis(cdc codec.Codec, state map[string]json.RawMessage) error {
 		if err := json.Unmarshal(raw, &gs); err != nil {
 			return fmt.Errorf("failed to unmarshal %s genesis: %w", oraclemoduletypes.ModuleName, err)
 		}
-		if err := gs.Validate(); err != nil {
+		if err := oraclemoduletypes.ValidateGenesis(&gs); err != nil {
 			return fmt.Errorf("invalid %s genesis: %w", oraclemoduletypes.ModuleName, err)
 		}
 	}

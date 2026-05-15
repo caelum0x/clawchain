@@ -1,127 +1,96 @@
-package oracle
+// Package module provides the depinject bridge for the Terra-forked oracle module.
+// It adapts the oracle.AppModule (which uses classic Cosmos SDK patterns) for use
+// with depinject-based app wiring in ClawChain.
+package module
 
 import (
-	"context"
-	"encoding/json"
-	"fmt"
-
-	"cosmossdk.io/core/appmodule"
-	"github.com/cosmos/cosmos-sdk/client"
-	"github.com/cosmos/cosmos-sdk/codec"
-	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
-	sdk "github.com/cosmos/cosmos-sdk/types"
-	"github.com/cosmos/cosmos-sdk/types/module"
-	"github.com/grpc-ecosystem/grpc-gateway/runtime"
-
+	"clawchain/x/oracle"
 	"clawchain/x/oracle/keeper"
 	"clawchain/x/oracle/types"
+
+	"cosmossdk.io/core/appmodule"
+	"cosmossdk.io/core/store"
+	"cosmossdk.io/depinject"
+	"cosmossdk.io/depinject/appconfig"
+	storetypes "cosmossdk.io/store/types"
+	"github.com/cosmos/cosmos-sdk/codec"
+	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
+	distrkeeper "github.com/cosmos/cosmos-sdk/x/distribution/keeper"
+	paramstypes "github.com/cosmos/cosmos-sdk/x/params/types"
+	stakingkeeper "github.com/cosmos/cosmos-sdk/x/staking/keeper"
 )
 
-var (
-	_ module.AppModuleBasic = (*AppModule)(nil)
-	_ module.AppModule      = (*AppModule)(nil)
-	_ module.HasGenesis     = (*AppModule)(nil)
-	_ module.HasServices    = (*AppModule)(nil)
-
-	_ appmodule.AppModule     = (*AppModule)(nil)
-	_ appmodule.HasEndBlocker = (*AppModule)(nil)
-)
-
-// AppModule implements the AppModule interface for the oracle module.
-type AppModule struct {
-	cdc    codec.Codec
-	keeper keeper.Keeper
+func init() {
+	appconfig.Register(
+		&types.Module{},
+		appconfig.Provide(ProvideModule),
+	)
 }
 
-// NewAppModule creates a new AppModule.
-func NewAppModule(
-	cdc codec.Codec,
-	keeper keeper.Keeper,
-) AppModule {
-	return AppModule{
-		cdc:    cdc,
-		keeper: keeper,
+// ModuleInputs defines the depinject inputs for the oracle module.
+type ModuleInputs struct {
+	depinject.In
+
+	Config       *types.Module
+	StoreService store.KVStoreService
+	Cdc          codec.Codec
+	Key          *storetypes.KVStoreKey
+
+	AccountKeeper types.AccountKeeper
+	BankKeeper    types.BankKeeper
+	DistrKeeper   distrkeeper.Keeper
+	StakingKeeper *stakingkeeper.Keeper
+
+	ParamsKeeper interface {
+		GetSubspace(moduleName string) (paramstypes.Subspace, bool)
+	} `optional:"true"`
+}
+
+// ModuleOutputs defines the depinject outputs for the oracle module.
+type ModuleOutputs struct {
+	depinject.Out
+
+	OracleKeeper keeper.Keeper
+	Module       appmodule.AppModule
+}
+
+// ProvideModule creates and returns the oracle module components.
+func ProvideModule(in ModuleInputs) ModuleOutputs {
+	// Get or create the param subspace — oracle module requires a valid subspace
+	var paramSpace paramstypes.Subspace
+	if in.ParamsKeeper != nil {
+		ps, ok := in.ParamsKeeper.GetSubspace(types.ModuleName)
+		if ok {
+			paramSpace = ps
+		}
 	}
-}
-
-// IsAppModule implements the appmodule.AppModule interface.
-func (AppModule) IsAppModule() {}
-
-// Name returns the name of the module as a string.
-func (AppModule) Name() string {
-	return types.ModuleName
-}
-
-// RegisterLegacyAminoCodec registers the amino codec.
-func (AppModule) RegisterLegacyAminoCodec(cdc *codec.LegacyAmino) {
-	types.RegisterCodec(cdc)
-}
-
-// RegisterGRPCGatewayRoutes registers the gRPC Gateway routes for the module.
-func (AppModule) RegisterGRPCGatewayRoutes(clientCtx client.Context, mux *runtime.ServeMux) {
-	if err := types.RegisterQueryHandlerClient(clientCtx.CmdContext, mux, types.NewQueryClient(clientCtx)); err != nil {
-		panic(err)
+	if paramSpace.Name() == "" {
+		panic("oracle module requires a valid params subspace; ensure ParamsKeeper is wired in depinject")
 	}
-}
 
-// RegisterServices registers gRPC query and msg services for the module.
-func (am AppModule) RegisterServices(cfg module.Configurator) {
-	types.RegisterMsgServer(cfg.MsgServer(), keeper.NewMsgServerImpl(am.keeper))
-	types.RegisterQueryServer(cfg.QueryServer(), keeper.NewQueryServerImpl(am.keeper))
-}
-
-// RegisterInterfaces registers a module's interface types and their concrete implementations.
-func (AppModule) RegisterInterfaces(registry codectypes.InterfaceRegistry) {
-	types.RegisterInterfaces(registry)
-}
-
-// DefaultGenesis returns a default GenesisState for the module.
-func (am AppModule) DefaultGenesis(_ codec.JSONCodec) json.RawMessage {
-	gs := types.DefaultGenesis()
-	bz, err := json.Marshal(gs)
-	if err != nil {
-		panic(err)
+	// Get the KV store key — use the injected one or derive from StoreService
+	storeKey := in.Key
+	if storeKey == nil {
+		storeKey = storetypes.NewKVStoreKey(types.StoreKey)
 	}
-	return bz
-}
 
-// ValidateGenesis validates the GenesisState, given in its json.RawMessage form.
-func (am AppModule) ValidateGenesis(_ codec.JSONCodec, _ client.TxEncodingConfig, bz json.RawMessage) error {
-	var genState types.GenesisState
-	if err := json.Unmarshal(bz, &genState); err != nil {
-		return fmt.Errorf("failed to unmarshal %s genesis state: %w", types.ModuleName, err)
-	}
-	return genState.Validate()
-}
+	k := keeper.NewKeeper(
+		in.Cdc,
+		storeKey,
+		paramSpace,
+		in.AccountKeeper,
+		in.BankKeeper,
+		in.DistrKeeper,
+		in.StakingKeeper,
+		authtypes.FeeCollectorName,
+	)
 
-// InitGenesis performs the module's genesis initialization.
-func (am AppModule) InitGenesis(ctx sdk.Context, _ codec.JSONCodec, gs json.RawMessage) {
-	var genState types.GenesisState
-	if err := json.Unmarshal(gs, &genState); err != nil {
-		panic(fmt.Errorf("failed to unmarshal %s genesis state: %w", types.ModuleName, err))
-	}
-	if err := am.keeper.InitGenesis(ctx, genState); err != nil {
-		panic(fmt.Errorf("failed to initialize %s genesis state: %w", types.ModuleName, err))
-	}
-}
+	m := oracle.NewAppModule(
+		in.Cdc,
+		k,
+		in.AccountKeeper,
+		in.BankKeeper,
+	)
 
-// ExportGenesis returns the module's exported genesis state as raw JSON bytes.
-func (am AppModule) ExportGenesis(ctx sdk.Context, _ codec.JSONCodec) json.RawMessage {
-	genState, err := am.keeper.ExportGenesis(ctx)
-	if err != nil {
-		panic(fmt.Errorf("failed to export %s genesis state: %w", types.ModuleName, err))
-	}
-	bz, err := json.Marshal(genState)
-	if err != nil {
-		panic(fmt.Errorf("failed to marshal %s genesis state: %w", types.ModuleName, err))
-	}
-	return bz
-}
-
-// ConsensusVersion is a sequence number for state-breaking change of the module.
-func (AppModule) ConsensusVersion() uint64 { return 1 }
-
-// EndBlock contains the logic that is automatically triggered at the end of each block.
-func (am AppModule) EndBlock(ctx context.Context) error {
-	return am.keeper.EndBlocker(ctx)
+	return ModuleOutputs{OracleKeeper: k, Module: m}
 }

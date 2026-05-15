@@ -1,0 +1,97 @@
+version: "3.9"
+
+# ClawChain Monitoring Stack
+# Usage: cd monitoring && docker-compose up -d
+#
+# Access:
+#   Prometheus: http://localhost:9090
+#   Grafana:    http://localhost:3001 (admin/clawchain)
+
+services:
+  prometheus:
+    image: prom/prometheus:v2.48.0
+    container_name: clawchain-prometheus
+    restart: unless-stopped
+    ports:
+      - "9091:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alerts:/etc/prometheus/alerts:ro
+      - prometheus-data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=30d"
+      - "--storage.tsdb.retention.size=5GB"
+      - "--web.enable-lifecycle"
+      - "--web.enable-admin-api"
+    networks:
+      - clawchain-monitoring
+      - clawnet
+
+  grafana:
+    image: grafana/grafana:10.2.0
+    container_name: clawchain-grafana
+    restart: unless-stopped
+    ports:
+      - "3010:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-clawchain}
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/chain-overview.json
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_ANALYTICS_REPORTING_ENABLED=false
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - clawchain-monitoring
+
+  # Optional: Node exporter for system-level metrics (CPU, memory, disk)
+  # Uncomment to enable
+  # node-exporter:
+  #   image: quay.io/prometheus/node-exporter:v1.7.0
+  #   container_name: clawchain-node-exporter
+  #   restart: unless-stopped
+  #   ports:
+  #     - "9100:9100"
+  #   volumes:
+  #     - /proc:/host/proc:ro
+  #     - /sys:/host/sys:ro
+  #     - /:/rootfs:ro
+  #   command:
+  #     - "--path.procfs=/host/proc"
+  #     - "--path.sysfs=/host/sys"
+  #     - "--path.rootfs=/rootfs"
+  #     - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
+  #   networks:
+  #     - clawchain-monitoring
+
+  alertmanager:
+    image: prom/alertmanager:v0.26.0
+    container_name: clawchain-alertmanager
+    restart: unless-stopped
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    environment:
+      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL:-http://localhost}
+      - PAGERDUTY_SERVICE_KEY=${PAGERDUTY_SERVICE_KEY:-placeholder}
+    networks:
+      - clawchain-monitoring
+
+volumes:
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+
+networks:
+  clawchain-monitoring:
+    driver: bridge
+  clawnet:
+    external: true
+    name: new-blokchain_clawnet

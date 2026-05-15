@@ -1,0 +1,115 @@
+name: TypeScript Check
+
+on:
+  pull_request:
+    paths:
+      - "web/**"
+      - "sdk/**"
+      - "cmd/clawd/**"
+      - "cmd/claw-artemis/**"
+      - "cmd/claw-cryo/**"
+      - "cmd/claw-data-portal/**"
+      - "cmd/claw-flood/**"
+      - "cmd/claw-flux/**"
+      - "cmd/claw-rivet/**"
+  push:
+    branches: [main]
+    paths:
+      - "web/**"
+      - "sdk/**"
+      - "cmd/clawd/**"
+      - "cmd/claw-artemis/**"
+      - "cmd/claw-cryo/**"
+      - "cmd/claw-data-portal/**"
+      - "cmd/claw-flood/**"
+      - "cmd/claw-flux/**"
+      - "cmd/claw-rivet/**"
+
+permissions:
+  contents: read
+
+jobs:
+  typecheck:
+    name: TypeScript Type Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        project:
+          - { dir: "web", name: "Web Dashboard" }
+          - { dir: "sdk", name: "SDK" }
+          - { dir: "cmd/clawd", name: "clawd CLI" }
+          - { dir: "cmd/claw-artemis", name: "ClawArtemis" }
+          - { dir: "cmd/claw-cryo", name: "ClawCryo" }
+          - { dir: "cmd/claw-data-portal", name: "ClawDataPortal" }
+          - { dir: "cmd/claw-flood", name: "ClawFlood" }
+          - { dir: "cmd/claw-flux", name: "ClawFlux" }
+          - { dir: "cmd/claw-rivet", name: "ClawRivet" }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install dependencies
+        working-directory: ${{ matrix.project.dir }}
+        run: npm install
+      - name: Type check ${{ matrix.project.name }}
+        working-directory: ${{ matrix.project.dir }}
+        run: npx tsc --noEmit
+
+  sdk-tests:
+    name: SDK Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install dependencies
+        working-directory: sdk
+        run: npm install
+      - name: Build
+        working-directory: sdk
+        run: npm run build
+      - name: Run tests
+        working-directory: sdk
+        run: npm test
+
+  web-build:
+    name: Web Dashboard Build & Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install dependencies
+        working-directory: web
+        run: npm install
+      - name: Build
+        working-directory: web
+        run: npx vite build
+      - name: Run tests
+        working-directory: web
+        run: npx vitest run
+
+  clawd-tests:
+    name: clawd CLI Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install dependencies
+        working-directory: cmd/clawd
+        run: npm install
+      - name: Build
+        working-directory: cmd/clawd
+        run: npx tsc
+      - name: Run tests
+        working-directory: cmd/clawd
+        run: npm test

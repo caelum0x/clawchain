@@ -1,0 +1,15 @@
+{
+  "day_utc": "20260302",
+  "generated_at_utc": "2026-02-26T17:57:18Z",
+  "checks": {
+    "health_check": {
+      "status": "failed",
+      "artifact": "artifacts/stabilization/health-check-20260302.json"
+    },
+    "endpoint_smoke": {
+      "status": "failed",
+      "artifact": "artifacts/stabilization/endpoint-smoke-20260302.json"
+    }
+  },
+  "overall_status": "failed"
+}

@@ -1,0 +1,19 @@
+{
+  "generatedAtUtc": "2026-02-27T11:54:23Z",
+  "gitCommit": "53f513522850cb36bd92a351534991e34104fcd3",
+  "weekId": "2026-W09",
+  "entries": [
+    {
+      "path": "artifacts/launch-control/weekly-audit-log-latest.json",
+      "sha256": "b3dd86ab5f110157bf75cc1b0d7f9d5bc163476793ec3857036be945719ec50e"
+    },
+    {
+      "path": "artifacts/launch-control/weekly-signoff-manifest-latest.json",
+      "sha256": "8bd2dd2a4edf31da49c4d9c8413e99a8814a89b2e0c31f9bab17c9cbb8b1526e"
+    },
+    {
+      "path": "artifacts/launch-control/weekly-signoff-manifest-latest.md",
+      "sha256": "3411bc4d755038cdb98882eed6d864f439dbd17270ccbecd4e610bcf08b7174f"
+    }
+  ]
+}

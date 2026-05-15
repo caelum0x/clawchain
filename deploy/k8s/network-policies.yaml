@@ -1,0 +1,162 @@
+# ClawChain NetworkPolicies — restrict pod-to-pod traffic
+#
+# Default deny all ingress in the namespace, then allow specific flows:
+#   - Web → Node (REST/RPC)
+#   - GPU Provider → Node (REST/RPC/WebSocket)
+#   - Prometheus → All (metrics scraping)
+#   - Ingress controller → Web, Node (external traffic)
+#   - Node ↔ Node (P2P gossip)
+
+# Default deny all ingress traffic
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: clawchain
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+
+---
+# Allow chain node to receive traffic from:
+#   - Other chain nodes (P2P on 26656)
+#   - Web dashboard (REST 1317, RPC 26657)
+#   - GPU provider (REST 1317, RPC 26657)
+#   - Prometheus (metrics 26660)
+#   - Ingress controller (REST 1317, RPC 26657, gRPC 9090)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-clawchain-node
+  namespace: clawchain
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: clawchain-node
+  policyTypes:
+    - Ingress
+  ingress:
+    # P2P from other chain nodes
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: clawchain-node
+      ports:
+        - port: 26656
+          protocol: TCP
+    # REST + RPC from web dashboard
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: clawchain-web
+      ports:
+        - port: 1317
+          protocol: TCP
+        - port: 26657
+          protocol: TCP
+    # REST + RPC from GPU provider
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: claw-gpu-provider
+      ports:
+        - port: 1317
+          protocol: TCP
+        - port: 26657
+          protocol: TCP
+    # Metrics scraping from Prometheus
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+      ports:
+        - port: 26660
+          protocol: TCP
+    # External traffic via ingress controller
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - port: 1317
+          protocol: TCP
+        - port: 26657
+          protocol: TCP
+        - port: 9090
+          protocol: TCP
+
+---
+# Allow web dashboard to receive traffic from ingress controller only
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-clawchain-web
+  namespace: clawchain
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: clawchain-web
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - port: 3000
+          protocol: TCP
+
+---
+# Allow GPU provider to receive traffic from Prometheus (metrics only)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-gpu-provider
+  namespace: clawchain
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: claw-gpu-provider
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+      ports:
+        - port: 9090
+          protocol: TCP
+
+---
+# Allow Prometheus to receive traffic from ingress (Grafana, AlertManager)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-prometheus
+  namespace: clawchain
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus
+  policyTypes:
+    - Ingress
+  ingress:
+    # Grafana and AlertManager access
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: monitoring
+      ports:
+        - port: 9090
+          protocol: TCP
+    # Internal dashboard access
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - port: 9090
+          protocol: TCP

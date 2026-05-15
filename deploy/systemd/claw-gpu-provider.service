@@ -1,0 +1,42 @@
+[Unit]
+Description=ClawChain GPU Provider Daemon
+Documentation=https://github.com/clawchain/clawchain
+After=network-online.target clawchaind.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=clawchain
+Group=clawchain
+ExecStart=/usr/local/bin/claw-gpu-provider
+Restart=on-failure
+RestartSec=15
+StartLimitInterval=300
+StartLimitBurst=5
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=claw-gpu-provider
+
+# Environment (override via /etc/default/claw-gpu-provider or drop-in)
+Environment="CHAIN_REST=http://localhost:1317"
+Environment="CHAIN_RPC=http://localhost:26657"
+Environment="CHAIN_ID=clawchain-1"
+Environment="WEBSOCKET_ENABLED=true"
+EnvironmentFile=-/etc/default/claw-gpu-provider
+
+# Security: less restrictive than validator because Docker/GPU access needed
+NoNewPrivileges=true
+ProtectHome=true
+
+# Resource limits — generous for GPU workloads
+LimitNOFILE=65535
+LimitNPROC=4096
+MemoryMax=16G
+
+# GPU access requires supplementary group (e.g., video, render)
+SupplementaryGroups=video render docker
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,21 @@
+{
+  "name": "@clawchain/claw-flux",
+  "version": "1.0.0",
+  "description": "Parallel LLM completion explorer for ClawChain agents, inspired by Flux",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "dev": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "commander": "^12.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.5",
+    "tsx": "^4.0.0",
+    "typescript": "^5.4.0",
+    "vitest": "^3.0.0"
+  }
+}

@@ -1,0 +1,109 @@
+# ClawChain Agent Module Alert Rules
+# Monitors agent liveness, task queues, heartbeats, and reward distribution.
+
+groups:
+  - name: agent_module
+    rules:
+      # -------------------------------------------------------
+      # NoActiveAgents - Zero active agents on the network
+      # Severity: warning
+      # -------------------------------------------------------
+      - alert: NoActiveAgents
+        expr: clawchain_agent_active_count == 0
+        for: 5m
+        labels:
+          severity: warning
+          chain_id: "clawchain-1"
+        annotations:
+          summary: "No active agents on network"
+          description: >-
+            The number of active agents has dropped to zero. This means no
+            agents are available to accept tasks or participate in the economy.
+
+      # -------------------------------------------------------
+      # AgentHeartbeatsMissing - No heartbeats received
+      # Severity: warning
+      # -------------------------------------------------------
+      - alert: AgentHeartbeatsMissing
+        expr: rate(clawchain_agent_heartbeats_total[5m]) == 0
+        for: 10m
+        labels:
+          severity: warning
+          chain_id: "clawchain-1"
+        annotations:
+          summary: "No agent heartbeats received in 10 minutes"
+          description: >-
+            No agent heartbeat transactions have been observed for 10 minutes.
+            All agents may be offline or experiencing connectivity issues.
+
+      # -------------------------------------------------------
+      # TaskQueueBacklog - Pending tasks exceed threshold
+      # Severity: warning
+      # -------------------------------------------------------
+      - alert: TaskQueueBacklog
+        expr: clawchain_tasks_pending > 100
+        for: 5m
+        labels:
+          severity: warning
+          chain_id: "clawchain-1"
+        annotations:
+          summary: "Task queue backlog exceeding 100"
+          description: >-
+            More than 100 tasks are pending assignment or execution. This
+            may indicate insufficient agent capacity or stuck tasks.
+
+      # -------------------------------------------------------
+      # RewardDistributionFailed - Errors in reward payouts
+      # Severity: critical
+      # -------------------------------------------------------
+      - alert: RewardDistributionFailed
+        expr: increase(clawchain_reward_distribution_errors_total[1h]) > 0
+        labels:
+          severity: critical
+          chain_id: "clawchain-1"
+        annotations:
+          summary: "Agent reward distribution errors detected"
+          description: >-
+            One or more reward distribution operations have failed in the last
+            hour. This can result in agents not receiving earned CLAW tokens.
+            Investigate immediately.
+
+      # -------------------------------------------------------
+      # TaskCompletionRateLow - Task completion rate drops
+      # Severity: warning
+      # -------------------------------------------------------
+      - alert: TaskCompletionRateLow
+        expr: |
+          (
+            rate(clawchain_tasks_completed_total[1h])
+            /
+            rate(clawchain_tasks_created_total[1h])
+          ) < 0.5
+        for: 30m
+        labels:
+          severity: warning
+          chain_id: "clawchain-1"
+        annotations:
+          summary: "Task completion rate below 50%"
+          description: >-
+            Less than half of created tasks are being completed. This may
+            indicate agent capacity issues or problematic task specifications.
+
+      # -------------------------------------------------------
+      # HighNegotiationFailureRate - Many negotiations failing
+      # Severity: warning
+      # -------------------------------------------------------
+      - alert: HighNegotiationFailureRate
+        expr: |
+          rate(clawchain_negotiations_failed_total[30m])
+          /
+          rate(clawchain_negotiations_total[30m]) > 0.5
+        for: 15m
+        labels:
+          severity: warning
+          chain_id: "clawchain-1"
+        annotations:
+          summary: "Negotiation failure rate above 50%"
+          description: >-
+            More than half of agent negotiations are failing. Check for
+            pricing mismatches or agent availability issues.

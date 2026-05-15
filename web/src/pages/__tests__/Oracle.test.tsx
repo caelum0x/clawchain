@@ -30,6 +30,23 @@ vi.mock("../../lib/config", () => ({
 /* Helpers                                                             */
 /* ------------------------------------------------------------------ */
 
+/** Default mock responses for the three initial fetches */
+function mockDefaultFetches() {
+  mockFetch
+    .mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ exchange_rates: [] }),
+    })
+    .mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ actives: [] }),
+    })
+    .mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ vote_targets: [] }),
+    });
+}
+
 function renderOracle() {
   return render(
     <MemoryRouter>
@@ -45,16 +62,11 @@ function renderOracle() {
 describe("Oracle", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // Default mock: prices API returns empty list
-    mockFetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({ prices: [] }),
-    });
     vi.stubGlobal("fetch", mockFetch);
   });
 
   it("renders loading state initially", () => {
-    // Return a pending promise so the component stays in loading state
+    // Return pending promises so the component stays in loading state
     mockFetch.mockReturnValue(new Promise(() => {}));
     renderOracle();
 
@@ -62,6 +74,7 @@ describe("Oracle", () => {
   });
 
   it("renders page title and subtitle", async () => {
+    mockDefaultFetches();
     renderOracle();
 
     expect(screen.getByText("Oracle")).toBeInTheDocument();
@@ -71,6 +84,7 @@ describe("Oracle", () => {
   });
 
   it("shows 'no prices' when API returns empty list", async () => {
+    mockDefaultFetches();
     renderOracle();
 
     await waitFor(() => {
@@ -80,103 +94,139 @@ describe("Oracle", () => {
     });
   });
 
-  it("renders price table when API returns data", async () => {
-    mockFetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        prices: [
-          {
-            denom_pair: "CLAW/USD",
-            price: "1.250000",
-            updated_at: "2026-03-17T00:00:00Z",
-          },
-          {
-            denom_pair: "CLAW/BTC",
-            price: "0.000015",
-            updated_at: "2026-03-17T00:00:00Z",
-          },
-        ],
-      }),
-    });
-
-    renderOracle();
-
-    await waitFor(() => {
-      expect(screen.getByText("CLAW/USD")).toBeInTheDocument();
-    });
-
-    expect(screen.getByText("CLAW/BTC")).toBeInTheDocument();
-    // Table headers
-    expect(screen.getByText("Denom Pair")).toBeInTheDocument();
-    expect(screen.getByText("Price")).toBeInTheDocument();
-    expect(screen.getByText("Last Updated")).toBeInTheDocument();
-  });
-
-  it("clicking a price row loads history", async () => {
-    // First call returns prices, second call returns history
+  it("renders exchange rate table when API returns data", async () => {
     mockFetch
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({
-          prices: [
-            {
-              denom_pair: "CLAW/USD",
-              price: "1.250000",
-              updated_at: "2026-03-17T00:00:00Z",
-            },
+          exchange_rates: [
+            { denom: "uusd", exchange_rate: "1.250000" },
+            { denom: "ukrw", exchange_rate: "1450.000000" },
           ],
         }),
       })
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({
-          history: [
-            {
-              price: "1.200000",
-              timestamp: "2026-03-16T00:00:00Z",
-              block_height: "100",
-            },
-            {
-              price: "1.250000",
-              timestamp: "2026-03-17T00:00:00Z",
-              block_height: "200",
-            },
-          ],
-        }),
+        json: async () => ({ actives: ["uusd", "ukrw"] }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ vote_targets: ["uusd"] }),
       });
 
     renderOracle();
 
     await waitFor(() => {
-      expect(screen.getByText("CLAW/USD")).toBeInTheDocument();
+      expect(screen.getAllByText("uusd").length).toBeGreaterThanOrEqual(1);
     });
 
-    const user = userEvent.setup();
-    await user.click(screen.getByText("CLAW/USD"));
-
-    await waitFor(() => {
-      expect(screen.getByText("Price History: CLAW/USD")).toBeInTheDocument();
-    });
-
-    // History table should show block height
-    expect(screen.getByText("100")).toBeInTheDocument();
-    expect(screen.getByText("200")).toBeInTheDocument();
+    expect(screen.getAllByText("ukrw").length).toBeGreaterThanOrEqual(1);
+    // Table headers
+    expect(screen.getByText("Denom")).toBeInTheDocument();
+    expect(screen.getByText("Exchange Rate")).toBeInTheDocument();
   });
 
-  it("toggles params section expand/collapse", async () => {
-    // First call: prices, second call: params
+  it("clicking a rate row loads single denom detail", async () => {
+    // Initial fetches: exchange_rates, actives, vote_targets
     mockFetch
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ prices: [] }),
+        json: async () => ({
+          exchange_rates: [
+            { denom: "uusd", exchange_rate: "1.250000" },
+          ],
+        }),
       })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ actives: ["uusd"] }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ vote_targets: ["uusd"] }),
+      })
+      // Single denom fetch
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ exchange_rate: "1.250000" }),
+      });
+
+    renderOracle();
+
+    // Wait for exchange rates table to render, then click the row's strong text
+    await waitFor(() => {
+      expect(screen.getAllByText("uusd").length).toBeGreaterThanOrEqual(1);
+    });
+
+    const user = userEvent.setup();
+    // Click the Details button to avoid ambiguity
+    await user.click(screen.getByText("Details"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Exchange Rate: uusd")).toBeInTheDocument();
+    });
+  });
+
+  it("shows active denoms and vote targets", async () => {
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ exchange_rates: [] }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ actives: ["uusd", "ukrw", "usdr"] }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ vote_targets: ["uusd", "ukrw"] }),
+      });
+
+    renderOracle();
+
+    // Wait for active denoms to render (usdr is unique to actives, no ambiguity)
+    await waitFor(() => {
+      expect(screen.getByText("usdr")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("Active Denoms")).toBeInTheDocument();
+    expect(screen.getByText("Vote Targets")).toBeInTheDocument();
+    // uusd appears in both active denoms and vote targets
+    expect(screen.getAllByText("uusd").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText("ukrw").length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("toggles params section expand/collapse", async () => {
+    // Initial fetches
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ exchange_rates: [] }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ actives: [] }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ vote_targets: [] }),
+      })
+      // Params fetch
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({
           params: {
-            admin: "claw1admin_address",
-            max_age_seconds: "300",
-            allowed_denoms: ["CLAW/USD", "CLAW/BTC"],
+            vote_period: "5",
+            vote_threshold: "0.500000",
+            reward_band: "0.070000",
+            reward_distribution_window: "5256000",
+            whitelist: [
+              { name: "uusd", tobin_tax: "0.002500" },
+              { name: "ukrw", tobin_tax: "0.002500" },
+            ],
+            slash_fraction: "0.000100",
+            slash_window: "100800",
+            min_valid_per_window: "0.050000",
           },
         }),
       });
@@ -201,9 +251,11 @@ describe("Oracle", () => {
 
     // Params should now be visible
     await waitFor(() => {
-      expect(screen.getByText("claw1admin_address")).toBeInTheDocument();
+      expect(screen.getByText("Vote Period")).toBeInTheDocument();
     });
-    expect(screen.getByText("300")).toBeInTheDocument();
+    expect(screen.getByText("5")).toBeInTheDocument();
+    expect(screen.getByText("0.500000")).toBeInTheDocument();
+    expect(screen.getByText("0.070000")).toBeInTheDocument();
 
     // Click to collapse
     await user.click(screen.getByText("Oracle Parameters"));

@@ -1,0 +1,19 @@
+{
+  "circuit": "ViewKeyCircuit",
+  "curve": "BN254",
+  "protocol": "Groth16",
+  "window_utc": {
+    "start": "2026-02-12T09:00:00Z",
+    "end": "2026-02-14T21:30:00Z"
+  },
+  "contributions": [
+    {"contributor": "CRYPTO-TEAM-05", "timestamp_utc": "2026-02-12T13:09:58Z"},
+    {"contributor": "CRYPTO-TEAM-06", "timestamp_utc": "2026-02-13T09:53:11Z"},
+    {"contributor": "SEC-OBSERVER-02", "timestamp_utc": "2026-02-14T21:11:55Z"}
+  ],
+  "verification": {
+    "status": "verified",
+    "verified_at_utc": "2026-02-14T21:29:37Z",
+    "verifier": "ClawChain Crypto Team"
+  }
+}

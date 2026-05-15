@@ -1,0 +1,94 @@
+{
+  "generatedAtUtc": "2026-02-27T09:27:19Z",
+  "git": {
+    "branch": "main",
+    "commit": "53f513522850cb36bd92a351534991e34104fcd3"
+  },
+  "inputs": {
+    "releaseEvidencePath": "artifacts/release-evidence.json",
+    "manifestLifecyclePath": "testnet/public/manifest-lifecycle.json",
+    "reproducibilityProofPath": "artifacts/testnet/public-reproducibility-proof-20260227T092719Z.json"
+  },
+  "summary": {
+    "releaseOverallStatus": "passed",
+    "reproducibilityStatus": "passed",
+    "manifestSignedUpdate": false,
+    "goLiveReady": false
+  },
+  "artifacts": {
+    "releaseEvidence": {
+      "generated_at_utc": "2026-02-27T09:23:55Z",
+      "git": {
+        "branch": "main",
+        "commit": "53f513522850cb36bd92a351534991e34104fcd3"
+      },
+      "inputs": {
+        "manifest": "https://example.com/manifest.json",
+        "host": "example.com"
+      },
+      "gates": {
+        "protocol_sanity": "passed",
+        "upgrade_readiness": "passed",
+        "mainnet_readiness": "passed",
+        "mainnet_launch_program": "passed",
+        "launch_artifact_completeness": "passed",
+        "production_infrastructure": "passed",
+        "chain_hardening": "passed",
+        "runtime_hardening": "passed",
+        "ecosystem_integrator": "passed",
+        "governance_operations": "passed",
+        "drill_evidence": "passed",
+        "growth_user_layer": "passed",
+        "capacity_slo_evidence": "passed",
+        "production_data_replacement": "passed",
+        "real_world_external_validation": "passed",
+        "mainnet_cutover_rehearsal": "passed",
+        "launch_day_operations": "passed",
+        "first_week_stabilization": "passed",
+        "phase16_automation_evidence_capture": "passed",
+        "phase16_reliability_alerting": "passed",
+        "phase16_operator_ux": "passed",
+        "security_compliance_closure_evidence": "passed",
+        "ecosystem_readiness_proof": "passed",
+        "launch_decision_packet": "passed",
+        "release_artifact_provenance": "passed",
+        "one_command_agent": "passed",
+        "phase17_public_testnet_stability": "passed",
+        "public_testnet_reproducibility": "passed"
+      },
+      "overall_status": "passed",
+      "artifact_policy": {
+        "path": "artifacts/release-evidence.json",
+        "retention": "retain latest 20 release evidence files or 90 days, whichever is greater"
+      }
+    },
+    "manifestLifecycle": {
+      "id": "public-testnet-stable-endpoints-v1",
+      "network": "clawchain-public-testnet",
+      "updatedAtUtc": "2026-02-27T09:27:19Z",
+      "revision": 4,
+      "manifestSha256": "bc59f0e4118250dc7020f2181ad978f9d5dea13a0a627c0acfb35439f15971f9",
+      "previousManifestSha256": "081d3e2573e3756f90928cfecae2b5448a2af5b6092e5e6530a58562eaf3c578",
+      "signedUpdate": false,
+      "signatureCount": 0,
+      "stableEndpointSet": {
+        "rpc": "http://127.0.0.1:26657",
+        "rest": "http://127.0.0.1:1317",
+        "grpc": "127.0.0.1:9090",
+        "faucet": "http://127.0.0.1:8888",
+        "grafana": "http://127.0.0.1:3000",
+        "prometheus": "http://127.0.0.1:9091"
+      }
+    },
+    "reproducibilityProof": {
+      "verifiedAtUtc": "2026-02-27T09:27:19Z",
+      "status": "passed",
+      "manifestRef": "./testnet/public/manifest.json",
+      "statusRef": "./testnet/public/status.json",
+      "strictPublic": false,
+      "chainId": "clawchain-testnet-1",
+      "signatureCount": 0,
+      "manifestLifecycleSignedUpdate": false
+    }
+  }
+}

@@ -1,0 +1,63 @@
+# ClawChain GPU Provider Configuration
+# Copy this file to config.toml and fill in your values.
+
+[chain]
+# REST API endpoint for the chain node
+rest_url = "http://localhost:1317"
+# RPC endpoint for CometBFT (used for WebSocket events and tx broadcast)
+rpc_url = "http://localhost:26657"
+# Chain ID
+chain_id = "clawchain-1"
+# Token denomination
+denom = "uclaw"
+
+[provider]
+# Provider display name (used for on-chain registration)
+name = "my-gpu-provider"
+# Bech32 provider address (must match the mnemonic)
+address = ""
+# BIP39 mnemonic for signing transactions (KEEP SECRET)
+# Alternatively set via MNEMONIC environment variable
+mnemonic = ""
+# On-chain resource ID (obtained after listing your GPU resource)
+resource_id = 0
+
+[jobs]
+# Maximum number of concurrent jobs
+max_concurrent = 2
+# Enable Docker job execution
+docker_enabled = true
+# Working directory for temporary job files
+work_dir = "/tmp/claw-gpu-jobs"
+# Job execution timeout in seconds (0 = no timeout)
+job_timeout_sec = 3600
+
+[events]
+# Use WebSocket events for real-time job dispatch (recommended)
+websocket_enabled = true
+# Fallback to HTTP polling when WebSocket disconnects
+poll_fallback = true
+# HTTP polling interval in seconds (only used when WebSocket is unavailable)
+poll_interval_sec = 15
+# WebSocket reconnect delay in seconds
+ws_reconnect_sec = 5
+
+[heartbeat]
+# Interval between heartbeat/metric reports in seconds
+interval_sec = 60
+
+[metrics]
+# Port for the Prometheus metrics and health endpoints
+port = 9090
+
+[dantegpu]
+# Enable DanteGPU integration for advanced job orchestration
+enabled = false
+# DanteGPU API gateway endpoint
+api_url = "http://localhost:8080"
+# DanteGPU API key (obtain from provider registration)
+api_key = ""
+# Use DanteGPU for job output storage (MinIO/S3)
+use_remote_storage = false
+# Storage endpoint for large job outputs
+storage_url = "http://localhost:9000"

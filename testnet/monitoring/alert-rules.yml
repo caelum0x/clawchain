@@ -1,0 +1,111 @@
+groups:
+  - name: clawchain-alerts
+    rules:
+      - alert: NodeDown
+        expr: up{job="cometbft"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "ClawChain node {{ $labels.instance }} is down"
+          description: "Node {{ $labels.instance }} has been unreachable for more than 1 minute."
+
+      - alert: ConsensusStalled
+        expr: increase(cometbft_consensus_latest_block_height[5m]) == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Consensus stalled on {{ $labels.instance }}"
+          description: "No new blocks produced in the last 5 minutes on {{ $labels.instance }}."
+
+      - alert: MissingValidators
+        expr: cometbft_consensus_missing_validators > 1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Multiple validators missing on {{ $labels.instance }}"
+          description: "{{ $value }} validators missing for more than 2 minutes."
+
+      - alert: HighMempoolSize
+        expr: cometbft_mempool_size > 1000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High mempool size on {{ $labels.instance }}"
+          description: "Mempool has {{ $value }} pending transactions for over 5 minutes."
+
+      - alert: ByzantineValidator
+        expr: cometbft_consensus_byzantine_validators > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: "Byzantine validator detected on {{ $labels.instance }}"
+          description: "{{ $value }} byzantine validator(s) detected. Immediate investigation required."
+
+      - alert: HighConsensusRounds
+        expr: cometbft_consensus_rounds > 2
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High consensus rounds on {{ $labels.instance }}"
+          description: "Consensus taking {{ $value }} rounds for more than 3 minutes."
+groups:
+  - name: oracle
+    rules:
+      - alert: OracleNoVotePeriods
+        expr: rate(clawchain_oracle_vote_periods_total[10m]) == 0
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Oracle vote periods have stopped"
+          description: "No oracle vote periods completed in the last 10 minutes. The oracle EndBlocker may not be running."
+
+      - alert: OracleNoActiveRates
+        expr: clawchain_oracle_active_exchange_rates == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "No active oracle exchange rates"
+          description: "Zero exchange rates are active. Price feeds are down — DEX and oracle-dependent features are broken."
+
+      - alert: OracleHighMissRate
+        expr: clawchain_oracle_total_miss_counter > 50
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High oracle miss counter"
+          description: "Total oracle miss counter across all validators is {{ $value }}. Validators may be slashed at the end of the slash window."
+
+      - alert: OracleValidatorSlashed
+        expr: increase(clawchain_oracle_slashes_total[1h]) > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Oracle validator slashed"
+          description: "{{ $value }} oracle slash(es) occurred in the last hour. A validator was jailed for missing too many votes."
+
+      - alert: OracleLowVoterParticipation
+        expr: clawchain_oracle_voting_validators < 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low oracle voter participation"
+          description: "Only {{ $value }} validator(s) participating in oracle voting. Minimum 2 recommended for price accuracy."
+
+      - alert: OracleNoRewards
+        expr: clawchain_oracle_rewards_distributed_uclaw == 0 and clawchain_oracle_vote_periods_total > 10
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "No oracle rewards being distributed"
+          description: "Oracle reward pool appears empty — no uclaw distributed to voters in 30+ minutes."

@@ -1,0 +1,104 @@
+# ClawChain Prometheus Configuration
+# Production monitoring stack for ClawChain Cosmos SDK blockchain
+#
+# Usage (standalone):
+#   prometheus --config.file=monitoring/prometheus/prometheus.yml
+#
+# Usage (docker-compose):
+#   cd monitoring && docker-compose up -d
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    chain_id: "clawchain-1"
+    environment: "production"
+
+rule_files:
+  - "alerts/*.yml"
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - "alertmanager:9093"
+
+scrape_configs:
+  # ---------------------------------------------------------
+  # ClawChain node metrics (CometBFT consensus)
+  # Exposed on :26660 when prometheus = true in config.toml
+  # ---------------------------------------------------------
+  - job_name: "clawchain"
+    static_configs:
+      - targets: ["clawchain:26660"]
+        labels:
+          chain_id: "clawchain-1"
+          node_type: "validator"
+          instance_name: "clawchain-node-0"
+    metrics_path: /metrics
+    scheme: "http"
+    scrape_interval: 15s
+    scrape_timeout: 10s
+
+  # ---------------------------------------------------------
+  # Cosmos SDK application telemetry
+  # Exposed on :1317 when telemetry is enabled in app.toml
+  # ---------------------------------------------------------
+  - job_name: "cosmos-sdk-app"
+    static_configs:
+      - targets: ["clawchain:1317"]
+        labels:
+          chain_id: "clawchain-1"
+          node_type: "validator"
+          instance_name: "clawchain-node-0"
+    metrics_path: /metrics
+    scheme: "http"
+    scrape_interval: 15s
+    scrape_timeout: 10s
+
+  # ---------------------------------------------------------
+  # GPU provider metrics
+  # Custom exporter for GPU compute providers
+  # ---------------------------------------------------------
+  - job_name: "gpu-provider"
+    static_configs:
+      - targets: ["gpu-provider:8090"]
+    metrics_path: /metrics
+
+  # ---------------------------------------------------------
+  # clawd agent daemon metrics
+  # Off-chain agent process metrics
+  # ---------------------------------------------------------
+  - job_name: "clawd"
+    static_configs:
+      - targets: ["clawd:9100"]
+    metrics_path: /metrics
+
+  # ---------------------------------------------------------
+  # Tx history API metrics
+  # ---------------------------------------------------------
+  - job_name: "tx-history"
+    static_configs:
+      - targets: ["tx-history:17171"]
+    metrics_path: /metrics
+
+  # ---------------------------------------------------------
+  # Node exporter (system metrics: CPU, memory, disk)
+  # Install: https://github.com/prometheus/node_exporter
+  # ---------------------------------------------------------
+  - job_name: "node-exporter"
+    static_configs:
+      - targets: ["node-exporter:9100"]
+        labels:
+          chain_id: "clawchain-1"
+          node_type: "validator"
+          instance_name: "clawchain-node-0"
+    scrape_interval: 15s
+    scrape_timeout: 10s
+
+  # ---------------------------------------------------------
+  # Prometheus self-monitoring
+  # ---------------------------------------------------------
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]

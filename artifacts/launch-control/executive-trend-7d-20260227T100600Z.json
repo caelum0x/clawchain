@@ -1,0 +1,60 @@
+{
+  "generatedAtUtc": "2026-02-27T10:06:00Z",
+  "gitCommit": "53f513522850cb36bd92a351534991e34104fcd3",
+  "sourceSummary": "artifacts/launch-control/post-launch-weekly-executive-summary-latest.json",
+  "weeklySummary": {
+    "weekId": "2026-W09",
+    "overallStatus": "attention_required",
+    "recommendation": "hold_stabilized_label_and_remediate_open_signals"
+  },
+  "nightly7d": [
+    {
+      "dayUtc": "20260221",
+      "artifact": "artifacts/operations/nightly-ops-pack-20260221.json",
+      "status": "missing",
+      "present": false
+    },
+    {
+      "dayUtc": "20260222",
+      "artifact": "artifacts/operations/nightly-ops-pack-20260222.json",
+      "status": "missing",
+      "present": false
+    },
+    {
+      "dayUtc": "20260223",
+      "artifact": "artifacts/operations/nightly-ops-pack-20260223.json",
+      "status": "missing",
+      "present": false
+    },
+    {
+      "dayUtc": "20260224",
+      "artifact": "artifacts/operations/nightly-ops-pack-20260224.json",
+      "status": "missing",
+      "present": false
+    },
+    {
+      "dayUtc": "20260225",
+      "artifact": "artifacts/operations/nightly-ops-pack-20260225.json",
+      "status": "missing",
+      "present": false
+    },
+    {
+      "dayUtc": "20260226",
+      "artifact": "artifacts/operations/nightly-ops-pack-20260226.json",
+      "status": "missing",
+      "present": false
+    },
+    {
+      "dayUtc": "20260227",
+      "artifact": "artifacts/operations/nightly-ops-pack-20260227.json",
+      "status": "failed",
+      "present": true
+    }
+  ],
+  "metrics": {
+    "statusTransitions": 0,
+    "missingNightlyArtifacts": 6,
+    "nonPassedNightlyDays": 1,
+    "openIssuesCount": 3
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "name": "@clawchain/demo",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "demo": "npx tsx e2e-demo.ts",
+    "demo:agent": "npx tsx scenarios/agent-lifecycle.ts",
+    "demo:marketplace": "npx tsx scenarios/marketplace-flow.ts",
+    "demo:privacy": "npx tsx scenarios/privacy-flow.ts",
+    "demo:gpu": "npx tsx scenarios/gpu-compute.ts",
+    "demo:full-lifecycle": "npx tsx scenarios/full-lifecycle.ts",
+    "demo:lifecycle": "npx tsx e2e-demo.ts --scenario=full-lifecycle"
+  },
+  "dependencies": {
+    "@cosmjs/stargate": "^0.33.0",
+    "@cosmjs/proto-signing": "^0.33.0",
+    "tsx": "^4.0.0"
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "generatedAtUtc": "2026-02-27T11:54:18Z",
+  "gitCommit": "53f513522850cb36bd92a351534991e34104fcd3",
+  "weekId": "2026-W09",
+  "entries": [
+    {
+      "path": "artifacts/launch-control/weekly-publication-packet-latest.json",
+      "sha256": "0982ca49f2b47cfc23b45841e3473d2b9e7fd9dd5c3e9dd58c6e9421d025c550",
+      "sizeBytes": 21824
+    },
+    {
+      "path": "artifacts/launch-control/weekly-handoff-note-latest.md",
+      "sha256": "678dbc28b88d285c0e40655b84cd2ac65c6597b5db9885da5660d7b699c48073",
+      "sizeBytes": 933
+    },
+    {
+      "path": "artifacts/launch-control/weekly-closure-bundle-latest.json",
+      "sha256": "fd2cedc74d17c917f3c854bd741cb1fb84fe591ffbadd1b1289990bfd923a778",
+      "sizeBytes": 40342
+    },
+    {
+      "path": "artifacts/launch-control/ops-artifact-index-latest.json",
+      "sha256": "9f7537768447abcd92c60ade031135926ab2ab68dba5aa004d406121a3110a67",
+      "sizeBytes": 1414
+    },
+    {
+      "path": "artifacts/launch-control/ops-maturity-packet-latest.json",
+      "sha256": "1c6211026a48fdb19c7884d6666911eb4abc1eaf5f5e8121eeb96565c59838d9",
+      "sizeBytes": 13607
+    }
+  ]
+}

@@ -1,0 +1,930 @@
+{
+  "generatedAtUtc": "2026-02-27T11:54:20Z",
+  "gitCommit": "53f513522850cb36bd92a351534991e34104fcd3",
+  "weekId": "2026-W09",
+  "references": {
+    "digestPack": "artifacts/launch-control/weekly-closure-digest-pack-latest.json",
+    "statusSnapshot": "artifacts/launch-control/operator-status-snapshot-latest.json",
+    "closureBundle": "artifacts/launch-control/weekly-closure-bundle-latest.json"
+  },
+  "artifacts": {
+    "digestPack": {
+      "generatedAtUtc": "2026-02-27T11:54:18Z",
+      "gitCommit": "53f513522850cb36bd92a351534991e34104fcd3",
+      "weekId": "2026-W09",
+      "entries": [
+        {
+          "path": "artifacts/launch-control/weekly-publication-packet-latest.json",
+          "sha256": "0982ca49f2b47cfc23b45841e3473d2b9e7fd9dd5c3e9dd58c6e9421d025c550",
+          "sizeBytes": 21824
+        },
+        {
+          "path": "artifacts/launch-control/weekly-handoff-note-latest.md",
+          "sha256": "678dbc28b88d285c0e40655b84cd2ac65c6597b5db9885da5660d7b699c48073",
+          "sizeBytes": 933
+        },
+        {
+          "path": "artifacts/launch-control/weekly-closure-bundle-latest.json",
+          "sha256": "fd2cedc74d17c917f3c854bd741cb1fb84fe591ffbadd1b1289990bfd923a778",
+          "sizeBytes": 40342
+        },
+        {
+          "path": "artifacts/launch-control/ops-artifact-index-latest.json",
+          "sha256": "9f7537768447abcd92c60ade031135926ab2ab68dba5aa004d406121a3110a67",
+          "sizeBytes": 1414
+        },
+        {
+          "path": "artifacts/launch-control/ops-maturity-packet-latest.json",
+          "sha256": "1c6211026a48fdb19c7884d6666911eb4abc1eaf5f5e8121eeb96565c59838d9",
+          "sizeBytes": 13607
+        }
+      ]
+    },
+    "statusSnapshot": {
+      "generatedAtUtc": "2026-02-27T11:54:19Z",
+      "gitCommit": "53f513522850cb36bd92a351534991e34104fcd3",
+      "weekId": "2026-W09",
+      "overallStatus": "passed",
+      "gateStatus": {
+        "phase20ProductComplete": "passed",
+        "phase21ProgramClosure": "passed",
+        "phase22ClosureDigest": "passed"
+      },
+      "references": {
+        "summaryFile": "artifacts/launch-control/post-launch-weekly-executive-summary-latest.json",
+        "publicationPacket": "artifacts/launch-control/weekly-publication-packet-latest.json",
+        "digestPack": "artifacts/launch-control/weekly-closure-digest-pack-latest.json"
+      }
+    },
+    "closureBundle": {
+      "generatedAtUtc": "2026-02-27T11:54:18Z",
+      "gitCommit": "53f513522850cb36bd92a351534991e34104fcd3",
+      "weekId": "2026-W09",
+      "inputs": {
+        "publicationPacket": "artifacts/launch-control/weekly-publication-packet-latest.json",
+        "handoffNote": "artifacts/launch-control/weekly-handoff-note-latest.md",
+        "opsMaturityPacket": "artifacts/launch-control/ops-maturity-packet-latest.json",
+        "runbook": "docs/final-cutover-runbook.md"
+      },
+      "artifacts": {
+        "publication": {
+          "generatedAtUtc": "2026-02-27T11:54:18Z",
+          "gitCommit": "53f513522850cb36bd92a351534991e34104fcd3",
+          "weekId": "2026-W09",
+          "inputs": {
+            "summaryFile": "artifacts/launch-control/post-launch-weekly-executive-summary-latest.json",
+            "indexFile": "artifacts/launch-control/ops-artifact-index-latest.json",
+            "opsMaturityPacket": "artifacts/launch-control/ops-maturity-packet-latest.json"
+          },
+          "gateStatus": {
+            "phase21ArtifactIndex": "passed",
+            "phase20OpsSignal": "passed",
+            "phase20RecoveryLoop": "passed"
+          },
+          "overallStatus": "passed",
+          "artifacts": {
+            "summary": {
+              "generatedAtUtc": "2026-02-27T10:14:21Z",
+              "weekId": "2026-W09",
+              "gitCommit": "53f513522850cb36bd92a351534991e34104fcd3",
+              "inputs": {
+                "nightlyOpsPack": "artifacts/operations/nightly-ops-pack-latest.json",
+                "weeklyDrillPack": "artifacts/operations/weekly-incident-drill-pack-latest.json",
+                "monthlyGovernancePack": "artifacts/governance/monthly-governance-pack-latest.json",
+                "releaseEvidence": "artifacts/release-evidence.json"
+              },
+              "status": {
+                "nightlyOps": "failed",
+                "weeklyDrillClosure": "attention_required",
+                "weeklyDrill": "failed",
+                "monthlyGovernanceClosure": "closed",
+                "releaseEvidence": "passed",
+                "phase19EvidenceDriftControls": "passed"
+              },
+              "overallStatus": "attention_required",
+              "recommendation": "hold_stabilized_label_and_remediate_open_signals",
+              "artifacts": {
+                "nightlyOpsPack": {
+                  "generatedAtUtc": "2026-02-27T09:37:40Z",
+                  "dayUtc": "20260227",
+                  "cronSafe": true,
+                  "checks": {
+                    "gateSummary": {
+                      "status": "failed",
+                      "artifact": "artifacts/operations/nightly-gate-summary-20260227.json"
+                    },
+                    "releaseEvidenceRefresh": {
+                      "status": "passed",
+                      "artifact": "artifacts/operations/nightly-release-evidence-20260227.json"
+                    }
+                  },
+                  "overallStatus": "failed"
+                },
+                "weeklyDrillPack": {
+                  "generatedAtUtc": "2026-02-27T09:37:40Z",
+                  "weekId": "2026-W09",
+                  "drill": {
+                    "status": "failed",
+                    "passedCount": 0,
+                    "failedCount": 0,
+                    "logArtifact": "artifacts/operations/weekly-incident-drill-2026-W09.log"
+                  },
+                  "closureStatus": "attention_required"
+                },
+                "monthlyGovernancePack": {
+                  "generatedAtUtc": "2026-02-27T09:37:41Z",
+                  "monthId": "2026-02",
+                  "governanceReportPath": "artifacts/monthly-reports/2026-02.md",
+                  "governanceDecisionLogPath": "docs/governance-decision-log.md",
+                  "monthlyReportGateStatus": "passed",
+                  "monthlyReportGateOutput": "Monthly Report Gate\n===================\n[PASS] Monthly report found: /Users/arhansubasi/new-blokchain/artifacts/monthly-reports/2026-02.md\n[PASS] Report template exists\n[PASS] Governance decision log exists\n\nMonthly report gate: PASSED",
+                  "closureStatus": "closed"
+                },
+                "releaseEvidence": {
+                  "generated_at_utc": "2026-02-27T09:49:16Z",
+                  "git": {
+                    "branch": "main",
+                    "commit": "53f513522850cb36bd92a351534991e34104fcd3"
+                  },
+                  "inputs": {
+                    "manifest": "unknown",
+                    "host": "unknown"
+                  },
+                  "gates": {
+                    "protocol_sanity": "passed",
+                    "upgrade_readiness": "passed",
+                    "mainnet_readiness": "passed",
+                    "mainnet_launch_program": "passed",
+                    "launch_artifact_completeness": "passed",
+                    "production_infrastructure": "passed",
+                    "chain_hardening": "passed",
+                    "runtime_hardening": "passed",
+                    "ecosystem_integrator": "passed",
+                    "governance_operations": "passed",
+                    "drill_evidence": "passed",
+                    "growth_user_layer": "passed",
+                    "capacity_slo_evidence": "passed",
+                    "production_data_replacement": "passed",
+                    "real_world_external_validation": "passed",
+                    "mainnet_cutover_rehearsal": "passed",
+                    "launch_day_operations": "passed",
+                    "first_week_stabilization": "passed",
+                    "phase16_automation_evidence_capture": "passed",
+                    "phase16_reliability_alerting": "passed",
+                    "phase16_operator_ux": "passed",
+                    "security_compliance_closure_evidence": "passed",
+                    "ecosystem_readiness_proof": "passed",
+                    "launch_decision_packet": "passed",
+                    "release_artifact_provenance": "passed",
+                    "one_command_agent": "not_recorded",
+                    "phase17_public_testnet_stability": "passed",
+                    "phase18_real_endpoint_cutover": "passed",
+                    "phase18_continuous_ops": "passed",
+                    "phase19_evidence_drift_controls": "passed",
+                    "public_testnet_reproducibility": "passed"
+                  },
+                  "overall_status": "passed",
+                  "artifact_policy": {
+                    "path": "artifacts/release-evidence.json",
+                    "retention": "retain latest 20 release evidence files or 90 days, whichever is greater"
+                  }
+                }
+              }
+            },
+            "index": {
+              "generatedAtUtc": "2026-02-27T11:54:17Z",
+              "gitCommit": "53f513522850cb36bd92a351534991e34104fcd3",
+              "weekId": "2026-W09",
+              "summaryFile": "artifacts/launch-control/post-launch-weekly-executive-summary-latest.json",
+              "entries": [
+                {
+                  "path": "artifacts/launch-control/post-launch-weekly-executive-summary-latest.json",
+                  "sha256": "56cef77bdeb886c6b798702f74365392b24949276820d0f113a1ccdb6dae9a32",
+                  "sizeBytes": 4211
+                },
+                {
+                  "path": "artifacts/launch-control/executive-trend-7d-latest.json",
+                  "sha256": "3f8ad2097ff31c3a166363fb55e6a786d2361350465ba1f2e2d488d6f80cf29d",
+                  "sizeBytes": 1675
+                },
+                {
+                  "path": "artifacts/launch-control/ops-remediation-checklist-latest.json",
+                  "sha256": "ea1425691ec284001ff06a60dcab4763686d52eed679dad00a56d676d7db72ba",
+                  "sizeBytes": 1165
+                },
+                {
+                  "path": "artifacts/launch-control/ops-remediation-bundle-latest.json",
+                  "sha256": "5d146856d93367bb6f7ac790ef586b481a6f7d7da5f1a3c370a4b4765a39dce1",
+                  "sizeBytes": 2740
+                },
+                {
+                  "path": "artifacts/launch-control/ops-maturity-packet-latest.json",
+                  "sha256": "1c6211026a48fdb19c7884d6666911eb4abc1eaf5f5e8121eeb96565c59838d9",
+                  "sizeBytes": 13607
+                },
+                {
+                  "path": "artifacts/release-evidence.json",
+                  "sha256": "1a0758ca8d250d88cc4143671009d490583892867d6f0fcf6726d17929952bfc",
+                  "sizeBytes": 1719
+                }
+              ]
+            },
+            "opsMaturity": {
+              "generatedAtUtc": "2026-02-27T10:14:22Z",
+              "gitCommit": "53f513522850cb36bd92a351534991e34104fcd3",
+              "weekId": "2026-W09",
+              "inputs": {
+                "summaryFile": "artifacts/launch-control/post-launch-weekly-executive-summary-latest.json",
+                "trendFile": "artifacts/launch-control/executive-trend-7d-latest.json",
+                "checklistFile": "artifacts/launch-control/ops-remediation-checklist-latest.json",
+                "bundleFile": "artifacts/launch-control/ops-remediation-bundle-latest.json",
+                "releaseEvidenceFile": "artifacts/release-evidence.json"
+              },
+              "gateStatus": {
+                "phase20OpsSignal": "passed",
+                "phase20RecoveryLoop": "passed",
+                "productComplete": "passed"
+              },
+              "overallStatus": "passed",
+              "artifacts": {
+                "summary": {
+                  "generatedAtUtc": "2026-02-27T10:14:21Z",
+                  "weekId": "2026-W09",
+                  "gitCommit": "53f513522850cb36bd92a351534991e34104fcd3",
+                  "inputs": {
+                    "nightlyOpsPack": "artifacts/operations/nightly-ops-pack-latest.json",
+                    "weeklyDrillPack": "artifacts/operations/weekly-incident-drill-pack-latest.json",
+                    "monthlyGovernancePack": "artifacts/governance/monthly-governance-pack-latest.json",
+                    "releaseEvidence": "artifacts/release-evidence.json"
+                  },
+                  "status": {
+                    "nightlyOps": "failed",
+                    "weeklyDrillClosure": "attention_required",
+                    "weeklyDrill": "failed",
+                    "monthlyGovernanceClosure": "closed",
+                    "releaseEvidence": "passed",
+                    "phase19EvidenceDriftControls": "passed"
+                  },
+                  "overallStatus": "attention_required",
+                  "recommendation": "hold_stabilized_label_and_remediate_open_signals",
+                  "artifacts": {
+                    "nightlyOpsPack": {
+                      "generatedAtUtc": "2026-02-27T09:37:40Z",
+                      "dayUtc": "20260227",
+                      "cronSafe": true,
+                      "checks": {
+                        "gateSummary": {
+                          "status": "failed",
+                          "artifact": "artifacts/operations/nightly-gate-summary-20260227.json"
+                        },
+                        "releaseEvidenceRefresh": {
+                          "status": "passed",
+                          "artifact": "artifacts/operations/nightly-release-evidence-20260227.json"
+                        }
+                      },
+                      "overallStatus": "failed"
+                    },
+                    "weeklyDrillPack": {
+                      "generatedAtUtc": "2026-02-27T09:37:40Z",
+                      "weekId": "2026-W09",
+                      "drill": {
+                        "status": "failed",
+                        "passedCount": 0,
+                        "failedCount": 0,
+                        "logArtifact": "artifacts/operations/weekly-incident-drill-2026-W09.log"
+                      },
+                      "closureStatus": "attention_required"
+                    },
+                    "monthlyGovernancePack": {
+                      "generatedAtUtc": "2026-02-27T09:37:41Z",
+                      "monthId": "2026-02",
+                      "governanceReportPath": "artifacts/monthly-reports/2026-02.md",
+                      "governanceDecisionLogPath": "docs/governance-decision-log.md",
+                      "monthlyReportGateStatus": "passed",
+                      "monthlyReportGateOutput": "Monthly Report Gate\n===================\n[PASS] Monthly report found: /Users/arhansubasi/new-blokchain/artifacts/monthly-reports/2026-02.md\n[PASS] Report template exists\n[PASS] Governance decision log exists\n\nMonthly report gate: PASSED",
+                      "closureStatus": "closed"
+                    },
+                    "releaseEvidence": {
+                      "generated_at_utc": "2026-02-27T09:49:16Z",
+                      "git": {
+                        "branch": "main",
+                        "commit": "53f513522850cb36bd92a351534991e34104fcd3"
+                      },
+                      "inputs": {
+                        "manifest": "unknown",
+                        "host": "unknown"
+                      },
+                      "gates": {
+                        "protocol_sanity": "passed",
+                        "upgrade_readiness": "passed",
+                        "mainnet_readiness": "passed",
+                        "mainnet_launch_program": "passed",
+                        "launch_artifact_completeness": "passed",
+                        "production_infrastructure": "passed",
+                        "chain_hardening": "passed",
+                        "runtime_hardening": "passed",
+                        "ecosystem_integrator": "passed",
+                        "governance_operations": "passed",
+                        "drill_evidence": "passed",
+                        "growth_user_layer": "passed",
+                        "capacity_slo_evidence": "passed",
+                        "production_data_replacement": "passed",
+                        "real_world_external_validation": "passed",
+                        "mainnet_cutover_rehearsal": "passed",
+                        "launch_day_operations": "passed",
+                        "first_week_stabilization": "passed",
+                        "phase16_automation_evidence_capture": "passed",
+                        "phase16_reliability_alerting": "passed",
+                        "phase16_operator_ux": "passed",
+                        "security_compliance_closure_evidence": "passed",
+                        "ecosystem_readiness_proof": "passed",
+                        "launch_decision_packet": "passed",
+                        "release_artifact_provenance": "passed",
+                        "one_command_agent": "not_recorded",
+                        "phase17_public_testnet_stability": "passed",
+                        "phase18_real_endpoint_cutover": "passed",
+                        "phase18_continuous_ops": "passed",
+                        "phase19_evidence_drift_controls": "passed",
+                        "public_testnet_reproducibility": "passed"
+                      },
+                      "overall_status": "passed",
+                      "artifact_policy": {
+                        "path": "artifacts/release-evidence.json",
+                        "retention": "retain latest 20 release evidence files or 90 days, whichever is greater"
+                      }
+                    }
+                  }
+                },
+                "trend": {
+                  "generatedAtUtc": "2026-02-27T10:14:21Z",
+                  "gitCommit": "53f513522850cb36bd92a351534991e34104fcd3",
+                  "sourceSummary": "artifacts/launch-control/post-launch-weekly-executive-summary-latest.json",
+                  "weeklySummary": {
+                    "weekId": "2026-W09",
+                    "overallStatus": "attention_required",
+                    "recommendation": "hold_stabilized_label_and_remediate_open_signals"
+                  },
+                  "nightly7d": [
+                    {
+                      "dayUtc": "20260221",
+                      "artifact": "artifacts/operations/nightly-ops-pack-20260221.json",
+                      "status": "missing",
+                      "present": false
+                    },
+                    {
+                      "dayUtc": "20260222",
+                      "artifact": "artifacts/operations/nightly-ops-pack-20260222.json",
+                      "status": "missing",
+                      "present": false
+                    },
+                    {
+                      "dayUtc": "20260223",
+                      "artifact": "artifacts/operations/nightly-ops-pack-20260223.json",
+                      "status": "missing",
+                      "present": false
+                    },
+                    {
+                      "dayUtc": "20260224",
+                      "artifact": "artifacts/operations/nightly-ops-pack-20260224.json",
+                      "status": "missing",
+                      "present": false
+                    },
+                    {
+                      "dayUtc": "20260225",
+                      "artifact": "artifacts/operations/nightly-ops-pack-20260225.json",
+                      "status": "missing",
+                      "present": false
+                    },
+                    {
+                      "dayUtc": "20260226",
+                      "artifact": "artifacts/operations/nightly-ops-pack-20260226.json",
+                      "status": "missing",
+                      "present": false
+                    },
+                    {
+                      "dayUtc": "20260227",
+                      "artifact": "artifacts/operations/nightly-ops-pack-20260227.json",
+                      "status": "failed",
+                      "present": true
+                    }
+                  ],
+                  "metrics": {
+                    "statusTransitions": 0,
+                    "missingNightlyArtifacts": 6,
+                    "nonPassedNightlyDays": 1,
+                    "openIssuesCount": 3
+                  }
+                },
+                "checklist": {
+                  "generatedAtUtc": "2026-02-27T10:14:21Z",
+                  "gitCommit": "53f513522850cb36bd92a351534991e34104fcd3",
+                  "weekId": "2026-W09",
+                  "summaryFile": "artifacts/launch-control/post-launch-weekly-executive-summary-latest.json",
+                  "overallStatus": "attention_required",
+                  "required": true,
+                  "openIssuesCount": 3,
+                  "issues": [
+                    {
+                      "signal": "nightlyOps",
+                      "actual": "failed",
+                      "expected": "passed",
+                      "artifactPath": "artifacts/operations/nightly-ops-pack-latest.json",
+                      "action": "Regenerate nightly ops pack and resolve failing checks before next executive review."
+                    },
+                    {
+                      "signal": "weeklyDrillClosure",
+                      "actual": "attention_required",
+                      "expected": "closed",
+                      "artifactPath": "artifacts/operations/weekly-incident-drill-pack-latest.json",
+                      "action": "Close weekly incident drill actions and publish updated closure artifact."
+                    },
+                    {
+                      "signal": "weeklyDrill",
+                      "actual": "failed",
+                      "expected": "passed",
+                      "artifactPath": "artifacts/operations/weekly-incident-drill-pack-latest.json",
+                      "action": "Re-run incident drill until all scenarios pass and archive results."
+                    }
+                  ]
+                },
+                "bundle": {
+                  "generatedAtUtc": "2026-02-27T10:14:22Z",
+                  "gitCommit": "53f513522850cb36bd92a351534991e34104fcd3",
+                  "weekId": "2026-W09",
+                  "checklistFile": "artifacts/launch-control/ops-remediation-checklist-latest.json",
+                  "required": true,
+                  "openIssuesCount": 3,
+                  "checklist": {
+                    "generatedAtUtc": "2026-02-27T10:14:21Z",
+                    "gitCommit": "53f513522850cb36bd92a351534991e34104fcd3",
+                    "weekId": "2026-W09",
+                    "summaryFile": "artifacts/launch-control/post-launch-weekly-executive-summary-latest.json",
+                    "overallStatus": "attention_required",
+                    "required": true,
+                    "openIssuesCount": 3,
+                    "issues": [
+                      {
+                        "signal": "nightlyOps",
+                        "actual": "failed",
+                        "expected": "passed",
+                        "artifactPath": "artifacts/operations/nightly-ops-pack-latest.json",
+                        "action": "Regenerate nightly ops pack and resolve failing checks before next executive review."
+                      },
+                      {
+                        "signal": "weeklyDrillClosure",
+                        "actual": "attention_required",
+                        "expected": "closed",
+                        "artifactPath": "artifacts/operations/weekly-incident-drill-pack-latest.json",
+                        "action": "Close weekly incident drill actions and publish updated closure artifact."
+                      },
+                      {
+                        "signal": "weeklyDrill",
+                        "actual": "failed",
+                        "expected": "passed",
+                        "artifactPath": "artifacts/operations/weekly-incident-drill-pack-latest.json",
+                        "action": "Re-run incident drill until all scenarios pass and archive results."
+                      }
+                    ]
+                  },
+                  "bundledArtifacts": [
+                    {
+                      "path": "artifacts/operations/nightly-ops-pack-latest.json",
+                      "sha256": "ed92738743433848f5cac96bf8f469b6f7c3389614e4ba731bf3cab8c0448eac",
+                      "content": {
+                        "generatedAtUtc": "2026-02-27T09:37:40Z",
+                        "dayUtc": "20260227",
+                        "cronSafe": true,
+                        "checks": {
+                          "gateSummary": {
+                            "status": "failed",
+                            "artifact": "artifacts/operations/nightly-gate-summary-20260227.json"
+                          },
+                          "releaseEvidenceRefresh": {
+                            "status": "passed",
+                            "artifact": "artifacts/operations/nightly-release-evidence-20260227.json"
+                          }
+                        },
+                        "overallStatus": "failed"
+                      }
+                    },
+                    {
+                      "path": "artifacts/operations/weekly-incident-drill-pack-latest.json",
+                      "sha256": "568cdefedf61fcb47e53c0c92c124c1320a216bc9d907feb58eecb347d908f09",
+                      "content": {
+                        "generatedAtUtc": "2026-02-27T09:37:40Z",
+                        "weekId": "2026-W09",
+                        "drill": {
+                          "status": "failed",
+                          "passedCount": 0,
+                          "failedCount": 0,
+                          "logArtifact": "artifacts/operations/weekly-incident-drill-2026-W09.log"
+                        },
+                        "closureStatus": "attention_required"
+                      }
+                    }
+                  ]
+                },
+                "releaseEvidence": {
+                  "generated_at_utc": "2026-02-27T09:49:16Z",
+                  "git": {
+                    "branch": "main",
+                    "commit": "53f513522850cb36bd92a351534991e34104fcd3"
+                  },
+                  "inputs": {
+                    "manifest": "unknown",
+                    "host": "unknown"
+                  },
+                  "gates": {
+                    "protocol_sanity": "passed",
+                    "upgrade_readiness": "passed",
+                    "mainnet_readiness": "passed",
+                    "mainnet_launch_program": "passed",
+                    "launch_artifact_completeness": "passed",
+                    "production_infrastructure": "passed",
+                    "chain_hardening": "passed",
+                    "runtime_hardening": "passed",
+                    "ecosystem_integrator": "passed",
+                    "governance_operations": "passed",
+                    "drill_evidence": "passed",
+                    "growth_user_layer": "passed",
+                    "capacity_slo_evidence": "passed",
+                    "production_data_replacement": "passed",
+                    "real_world_external_validation": "passed",
+                    "mainnet_cutover_rehearsal": "passed",
+                    "launch_day_operations": "passed",
+                    "first_week_stabilization": "passed",
+                    "phase16_automation_evidence_capture": "passed",
+                    "phase16_reliability_alerting": "passed",
+                    "phase16_operator_ux": "passed",
+                    "security_compliance_closure_evidence": "passed",
+                    "ecosystem_readiness_proof": "passed",
+                    "launch_decision_packet": "passed",
+                    "release_artifact_provenance": "passed",
+                    "one_command_agent": "not_recorded",
+                    "phase17_public_testnet_stability": "passed",
+                    "phase18_real_endpoint_cutover": "passed",
+                    "phase18_continuous_ops": "passed",
+                    "phase19_evidence_drift_controls": "passed",
+                    "public_testnet_reproducibility": "passed"
+                  },
+                  "overall_status": "passed",
+                  "artifact_policy": {
+                    "path": "artifacts/release-evidence.json",
+                    "retention": "retain latest 20 release evidence files or 90 days, whichever is greater"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "handoffMarkdown": "# Weekly Handoff Note (2026-W09)\n\n## Executive Status\n\n- Overall status: attention_required\n- Recommendation: hold_stabilized_label_and_remediate_open_signals\n- Open issues count: 3\n\n## Required Actions\n\n- [ ] nightlyOps (actual: failed, expected: passed)\n- [ ] weeklyDrillClosure (actual: attention_required, expected: closed)\n- [ ] weeklyDrill (actual: failed, expected: passed)\n\n## Artifact References\n\n- Summary: artifacts/launch-control/post-launch-weekly-executive-summary-latest.json\n- Publication packet: artifacts/launch-control/weekly-publication-packet-latest.json\n- Remediation checklist: artifacts/launch-control/ops-remediation-checklist-latest.json\n- Ops maturity packet: artifacts/launch-control/ops-maturity-packet-latest.json\n- Release evidence: artifacts/release-evidence.json\n\n## Operator Sign-off\n\n- Release owner: ____________________\n- Runtime owner: ____________________\n- Chain owner: ______________________",
+        "opsMaturity": {
+          "generatedAtUtc": "2026-02-27T10:14:22Z",
+          "gitCommit": "53f513522850cb36bd92a351534991e34104fcd3",
+          "weekId": "2026-W09",
+          "inputs": {
+            "summaryFile": "artifacts/launch-control/post-launch-weekly-executive-summary-latest.json",
+            "trendFile": "artifacts/launch-control/executive-trend-7d-latest.json",
+            "checklistFile": "artifacts/launch-control/ops-remediation-checklist-latest.json",
+            "bundleFile": "artifacts/launch-control/ops-remediation-bundle-latest.json",
+            "releaseEvidenceFile": "artifacts/release-evidence.json"
+          },
+          "gateStatus": {
+            "phase20OpsSignal": "passed",
+            "phase20RecoveryLoop": "passed",
+            "productComplete": "passed"
+          },
+          "overallStatus": "passed",
+          "artifacts": {
+            "summary": {
+              "generatedAtUtc": "2026-02-27T10:14:21Z",
+              "weekId": "2026-W09",
+              "gitCommit": "53f513522850cb36bd92a351534991e34104fcd3",
+              "inputs": {
+                "nightlyOpsPack": "artifacts/operations/nightly-ops-pack-latest.json",
+                "weeklyDrillPack": "artifacts/operations/weekly-incident-drill-pack-latest.json",
+                "monthlyGovernancePack": "artifacts/governance/monthly-governance-pack-latest.json",
+                "releaseEvidence": "artifacts/release-evidence.json"
+              },
+              "status": {
+                "nightlyOps": "failed",
+                "weeklyDrillClosure": "attention_required",
+                "weeklyDrill": "failed",
+                "monthlyGovernanceClosure": "closed",
+                "releaseEvidence": "passed",
+                "phase19EvidenceDriftControls": "passed"
+              },
+              "overallStatus": "attention_required",
+              "recommendation": "hold_stabilized_label_and_remediate_open_signals",
+              "artifacts": {
+                "nightlyOpsPack": {
+                  "generatedAtUtc": "2026-02-27T09:37:40Z",
+                  "dayUtc": "20260227",
+                  "cronSafe": true,
+                  "checks": {
+                    "gateSummary": {
+                      "status": "failed",
+                      "artifact": "artifacts/operations/nightly-gate-summary-20260227.json"
+                    },
+                    "releaseEvidenceRefresh": {
+                      "status": "passed",
+                      "artifact": "artifacts/operations/nightly-release-evidence-20260227.json"
+                    }
+                  },
+                  "overallStatus": "failed"
+                },
+                "weeklyDrillPack": {
+                  "generatedAtUtc": "2026-02-27T09:37:40Z",
+                  "weekId": "2026-W09",
+                  "drill": {
+                    "status": "failed",
+                    "passedCount": 0,
+                    "failedCount": 0,
+                    "logArtifact": "artifacts/operations/weekly-incident-drill-2026-W09.log"
+                  },
+                  "closureStatus": "attention_required"
+                },
+                "monthlyGovernancePack": {
+                  "generatedAtUtc": "2026-02-27T09:37:41Z",
+                  "monthId": "2026-02",
+                  "governanceReportPath": "artifacts/monthly-reports/2026-02.md",
+                  "governanceDecisionLogPath": "docs/governance-decision-log.md",
+                  "monthlyReportGateStatus": "passed",
+                  "monthlyReportGateOutput": "Monthly Report Gate\n===================\n[PASS] Monthly report found: /Users/arhansubasi/new-blokchain/artifacts/monthly-reports/2026-02.md\n[PASS] Report template exists\n[PASS] Governance decision log exists\n\nMonthly report gate: PASSED",
+                  "closureStatus": "closed"
+                },
+                "releaseEvidence": {
+                  "generated_at_utc": "2026-02-27T09:49:16Z",
+                  "git": {
+                    "branch": "main",
+                    "commit": "53f513522850cb36bd92a351534991e34104fcd3"
+                  },
+                  "inputs": {
+                    "manifest": "unknown",
+                    "host": "unknown"
+                  },
+                  "gates": {
+                    "protocol_sanity": "passed",
+                    "upgrade_readiness": "passed",
+                    "mainnet_readiness": "passed",
+                    "mainnet_launch_program": "passed",
+                    "launch_artifact_completeness": "passed",
+                    "production_infrastructure": "passed",
+                    "chain_hardening": "passed",
+                    "runtime_hardening": "passed",
+                    "ecosystem_integrator": "passed",
+                    "governance_operations": "passed",
+                    "drill_evidence": "passed",
+                    "growth_user_layer": "passed",
+                    "capacity_slo_evidence": "passed",
+                    "production_data_replacement": "passed",
+                    "real_world_external_validation": "passed",
+                    "mainnet_cutover_rehearsal": "passed",
+                    "launch_day_operations": "passed",
+                    "first_week_stabilization": "passed",
+                    "phase16_automation_evidence_capture": "passed",
+                    "phase16_reliability_alerting": "passed",
+                    "phase16_operator_ux": "passed",
+                    "security_compliance_closure_evidence": "passed",
+                    "ecosystem_readiness_proof": "passed",
+                    "launch_decision_packet": "passed",
+                    "release_artifact_provenance": "passed",
+                    "one_command_agent": "not_recorded",
+                    "phase17_public_testnet_stability": "passed",
+                    "phase18_real_endpoint_cutover": "passed",
+                    "phase18_continuous_ops": "passed",
+                    "phase19_evidence_drift_controls": "passed",
+                    "public_testnet_reproducibility": "passed"
+                  },
+                  "overall_status": "passed",
+                  "artifact_policy": {
+                    "path": "artifacts/release-evidence.json",
+                    "retention": "retain latest 20 release evidence files or 90 days, whichever is greater"
+                  }
+                }
+              }
+            },
+            "trend": {
+              "generatedAtUtc": "2026-02-27T10:14:21Z",
+              "gitCommit": "53f513522850cb36bd92a351534991e34104fcd3",
+              "sourceSummary": "artifacts/launch-control/post-launch-weekly-executive-summary-latest.json",
+              "weeklySummary": {
+                "weekId": "2026-W09",
+                "overallStatus": "attention_required",
+                "recommendation": "hold_stabilized_label_and_remediate_open_signals"
+              },
+              "nightly7d": [
+                {
+                  "dayUtc": "20260221",
+                  "artifact": "artifacts/operations/nightly-ops-pack-20260221.json",
+                  "status": "missing",
+                  "present": false
+                },
+                {
+                  "dayUtc": "20260222",
+                  "artifact": "artifacts/operations/nightly-ops-pack-20260222.json",
+                  "status": "missing",
+                  "present": false
+                },
+                {
+                  "dayUtc": "20260223",
+                  "artifact": "artifacts/operations/nightly-ops-pack-20260223.json",
+                  "status": "missing",
+                  "present": false
+                },
+                {
+                  "dayUtc": "20260224",
+                  "artifact": "artifacts/operations/nightly-ops-pack-20260224.json",
+                  "status": "missing",
+                  "present": false
+                },
+                {
+                  "dayUtc": "20260225",
+                  "artifact": "artifacts/operations/nightly-ops-pack-20260225.json",
+                  "status": "missing",
+                  "present": false
+                },
+                {
+                  "dayUtc": "20260226",
+                  "artifact": "artifacts/operations/nightly-ops-pack-20260226.json",
+                  "status": "missing",
+                  "present": false
+                },
+                {
+                  "dayUtc": "20260227",
+                  "artifact": "artifacts/operations/nightly-ops-pack-20260227.json",
+                  "status": "failed",
+                  "present": true
+                }
+              ],
+              "metrics": {
+                "statusTransitions": 0,
+                "missingNightlyArtifacts": 6,
+                "nonPassedNightlyDays": 1,
+                "openIssuesCount": 3
+              }
+            },
+            "checklist": {
+              "generatedAtUtc": "2026-02-27T10:14:21Z",
+              "gitCommit": "53f513522850cb36bd92a351534991e34104fcd3",
+              "weekId": "2026-W09",
+              "summaryFile": "artifacts/launch-control/post-launch-weekly-executive-summary-latest.json",
+              "overallStatus": "attention_required",
+              "required": true,
+              "openIssuesCount": 3,
+              "issues": [
+                {
+                  "signal": "nightlyOps",
+                  "actual": "failed",
+                  "expected": "passed",
+                  "artifactPath": "artifacts/operations/nightly-ops-pack-latest.json",
+                  "action": "Regenerate nightly ops pack and resolve failing checks before next executive review."
+                },
+                {
+                  "signal": "weeklyDrillClosure",
+                  "actual": "attention_required",
+                  "expected": "closed",
+                  "artifactPath": "artifacts/operations/weekly-incident-drill-pack-latest.json",
+                  "action": "Close weekly incident drill actions and publish updated closure artifact."
+                },
+                {
+                  "signal": "weeklyDrill",
+                  "actual": "failed",
+                  "expected": "passed",
+                  "artifactPath": "artifacts/operations/weekly-incident-drill-pack-latest.json",
+                  "action": "Re-run incident drill until all scenarios pass and archive results."
+                }
+              ]
+            },
+            "bundle": {
+              "generatedAtUtc": "2026-02-27T10:14:22Z",
+              "gitCommit": "53f513522850cb36bd92a351534991e34104fcd3",
+              "weekId": "2026-W09",
+              "checklistFile": "artifacts/launch-control/ops-remediation-checklist-latest.json",
+              "required": true,
+              "openIssuesCount": 3,
+              "checklist": {
+                "generatedAtUtc": "2026-02-27T10:14:21Z",
+                "gitCommit": "53f513522850cb36bd92a351534991e34104fcd3",
+                "weekId": "2026-W09",
+                "summaryFile": "artifacts/launch-control/post-launch-weekly-executive-summary-latest.json",
+                "overallStatus": "attention_required",
+                "required": true,
+                "openIssuesCount": 3,
+                "issues": [
+                  {
+                    "signal": "nightlyOps",
+                    "actual": "failed",
+                    "expected": "passed",
+                    "artifactPath": "artifacts/operations/nightly-ops-pack-latest.json",
+                    "action": "Regenerate nightly ops pack and resolve failing checks before next executive review."
+                  },
+                  {
+                    "signal": "weeklyDrillClosure",
+                    "actual": "attention_required",
+                    "expected": "closed",
+                    "artifactPath": "artifacts/operations/weekly-incident-drill-pack-latest.json",
+                    "action": "Close weekly incident drill actions and publish updated closure artifact."
+                  },
+                  {
+                    "signal": "weeklyDrill",
+                    "actual": "failed",
+                    "expected": "passed",
+                    "artifactPath": "artifacts/operations/weekly-incident-drill-pack-latest.json",
+                    "action": "Re-run incident drill until all scenarios pass and archive results."
+                  }
+                ]
+              },
+              "bundledArtifacts": [
+                {
+                  "path": "artifacts/operations/nightly-ops-pack-latest.json",
+                  "sha256": "ed92738743433848f5cac96bf8f469b6f7c3389614e4ba731bf3cab8c0448eac",
+                  "content": {
+                    "generatedAtUtc": "2026-02-27T09:37:40Z",
+                    "dayUtc": "20260227",
+                    "cronSafe": true,
+                    "checks": {
+                      "gateSummary": {
+                        "status": "failed",
+                        "artifact": "artifacts/operations/nightly-gate-summary-20260227.json"
+                      },
+                      "releaseEvidenceRefresh": {
+                        "status": "passed",
+                        "artifact": "artifacts/operations/nightly-release-evidence-20260227.json"
+                      }
+                    },
+                    "overallStatus": "failed"
+                  }
+                },
+                {
+                  "path": "artifacts/operations/weekly-incident-drill-pack-latest.json",
+                  "sha256": "568cdefedf61fcb47e53c0c92c124c1320a216bc9d907feb58eecb347d908f09",
+                  "content": {
+                    "generatedAtUtc": "2026-02-27T09:37:40Z",
+                    "weekId": "2026-W09",
+                    "drill": {
+                      "status": "failed",
+                      "passedCount": 0,
+                      "failedCount": 0,
+                      "logArtifact": "artifacts/operations/weekly-incident-drill-2026-W09.log"
+                    },
+                    "closureStatus": "attention_required"
+                  }
+                }
+              ]
+            },
+            "releaseEvidence": {
+              "generated_at_utc": "2026-02-27T09:49:16Z",
+              "git": {
+                "branch": "main",
+                "commit": "53f513522850cb36bd92a351534991e34104fcd3"
+              },
+              "inputs": {
+                "manifest": "unknown",
+                "host": "unknown"
+              },
+              "gates": {
+                "protocol_sanity": "passed",
+                "upgrade_readiness": "passed",
+                "mainnet_readiness": "passed",
+                "mainnet_launch_program": "passed",
+                "launch_artifact_completeness": "passed",
+                "production_infrastructure": "passed",
+                "chain_hardening": "passed",
+                "runtime_hardening": "passed",
+                "ecosystem_integrator": "passed",
+                "governance_operations": "passed",
+                "drill_evidence": "passed",
+                "growth_user_layer": "passed",
+                "capacity_slo_evidence": "passed",
+                "production_data_replacement": "passed",
+                "real_world_external_validation": "passed",
+                "mainnet_cutover_rehearsal": "passed",
+                "launch_day_operations": "passed",
+                "first_week_stabilization": "passed",
+                "phase16_automation_evidence_capture": "passed",
+                "phase16_reliability_alerting": "passed",
+                "phase16_operator_ux": "passed",
+                "security_compliance_closure_evidence": "passed",
+                "ecosystem_readiness_proof": "passed",
+                "launch_decision_packet": "passed",
+                "release_artifact_provenance": "passed",
+                "one_command_agent": "not_recorded",
+                "phase17_public_testnet_stability": "passed",
+                "phase18_real_endpoint_cutover": "passed",
+                "phase18_continuous_ops": "passed",
+                "phase19_evidence_drift_controls": "passed",
+                "public_testnet_reproducibility": "passed"
+              },
+              "overall_status": "passed",
+              "artifact_policy": {
+                "path": "artifacts/release-evidence.json",
+                "retention": "retain latest 20 release evidence files or 90 days, whichever is greater"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,30 @@
+version: v2
+
+modules:
+  - path: proto
+  - path: third_party/proto/cosmos-sdk
+  - path: third_party/proto/cosmos-proto
+  - path: third_party/proto/gogoproto
+  - path: third_party/proto/googleapis
+  - path: third_party/proto/grpc-gateway
+
+lint:
+  disallow_comment_ignores: true
+  except:
+    - COMMENT_FIELD
+    - RPC_REQUEST_STANDARD_NAME
+    - RPC_RESPONSE_STANDARD_NAME
+    - SERVICE_SUFFIX
+  ignore:
+    - proto/tendermint
+  use:
+    - COMMENTS
+    - STANDARD
+    - FILE_LOWER_SNAKE_CASE
+
+breaking:
+  except:
+    - EXTENSION_NO_DELETE
+    - FIELD_SAME_DEFAULT
+  use:
+    - FILE

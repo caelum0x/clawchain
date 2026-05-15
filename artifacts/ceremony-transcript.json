@@ -1,0 +1,50 @@
+{
+  "ceremony": {
+    "name": "ClawChain ZK Trusted Setup",
+    "curve": "BN254",
+    "protocol": "Groth16",
+    "power": 20,
+    "status": "pending",
+    "started_at": null,
+    "completed_at": null
+  },
+  "circuits": [
+    {
+      "name": "transfer",
+      "description": "Private transfer circuit — proves knowledge of commitment openings and valid Merkle path",
+      "constraints": null,
+      "public_inputs": ["root", "nullifier_hash", "commitment_new_1", "commitment_new_2"],
+      "private_inputs": ["amount_in", "blinding_in", "amount_out_1", "blinding_out_1", "amount_out_2", "blinding_out_2", "merkle_path"]
+    },
+    {
+      "name": "unshield",
+      "description": "Unshield circuit — proves ownership of shielded commitment for withdrawal",
+      "constraints": null,
+      "public_inputs": ["root", "nullifier_hash", "amount", "recipient"],
+      "private_inputs": ["blinding", "merkle_path"]
+    },
+    {
+      "name": "viewkey",
+      "description": "View key registration circuit — proves knowledge of commitment without revealing blinding",
+      "constraints": null,
+      "public_inputs": ["commitment", "view_key_hash"],
+      "private_inputs": ["amount", "blinding"]
+    }
+  ],
+  "phase1": {
+    "participants": [],
+    "contributions": [],
+    "min_participants": 5,
+    "note": "Phase 1 generates powers of tau. At least one honest participant ensures security."
+  },
+  "phase2": {
+    "participants": [],
+    "contributions": [],
+    "note": "Phase 2 is circuit-specific. Run once per circuit."
+  },
+  "instructions": {
+    "participate": "Run: clawproof ceremony contribute --phase <1|2> --input <prev.params> --output <next.params>",
+    "verify": "Run: clawproof ceremony verify --transcript ceremony-transcript.json",
+    "finalize": "Run: clawproof ceremony finalize --transcript ceremony-transcript.json --output artifacts/"
+  }
+}

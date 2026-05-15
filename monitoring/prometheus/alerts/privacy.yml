@@ -1,0 +1,112 @@
+# ClawChain Privacy Module Alert Rules
+# Monitors nullifier integrity, Merkle tree health, and privacy pool operations.
+
+groups:
+  - name: privacy_module
+    rules:
+      # -------------------------------------------------------
+      # NullifierDuplicateAttempt - Duplicate nullifier submission
+      # Severity: critical
+      # -------------------------------------------------------
+      - alert: NullifierDuplicateAttempt
+        expr: increase(clawchain_privacy_nullifier_duplicates_total[5m]) > 0
+        labels:
+          severity: critical
+          chain_id: "clawchain-1"
+        annotations:
+          summary: "Duplicate nullifier submission detected"
+          description: >-
+            A duplicate nullifier was submitted, indicating a potential
+            double-spend attempt. The transaction was rejected, but this
+            warrants investigation as it may indicate an attack.
+
+      # -------------------------------------------------------
+      # MerkleTreeInconsistency - Root validation failures
+      # Severity: critical
+      # -------------------------------------------------------
+      - alert: MerkleTreeInconsistency
+        expr: increase(clawchain_privacy_merkle_root_mismatches_total[10m]) > 0
+        labels:
+          severity: critical
+          chain_id: "clawchain-1"
+        annotations:
+          summary: "Merkle tree root inconsistency detected"
+          description: >-
+            A Merkle root mismatch has been detected, suggesting state
+            corruption or a bug in the Merkle tree implementation.
+            Immediate investigation is required.
+
+      # -------------------------------------------------------
+      # ProofVerificationFailureSpike - Many proof failures
+      # Severity: warning
+      # -------------------------------------------------------
+      - alert: ProofVerificationFailureSpike
+        expr: rate(clawchain_privacy_proof_failures_total[5m]) > 1
+        for: 5m
+        labels:
+          severity: warning
+          chain_id: "clawchain-1"
+        annotations:
+          summary: "Elevated ZK proof verification failure rate"
+          description: >-
+            The rate of ZK proof verification failures is above 1 per second.
+            This may indicate client-side proof generation bugs, an outdated
+            trusted setup, or deliberate invalid proof submissions.
+
+      # -------------------------------------------------------
+      # PrivacyPoolBalanceAnomaly - Pool balance diverges
+      # Severity: warning
+      # -------------------------------------------------------
+      - alert: PrivacyPoolBalanceAnomaly
+        expr: |
+          abs(
+            clawchain_privacy_pool_balance
+            -
+            (clawchain_privacy_shield_total - clawchain_privacy_unshield_total)
+          ) > 0
+        for: 5m
+        labels:
+          severity: warning
+          chain_id: "clawchain-1"
+        annotations:
+          summary: "Privacy pool balance does not match shield/unshield difference"
+          description: >-
+            The privacy pool balance has diverged from the expected value
+            calculated from total shields minus total unshields. This may
+            indicate a state inconsistency.
+
+      # -------------------------------------------------------
+      # ShieldVolumeSpike - Abnormal shield volume
+      # Severity: warning
+      # -------------------------------------------------------
+      - alert: ShieldVolumeSpike
+        expr: rate(clawchain_privacy_shields_total[5m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+          chain_id: "clawchain-1"
+        annotations:
+          summary: "Unusually high shield transaction volume"
+          description: >-
+            Shield transaction rate exceeds 10 per second. This may indicate
+            legitimate high usage or a potential privacy pool flood attack.
+
+      # -------------------------------------------------------
+      # MerkleTreeGrowthStalled - Tree not growing
+      # Severity: warning
+      # -------------------------------------------------------
+      - alert: MerkleTreeGrowthStalled
+        expr: |
+          rate(clawchain_privacy_commitment_count[30m]) == 0
+            and
+          rate(clawchain_privacy_shields_total[30m]) > 0
+        for: 10m
+        labels:
+          severity: warning
+          chain_id: "clawchain-1"
+        annotations:
+          summary: "Merkle tree not growing despite shield transactions"
+          description: >-
+            Shield transactions are being submitted but the commitment count
+            is not increasing. This indicates a potential bug in commitment
+            insertion.

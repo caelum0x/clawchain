@@ -1,0 +1,33 @@
+{
+  "schema_version": "1.0.0",
+  "chain_id": "clawchain-testnet-1",
+  "network_name": "ClawChain Public Testnet",
+  "genesis": {
+    "url": "https://testnet.clawchain.dev/genesis.json",
+    "sha256": "PLACEHOLDER_GENESIS_SHA256_REPLACE_WITH_REAL_HASH"
+  },
+  "endpoints": {
+    "rpc": "https://rpc.testnet.clawchain.dev",
+    "rest": "https://rest.testnet.clawchain.dev",
+    "grpc": "grpc.testnet.clawchain.dev:443",
+    "faucet": "https://faucet.testnet.clawchain.dev",
+    "monitoring": {
+      "prometheus": "https://prometheus.testnet.clawchain.dev",
+      "grafana": "https://grafana.testnet.clawchain.dev"
+    }
+  },
+  "seeds": [
+    "REPLACE_NODE_ID_1@seed1.testnet.clawchain.dev:26656",
+    "REPLACE_NODE_ID_2@seed2.testnet.clawchain.dev:26656"
+  ],
+  "binary": {
+    "version": "v0.1.0",
+    "name": "clawchaind",
+    "checksum": "PLACEHOLDER_BINARY_SHA256_REPLACE_WITH_REAL_HASH",
+    "source_repo": "https://github.com/clawchain/clawchain",
+    "build_command": "make install"
+  },
+  "updated_at": "2026-02-27T00:00:00Z",
+  "signature": "PLACEHOLDER_ED25519_SIGNATURE_REPLACE_WITH_REAL_SIGNATURE",
+  "signer_pubkey": "PLACEHOLDER_SIGNER_PUBLIC_KEY"
+}

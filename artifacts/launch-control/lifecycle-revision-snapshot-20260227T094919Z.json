@@ -1,0 +1,12 @@
+{
+  "capturedAtUtc": "2026-02-27T09:49:19Z",
+  "source": "testnet/public/manifest-lifecycle.json",
+  "gitCommit": "53f513522850cb36bd92a351534991e34104fcd3",
+  "id": "public-testnet-stable-endpoints-v1",
+  "network": "clawchain-public-testnet",
+  "revision": 5,
+  "signedUpdate": true,
+  "signatureCount": 1,
+  "manifestSha256": "c69d6473507536abf9c8a3b76cc7961832077b7ba9b29b3d528975809b29ea35",
+  "updatedAtUtc": "2026-02-27T09:33:27Z"
+}

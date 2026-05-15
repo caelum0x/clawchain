@@ -1,0 +1,40 @@
+[Unit]
+Description=ClawChain CLI Daemon (clawd)
+Documentation=https://github.com/clawchain/clawchain
+After=network-online.target clawchaind.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=clawchain
+Group=clawchain
+ExecStart=/usr/bin/node /opt/clawd/dist/main.js up
+Restart=on-failure
+RestartSec=10
+StartLimitInterval=200
+StartLimitBurst=5
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=clawd
+
+# Environment
+Environment="BLOCKCHAIN_RPC_URL=http://localhost:26657"
+Environment="BLOCKCHAIN_REST_URL=http://localhost:1317"
+Environment="BLOCKCHAIN_CHAIN_ID=clawchain-1"
+EnvironmentFile=-/etc/clawchain/clawd.env
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/clawchain
+
+# Resource limits
+LimitNOFILE=4096
+MemoryMax=1G
+
+[Install]
+WantedBy=multi-user.target
