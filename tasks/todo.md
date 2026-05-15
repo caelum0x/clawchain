@@ -10,7 +10,7 @@
 - [x] Record embedded Git repositories as explicit submodules instead of anonymous gitlinks.
 - [x] Commit the staged changes.
 - [x] Configure `origin` as `https://github.com/caelum0x/clawchain.git`.
-- [ ] Push `main` to GitHub.
+- [x] Push `main` to GitHub.
 
 ### Review
 
@@ -21,6 +21,8 @@
 - Embedded repositories are retained as submodules with their origin URLs in `.gitmodules`.
 - Local publish commit created as `2e4f5e5` before the first push retry.
 - First push attempt failed with HTTP 408 before the remote `main` ref was created.
+- Amended publish commit `26c6b97` was pushed to `https://github.com/caelum0x/clawchain.git` on branch `main`.
+- Verified remote `refs/heads/main` matched local `26c6b976737c29ce5733354dd2c42cdf1be1b5e7` after the push.
 
 - [x] Correct scope: target the full `openclaw/` project, not only `extensions/clawchain/`.
 - [x] Inspect current `openclaw/` changes and identify which parts already extend gateway/runtime/core surfaces.
