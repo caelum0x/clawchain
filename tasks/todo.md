@@ -5,13 +5,14 @@
 - [x] Review the current public README and repo structure.
 - [x] Rewrite `readme.md` as a professional blockchain project README.
 - [x] Verify Markdown/link-sensitive formatting.
-- [ ] Commit and push the README update.
+- [x] Commit and push the README update.
 
 ### Review
 
 - Current README has useful technical coverage, but the tone and structure are closer to an internal implementation summary than a public blockchain repository introduction.
 - Rewrote the README around product overview, technology stack, repository layout, chain modules, quick start, operator workflow, SDK, dashboard, GPU providers, validation, security, and documentation.
 - Verified referenced local documentation files exist and `git diff --check -- readme.md tasks/todo.md` passed.
+- Committed and pushed the README update as `e14881a` on `main`.
 
 ## GitHub Publish 2026-05-15
 
