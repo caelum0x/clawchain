@@ -294,7 +294,21 @@ new-blokchain/
 
 ---
 
-## Current Status (March 21, 2026)
+## Current Status
+
+### Repository Packaging Update (May 17, 2026)
+
+The repository has moved away from Git submodules for the large forked dependencies. The former gitlink directories, including `openclaw/`, `wagmi/`, `viem/`, `keplr-wallet/`, `claw-wallet-mobile/`, `dantegpu-core/`, and the Paradigm tool forks, are now vendored as normal ClawChain source directories. `.gitmodules` has been removed, nested `.git` metadata has been stripped from the vendored trees, and GitHub should render the directories as regular clickable folders instead of blue submodule links.
+
+The ClawChain protocol research forks are kept under `third_party/clawchain-forks/` as normal source folders. This includes A2A, OpenACP, OpenClaw, mem0, Beads, OpenZiti, Context7, agentgateway, x402, hyper402, z402, and experimental crypto/payment references that stay isolated from payment-provider application code.
+
+Project funding wallet:
+
+```text
+A4QepUcLpwqZMsxu72FLsLDs5rLNThW7RHLXJWoLDm7r
+```
+
+### Product Status (March 21, 2026)
 
 ### Functional Reality Check (Full Validation Pass — March 21, 2026)
 

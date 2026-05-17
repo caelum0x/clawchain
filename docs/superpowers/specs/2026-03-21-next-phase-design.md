@@ -3,6 +3,12 @@
 > **Date**: 2026-03-21
 > **Goal**: Harden the OpenClaw clawchain extension with missing tests, add inference intents, create live integration tests, and plan deployment + new features.
 
+## Status Amendment — 2026-05-17
+
+This March 21 design has been executed and is retained for traceability. The PRD records the agent hardening, inference intents, live OpenRouter tests, agent economy demo, ClawHub hardening, and GPU provider setup wizard as done. Future work should start from the current PRD and repository state rather than from the original task counts in this file.
+
+Repository packaging has changed since this design: `openclaw/` and the protocol research forks are normal vendored directories, not submodules. The project funding wallet and logo are now documented in `readme.md`.
+
 ## Validation Results (March 21, 2026)
 
 All test suites pass with 0 failures:

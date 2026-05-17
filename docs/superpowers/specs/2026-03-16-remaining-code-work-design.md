@@ -6,6 +6,14 @@
 
 ---
 
+## Status Amendment — 2026-05-17
+
+This design is retained as historical planning context. The current PRD records the major March 16 work as complete or superseded: governance hardening, IBC hardening, oracle productionization, GPU E2E mock pipeline, mobile wallet integration, Paradigm tool verification, and the later OpenClaw/Claw Agent hardening phases.
+
+Implementation agents should not treat the unchecked items in this file as the current execution board. Use `prd.md` for product truth and use the current repository state before applying any of the old snippets. In particular, the final oracle implementation uses the Terra Classic v4.0.0 oracle fork and `/clawchain/oracle/v1beta1/` REST surface, not the earlier new-module sketch in this document.
+
+Repository packaging has also changed since this draft: external forks are vendored as normal source directories and `.gitmodules` has been removed.
+
 ## Context
 
 ClawChain is an AI-native Cosmos SDK blockchain with 8 custom modules, an OpenClaw agent runtime, TypeScript SDK, web dashboard, CLI, DEX, and supporting infrastructure. As of March 16, 2026:

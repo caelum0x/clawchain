@@ -2,6 +2,12 @@
 
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+## Status Amendment — 2026-05-17
+
+This plan is historical and should not be used as the active task board. The PRD now records the governance, IBC, oracle, GPU, mobile wallet, Paradigm tooling, OpenClaw/Claw Agent hardening, and validation phases as complete or superseded. Use `prd.md` and current code inspection before implementing follow-on work.
+
+Known supersession: the oracle plan below sketches a new module and `/clawchain/oracle/v1/` endpoints, but the current implementation follows the Terra Classic oracle fork and `/clawchain/oracle/v1beta1/` client surface. Repository packaging also changed after this plan: dependencies and protocol forks are vendored as normal directories instead of submodules.
+
 **Goal:** Close all code gaps to reach full feature completeness — governance, IBC, oracle, GPU E2E, mobile wallet, and Paradigm tool verification.
 
 **Architecture:** 7 vertical slices executed in parallel where possible. Phases 1-4 (Governance, Oracle, IBC, GPU) have no shared state and run concurrently. Phase 5 (cross-cutting proto regen + CI) merges after 1-3. Phase 6 (mobile wallet) needs SDK methods from 1-3. Phase 7 (Paradigm tools) needs chain + seed data.

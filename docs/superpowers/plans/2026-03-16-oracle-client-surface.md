@@ -2,6 +2,12 @@
 
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+## Status Amendment — 2026-05-17
+
+This implementation plan is superseded by the production oracle path documented in `prd.md`. The current implementation uses the Terra Classic oracle fork with `/clawchain/oracle/v1beta1/` REST endpoints, clawd oracle commands, SDK oracle methods, web Oracle dashboard, and price feeder integration. Do not implement the unchecked March 16 hand-written gRPC plan unless a new design explicitly reopens it.
+
+Repository packaging has also changed: forked dependencies are vendored as regular directories, `.gitmodules` has been removed, and the current clone path is documented in `readme.md`.
+
 **Goal:** Make the oracle module fully queryable by external clients (REST, gRPC, CLI, SDK, web dashboard) and close remaining housekeeping gaps (.gitignore, tokenfactory tests, PRD update).
 
 **Architecture:** The oracle keeper already has all business logic (23 tests pass). We add gRPC service layers (QueryServer, MsgServer) that delegate to existing keeper methods, a gRPC-gateway for REST, then build clawd CLI commands, SDK methods, and a web page — all consuming the same REST endpoints. Housekeeping tasks are independent.

@@ -1,5 +1,42 @@
 # Task Plan
 
+## README Funding and Vendor Flattening 2026-05-17
+
+- [x] Add the project funding Solana wallet to `readme.md`.
+- [x] Expand `readme.md` with a clearer OpenClaw-style project overview, quick start, security, and docs structure.
+- [x] Convert existing gitlink/submodule directories, including `wagmi`, into normal project directories.
+- [x] Convert `third_party/clawchain-forks/` clones into normal project directories so they do not become nested Git repositories.
+- [x] Verify no targeted directories remain as gitlinks or nested Git repositories.
+- [x] Add current status notes to `prd.md` and the March superpowers design/plan docs.
+
+### Review
+
+- Existing submodule/gitlink directories were flattened in commit `37a813f9`; VS Code should no longer show those folders as deleted after refreshing Git status.
+- Added the ClawChain logo to `readme.md` via `docs/static/clawchain-logo.png`.
+- Added the project Solana funding wallet to `readme.md`: `A4QepUcLpwqZMsxu72FLsLDs5rLNThW7RHLXJWoLDm7r`.
+- Expanded `readme.md` with OpenClaw-style centered intro links and a protocol stack covering A2A, OpenACP, OpenClaw, mem0, Beads, OpenZiti, Context7, agentgateway, and x402-style experiments.
+- Replaced stale submodule clone instructions with normal `git clone` guidance.
+- Added a May 17, 2026 repository-packaging and funding update to `prd.md`.
+- Added May 17, 2026 status amendments to the March 16 and March 21 superpowers specs/plans so stale unchecked work is marked historical or superseded.
+- Verified Markdown whitespace with `git diff --check` across the touched docs.
+
+## ClawChain Fork and Clone 2026-05-17
+
+- [x] Confirm the ClawChain fork set from the user-provided list and avoid unrelated workspace changes.
+- [x] Create a dedicated clone directory at `third_party/clawchain-forks/`.
+- [x] Fork the selected upstream repositories with GitHub CLI.
+- [x] Clone each fork locally under `third_party/clawchain-forks/`.
+- [x] Verify each clone has a usable `origin` remote and document results.
+
+### Review
+
+- Forked or confirmed existing forks under `caelum0x` for 17 concrete repositories: `a2a-js`, `A2A`, `OpenACP`, `openclaw`, `mem0`, `beads`, `ziti`, `context7`, `agentgateway`, `x402`, `x402-gated-api`, `hyper402`, `nofx`, `agents`, `uniswap-ai`, `solana-agent-kit`, and `z402`.
+- Resolved ambiguous list entries as `Jnix2007/hyper402`, `sendaifun/solana-agent-kit`, and `chickstudi0/z402`; treated `flash-loan / trading repos` as a risk category because no exact repository was provided.
+- Cloned every fork into `third_party/clawchain-forks/`.
+- Added `upstream` remotes for all clones so each fork can sync from its source repository.
+- Verified all 17 clones have `origin` pointing at `https://github.com/caelum0x/<repo>.git` and `upstream` pointing at the selected source repo.
+- The first clone attempt hit sandbox DNS restrictions; the escalated retry completed successfully.
+
 ## README Professionalization 2026-05-15
 
 - [x] Review the current public README and repo structure.

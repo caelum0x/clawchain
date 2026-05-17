@@ -3,6 +3,12 @@
 > **Date**: 2026-03-16
 > **Goal**: Make the oracle module fully queryable by external clients (REST, gRPC, CLI, SDK, web dashboard) and close remaining housekeeping gaps.
 
+## Status Amendment — 2026-05-17
+
+This design is historical. The PRD now records the oracle work as complete through the Terra Classic oracle fork and production client surface: `x/oracle`, price feeder, clawd oracle commands, SDK oracle methods, web Oracle dashboard, and REST routes under `/clawchain/oracle/v1beta1/`. Do not restart the older hand-written `/clawchain/oracle/v1/` gRPC surface from this March 16 draft unless a new design explicitly supersedes the Terra fork.
+
+The repository packaging assumptions have also changed: forked dependencies are vendored as normal directories, not Git submodules. Use the current `readme.md` and `prd.md` for clone, funding, and repository-layout guidance.
+
 ## Background
 
 The oracle module has a complete keeper with business logic (prevote/vote cycle, EndBlocker aggregation, TWAP, miss counting, price history) and 23 passing tests. However, it has **no gRPC service registration** — no `RegisterQueryServer`, no `RegisterMsgServer`, no REST gateway. Clients cannot interact with it. The proto files exist at `proto/clawchain/oracle/v1/` but the hand-written `.pb.go` files lack service descriptors and handlers.

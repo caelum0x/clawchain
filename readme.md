@@ -1,5 +1,21 @@
 # ClawChain
 
+<p align="center">
+  <img src="docs/static/clawchain-logo.png" alt="ClawChain logo" width="420" />
+</p>
+
+<p align="center">
+  <strong>OpenClaw Blockchain for agent identity, protocol memory, payment-gated APIs, and trusted agent workflows.</strong>
+</p>
+
+<p align="center">
+  <a href="#getting-started">Getting Started</a> ·
+  <a href="#operator-workflow">Operator Workflow</a> ·
+  <a href="#chain-modules">Chain Modules</a> ·
+  <a href="#sdk">SDK</a> ·
+  <a href="#project-funding">Funding</a>
+</p>
+
 ClawChain is a sovereign blockchain for AI agents, compute providers, and autonomous digital services. It is built with Cosmos SDK, CometBFT, and IBC, and combines on-chain identity, agent coordination, privacy-preserving payments, reputation, marketplace settlement, and GPU compute into one operator-focused network.
 
 The project includes the chain node, the `clawd` operator CLI, a TypeScript SDK, a web dashboard, monitoring assets, and integrations with the OpenClaw local agent runtime.
@@ -15,6 +31,21 @@ Core goals:
 - **Privacy as a native primitive**: shielded transfers, nullifiers, Merkle roots, and proof verification paths.
 - **Interoperability**: Cosmos SDK module architecture with IBC-oriented network design.
 - **Production observability**: Prometheus, Grafana, Alertmanager, health checks, and launch/readiness artifacts.
+- **Trusted agent workflows**: OpenClaw, A2A/OpenACP references, memory systems, zero-trust networking, and payment-gated API experiments are kept in the repository as inspectable ClawChain source.
+
+## Protocol Stack
+
+ClawChain keeps the OpenClaw runtime and protocol research code close to the chain so agent workflows can be developed end to end:
+
+| Layer | Source | Role |
+| --- | --- | --- |
+| Agent protocol | `third_party/clawchain-forks/A2A/`, `third_party/clawchain-forks/a2a-js/` | Agent-to-agent interoperability and protocol references |
+| Coding-agent bridge | `third_party/clawchain-forks/OpenACP/` | Bridge layer for coding agents and agent workflows |
+| User-facing runtime | `openclaw/`, `third_party/clawchain-forks/openclaw/` | Local agent runtime, tools, skills, and channels |
+| Memory and task graph | `third_party/clawchain-forks/mem0/`, `third_party/clawchain-forks/beads/` | Agent memory and durable task context |
+| Secure network | `third_party/clawchain-forks/ziti/` | Zero-trust networking research for agent operators |
+| Gateway and context | `third_party/clawchain-forks/agentgateway/`, `third_party/clawchain-forks/context7/` | MCP/A2A gateway and contextual documentation |
+| Payment-gated APIs | `third_party/clawchain-forks/x402/`, `third_party/clawchain-forks/hyper402/`, `third_party/clawchain-forks/z402/` | Experimental HTTP 402 and payment-gated API references |
 
 ## Technology Stack
 
@@ -31,6 +62,16 @@ Core goals:
 
 Bond denomination: `uclaw`
 
+## Project Funding
+
+Project funding wallet:
+
+```text
+A4QepUcLpwqZMsxu72FLsLDs5rLNThW7RHLXJWoLDm7r
+```
+
+This is the project Solana funding address for ClawChain development support.
+
 ## Repository Layout
 
 | Path | Description |
@@ -45,12 +86,13 @@ Bond denomination: `uclaw`
 | `testnet/` | Testnet scripts, manifests, monitoring, and deployment helpers |
 | `monitoring/` | Prometheus, Grafana, and Alertmanager configuration |
 | `contracts/` | Smart contract and DEX-related integrations |
-| `openclaw/` | OpenClaw runtime submodule |
+| `openclaw/` | OpenClaw runtime fork vendored as normal project source |
+| `third_party/clawchain-forks/` | Forked agent protocol, memory, gateway, networking, and payment-gated API experiments |
 
-Several external projects are included as Git submodules. Clone with submodules when you need the full workspace:
+External forks are vendored as normal directories, not Git submodules. A regular clone includes the project source tree:
 
 ```bash
-git clone --recurse-submodules https://github.com/caelum0x/clawchain.git
+git clone https://github.com/caelum0x/clawchain.git
 ```
 
 ## Chain Modules
