@@ -90,7 +90,7 @@ export const providerDashboardHandlers: GatewayRequestHandlers = {
         connected: true,
         address,
         balance,
-        shieldedBalance,
+        shieldedBalance: shieldedBalance ?? null,
         blockHeight: runtime?.chain.latestBlockHeight ?? null,
         rewards: rewards
           ? {

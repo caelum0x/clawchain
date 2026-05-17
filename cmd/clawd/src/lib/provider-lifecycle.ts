@@ -1,5 +1,14 @@
 import { loadClawdConfig } from "./config.js";
-import { queryGatewayMethod, queryGatewayRuntimeStatus, type ClawdGatewayRuntimeStatus } from "./openclaw-gateway.js";
+import {
+  queryGatewayMethod,
+  queryGatewayProviderDashboard,
+  queryGatewayProviderStatus,
+  queryGatewayRuntimeStatus,
+  type ClawdGatewayProviderDashboard,
+  type ClawdGatewayProviderPhase,
+  type ClawdGatewayProviderStatus,
+  type ClawdGatewayRuntimeStatus,
+} from "./openclaw-gateway.js";
 import {
   createRestTaskFetcher,
   determineRecoveryAction,
@@ -11,6 +20,8 @@ export type ProviderLifecycleItem = {
   ok: boolean;
   detail: string;
   source: "gateway" | "rest" | "local" | "config" | "unavailable";
+  phase?: ClawdGatewayProviderPhase;
+  evidence?: string[];
 };
 
 export type ProviderLifecycleRewards = ProviderLifecycleItem & {
@@ -28,6 +39,14 @@ export type ProviderLifecycleRecovery = ProviderLifecycleItem & {
 export type ProviderLifecycleReport = {
   chainId: string;
   agentAddress: string | null;
+  gateway: {
+    source: "gateway" | "unavailable";
+    currentPhase: ClawdGatewayProviderPhase | null;
+    ready: boolean | null;
+    blockHeight: number | null;
+    connectedPeers: number | null;
+    evidence: string[];
+  };
   registration: ProviderLifecycleItem;
   heartbeat: ProviderLifecycleItem;
   recovery: ProviderLifecycleRecovery;
@@ -52,9 +71,17 @@ export async function evaluateProviderLifecycle(): Promise<ProviderLifecycleRepo
   const cfg = loadClawdConfig();
   const rpcUrl = cfg.rpcUrl ?? "http://localhost:26657";
   const restUrl = trimSlash(cfg.restUrl ?? deriveRestUrl(rpcUrl));
-  const agentAddress = cfg.agentAddress?.trim() || null;
 
-  const runtime = await queryGatewayRuntimeStatus();
+  const [providerStatus, providerDashboard, runtime] = await Promise.all([
+    queryGatewayProviderStatus(),
+    queryGatewayProviderDashboard(),
+    queryGatewayRuntimeStatus(),
+  ]);
+  const agentAddress =
+    cfg.agentAddress?.trim() ||
+    providerStatus?.address?.trim() ||
+    providerDashboard?.address?.trim() ||
+    null;
   const agentInfo = agentAddress
     ? await queryGatewayMethod<GatewayAgentInfoResult>("chain.agents.info", { address: agentAddress })
     : null;
@@ -62,10 +89,10 @@ export async function evaluateProviderLifecycle(): Promise<ProviderLifecycleRepo
     ? await queryGatewayMethod<GatewayWalletRewardsResult>("chain.wallet.staking.rewards", { address: agentAddress })
     : null;
 
-  const registration = await evaluateRegistration(agentAddress, restUrl, runtime, agentInfo);
-  const heartbeat = await evaluateHeartbeat(agentAddress, restUrl, runtime, agentInfo);
+  const registration = await evaluateRegistration(agentAddress, restUrl, providerStatus, runtime, agentInfo);
+  const heartbeat = await evaluateHeartbeat(agentAddress, restUrl, providerStatus, providerDashboard, runtime, agentInfo);
   const recovery = await evaluateRecovery(restUrl);
-  const rewards = await evaluateRewards(agentAddress, restUrl, walletRewards);
+  const rewards = await evaluateRewards(agentAddress, restUrl, providerDashboard, walletRewards);
 
   const blockers = [
     !registration.ok ? `registration: ${registration.detail}` : null,
@@ -77,6 +104,7 @@ export async function evaluateProviderLifecycle(): Promise<ProviderLifecycleRepo
   return {
     chainId: cfg.chainId,
     agentAddress,
+    gateway: summarizeProviderGateway(providerStatus, providerDashboard),
     registration,
     heartbeat,
     recovery,
@@ -89,6 +117,7 @@ export async function evaluateProviderLifecycle(): Promise<ProviderLifecycleRepo
 async function evaluateRegistration(
   agentAddress: string | null,
   restUrl: string,
+  providerStatus: ClawdGatewayProviderStatus | null,
   runtime: ClawdGatewayRuntimeStatus | null,
   agentInfo: GatewayAgentInfoResult | null,
 ): Promise<ProviderLifecycleItem> {
@@ -97,6 +126,21 @@ async function evaluateRegistration(
       ok: false,
       detail: "agentAddress missing in clawd config",
       source: "config",
+    };
+  }
+
+  const runPhase = providerStatus?.phases?.run;
+  if (runPhase?.ok !== undefined) {
+    const detail = runPhase.detail ?? "provider.status run phase unavailable";
+    const registered = runPhase.ok === true || detail.toLowerCase().includes("registered but");
+    return {
+      ok: registered,
+      detail: registered
+        ? `registered via provider.status phase=run`
+        : `not registered via provider.status phase=run`,
+      source: "gateway",
+      phase: "run",
+      evidence: [detail],
     };
   }
 
@@ -148,6 +192,8 @@ async function evaluateRegistration(
 async function evaluateHeartbeat(
   agentAddress: string | null,
   restUrl: string,
+  providerStatus: ClawdGatewayProviderStatus | null,
+  providerDashboard: ClawdGatewayProviderDashboard | null,
   runtime: ClawdGatewayRuntimeStatus | null,
   agentInfo: GatewayAgentInfoResult | null,
 ): Promise<ProviderLifecycleItem> {
@@ -156,6 +202,23 @@ async function evaluateHeartbeat(
       ok: false,
       detail: "agentAddress missing in clawd config",
       source: "config",
+    };
+  }
+
+  const runPhase = providerStatus?.phases?.run;
+  if (runPhase?.ok !== undefined) {
+    const detail = runPhase.detail ?? "provider.status run phase unavailable";
+    return {
+      ok: runPhase.ok === true,
+      detail: runPhase.ok === true ? "live via provider.status phase=run" : "not live via provider.status phase=run",
+      source: "gateway",
+      phase: "run",
+      evidence: [
+        detail,
+        providerDashboard?.heartbeat
+          ? `heartbeat.enabled=${Boolean(providerDashboard.heartbeat.enabled)} inFlight=${Boolean(providerDashboard.heartbeat.inFlight)} via provider.dashboard`
+          : "provider.dashboard heartbeat unavailable",
+      ],
     };
   }
 
@@ -258,6 +321,7 @@ async function evaluateRecovery(restUrl: string): Promise<ProviderLifecycleRecov
 async function evaluateRewards(
   agentAddress: string | null,
   restUrl: string,
+  providerDashboard: ClawdGatewayProviderDashboard | null,
   walletRewards: GatewayWalletRewardsResult | null,
 ): Promise<ProviderLifecycleRewards> {
   if (!agentAddress) {
@@ -267,6 +331,23 @@ async function evaluateRewards(
       source: "config",
       agentRewardsUclaw: null,
       stakingRewards: [],
+    };
+  }
+
+  const dashboardRewards = providerDashboard?.rewards;
+  if (dashboardRewards) {
+    const stakingRewards = normalizeCoins(walletRewards?.total);
+    return {
+      ok: true,
+      detail: `providerRewards=${dashboardRewards.total ?? "unavailable"} pending=${dashboardRewards.pending ?? "unavailable"} via provider.dashboard staking=${formatCoins(stakingRewards)}`,
+      source: "gateway",
+      phase: "earn",
+      evidence: [
+        `provider.dashboard connected=${Boolean(providerDashboard.connected)}`,
+        `blockHeight=${providerDashboard.blockHeight ?? "unknown"}`,
+      ],
+      agentRewardsUclaw: dashboardRewards.total ?? null,
+      stakingRewards,
     };
   }
 
@@ -297,6 +378,25 @@ async function evaluateRewards(
     source: walletRewards ? "gateway" : source,
     agentRewardsUclaw,
     stakingRewards,
+  };
+}
+
+function summarizeProviderGateway(
+  providerStatus: ClawdGatewayProviderStatus | null,
+  providerDashboard: ClawdGatewayProviderDashboard | null,
+): ProviderLifecycleReport["gateway"] {
+  const evidence = [
+    providerStatus ? "provider.status available" : "provider.status unavailable",
+    providerDashboard ? "provider.dashboard available" : "provider.dashboard unavailable",
+  ];
+  return {
+    source: providerStatus || providerDashboard ? "gateway" : "unavailable",
+    currentPhase: providerStatus?.currentPhase ?? null,
+    ready: providerStatus?.ready ?? providerDashboard?.readiness?.ready ?? null,
+    blockHeight: providerStatus?.blockHeight ?? providerDashboard?.blockHeight ?? null,
+    connectedPeers:
+      providerStatus?.connectedPeers ?? providerDashboard?.network?.connectedPeers ?? null,
+    evidence,
   };
 }
 

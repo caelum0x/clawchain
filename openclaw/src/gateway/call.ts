@@ -40,6 +40,10 @@ import type {
   ChainWalletStakingRewardsResult,
   ChainWalletTransferParams,
   ChainWalletTransferResult,
+  ProviderDashboardResult,
+  ProviderHelpParams,
+  ProviderHelpResult,
+  ProviderStatusResult,
   RuntimeStatusResult,
 } from "./protocol/index.js";
 
@@ -419,4 +423,19 @@ export const callGatewayChain = {
         params,
       }),
   },
+};
+
+export const callGatewayProvider = {
+  status: async (opts: Omit<CallGatewayOptions, "method" | "params"> = {}) =>
+    await callGateway<ProviderStatusResult>({ ...opts, method: "provider.status", params: {} }),
+  help: async (
+    params: ProviderHelpParams = {},
+    opts: Omit<CallGatewayOptions, "method" | "params"> = {},
+  ) => await callGateway<ProviderHelpResult>({ ...opts, method: "provider.help", params }),
+  dashboard: async (opts: Omit<CallGatewayOptions, "method" | "params"> = {}) =>
+    await callGateway<ProviderDashboardResult>({
+      ...opts,
+      method: "provider.dashboard",
+      params: {},
+    }),
 };

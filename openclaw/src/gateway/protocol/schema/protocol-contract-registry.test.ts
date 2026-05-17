@@ -6,6 +6,9 @@ import {
   ChainStatusResultSchema,
   EventFrameSchema,
   HeartbeatEventPayloadSchema,
+  ProviderDashboardResultSchema,
+  ProviderHelpResultSchema,
+  ProviderStatusResultSchema,
   ProtocolSchemas,
   RuntimeStatusResultSchema,
   ShutdownEventSchema,
@@ -20,6 +23,9 @@ describe("protocol contract registry coherence", () => {
     expect(ProtocolSchemas.RuntimeStatusResult).toBe(RuntimeStatusResultSchema);
     expect(ProtocolSchemas.ChainAgentsListResult).toBe(ChainAgentsListResultSchema);
     expect(ProtocolSchemas.ChainWalletBalanceResult).toBe(ChainWalletBalanceResultSchema);
+    expect(ProtocolSchemas.ProviderStatusResult).toBe(ProviderStatusResultSchema);
+    expect(ProtocolSchemas.ProviderHelpResult).toBe(ProviderHelpResultSchema);
+    expect(ProtocolSchemas.ProviderDashboardResult).toBe(ProviderDashboardResultSchema);
     expect(ProtocolSchemas.HeartbeatEventPayload).toBe(HeartbeatEventPayloadSchema);
     expect(ProtocolSchemas.TickEvent).toBe(TickEventSchema);
     expect(ProtocolSchemas.ShutdownEvent).toBe(ShutdownEventSchema);
@@ -31,6 +37,9 @@ describe("protocol contract registry coherence", () => {
     const validateRuntimeStatus = ajv.compile(ProtocolSchemas.RuntimeStatusResult);
     const validateChainAgentsList = ajv.compile(ProtocolSchemas.ChainAgentsListResult);
     const validateChainWalletBalance = ajv.compile(ProtocolSchemas.ChainWalletBalanceResult);
+    const validateProviderStatus = ajv.compile(ProtocolSchemas.ProviderStatusResult);
+    const validateProviderHelp = ajv.compile(ProtocolSchemas.ProviderHelpResult);
+    const validateProviderDashboard = ajv.compile(ProtocolSchemas.ProviderDashboardResult);
     const validateHeartbeat = ajv.compile(ProtocolSchemas.HeartbeatEventPayload);
     const validateTick = ajv.compile(ProtocolSchemas.TickEvent);
     const validateShutdown = ajv.compile(ProtocolSchemas.ShutdownEvent);
@@ -130,6 +139,97 @@ describe("protocol contract registry coherence", () => {
         address: "claw1agent",
         balances: [{ denom: "uclaw", amount: "42" }],
         blockHeight: 123,
+      }),
+    ).toBe(true);
+
+    expect(
+      validateProviderStatus({
+        ready: true,
+        currentPhase: "earn",
+        phases: {
+          install: {
+            phase: "install",
+            label: "Install",
+            ok: true,
+            detail: "Chain alive at http://localhost:26657, agent connected",
+          },
+          run: {
+            phase: "run",
+            label: "Run",
+            ok: true,
+            detail: "Agent registered at claw1agent, heartbeat active",
+          },
+          earn: {
+            phase: "earn",
+            label: "Earn",
+            ok: true,
+            detail: "Provider ready - accepting tasks, earning rewards",
+          },
+        },
+        address: "claw1agent",
+        blockHeight: 123,
+        connectedPeers: 4,
+      }),
+    ).toBe(true);
+
+    expect(
+      validateProviderHelp({
+        overview: "Your OpenClaw agent is a ClawChain provider that earns CLAW tokens.",
+        phases: [
+          {
+            phase: "install",
+            title: "Install",
+            description: "Install clawchaind + clawproof, configure your agent identity",
+            steps: ["Install clawchaind"],
+          },
+        ],
+        commands: {
+          status: "clawd provider",
+          dashboard: "clawd dashboard",
+          balance: "clawd balance",
+          tasks: "clawd task list",
+          rewards: "clawd agent rewards",
+        },
+      }),
+    ).toBe(true);
+
+    expect(
+      validateProviderDashboard({
+        connected: true,
+        address: "claw1agent",
+        balance: "42",
+        shieldedBalance: "7",
+        blockHeight: 123,
+        rewards: { total: "1000", pending: "25" },
+        stats: {
+          tasksCompleted: 9,
+          tasksFailed: 1,
+          tasksAccepted: 11,
+          reputationScore: 4.8,
+          successRate: 90,
+        },
+        network: {
+          connectedPeers: 4,
+          liveAgents: 12,
+          chainAlive: true,
+          catchingUp: false,
+        },
+        readiness: {
+          ready: true,
+          checks: {
+            chainReachable: true,
+            agentConnected: true,
+            agentRegistered: true,
+            agentLive: true,
+            messagingConfigured: true,
+            messagingReachable: true,
+            peersHealthy: true,
+          },
+          blockers: [],
+        },
+        heartbeat: { enabled: true, inFlight: false },
+        messaging: { enabled: true, reachable: true },
+        faucet: { enabled: true, available: true },
       }),
     ).toBe(true);
 

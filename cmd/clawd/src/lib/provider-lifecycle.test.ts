@@ -6,6 +6,12 @@ const queryGatewayRuntimeStatusMock = vi.hoisted(() =>
 const queryGatewayMethodMock = vi.hoisted(() =>
   vi.fn<(method: string, params?: unknown, timeoutMs?: number) => Promise<any | null>>(async () => null),
 );
+const queryGatewayProviderStatusMock = vi.hoisted(() =>
+  vi.fn<() => Promise<any | null>>(async () => null),
+);
+const queryGatewayProviderDashboardMock = vi.hoisted(() =>
+  vi.fn<() => Promise<any | null>>(async () => null),
+);
 const loadActiveTasksMock = vi.hoisted(() => vi.fn<() => any[]>(() => []));
 const createRestTaskFetcherMock = vi.hoisted(() =>
   vi.fn<(restUrl: string) => (taskId: number) => Promise<any | null>>(() => vi.fn(async () => null)),
@@ -28,6 +34,8 @@ vi.mock("./config.js", () => ({
 vi.mock("./openclaw-gateway.js", () => ({
   queryGatewayRuntimeStatus: queryGatewayRuntimeStatusMock,
   queryGatewayMethod: queryGatewayMethodMock,
+  queryGatewayProviderStatus: queryGatewayProviderStatusMock,
+  queryGatewayProviderDashboard: queryGatewayProviderDashboardMock,
 }));
 
 vi.mock("./task-recovery.js", () => ({
@@ -45,6 +53,12 @@ describe("evaluateProviderLifecycle", () => {
     originalFetch = globalThis.fetch;
     queryGatewayRuntimeStatusMock.mockReset();
     queryGatewayMethodMock.mockReset();
+    queryGatewayProviderStatusMock.mockReset();
+    queryGatewayProviderDashboardMock.mockReset();
+    queryGatewayRuntimeStatusMock.mockResolvedValue(null);
+    queryGatewayMethodMock.mockResolvedValue(null);
+    queryGatewayProviderStatusMock.mockResolvedValue(null);
+    queryGatewayProviderDashboardMock.mockResolvedValue(null);
     loadActiveTasksMock.mockReset();
     createRestTaskFetcherMock.mockReset();
     determineRecoveryActionMock.mockReset();
@@ -62,6 +76,25 @@ describe("evaluateProviderLifecycle", () => {
   });
 
   it("builds the lifecycle report from gateway registration, heartbeat, recovery, and rewards", async () => {
+    queryGatewayProviderStatusMock.mockResolvedValue({
+      ready: true,
+      currentPhase: "earn",
+      phases: {
+        install: { phase: "install", ok: true, detail: "installed" },
+        run: { phase: "run", ok: true, detail: "Agent registered at claw1agent123, heartbeat active" },
+        earn: { phase: "earn", ok: true, detail: "ready to earn" },
+      },
+      address: "claw1agent123",
+      blockHeight: 55,
+      connectedPeers: 4,
+    });
+    queryGatewayProviderDashboardMock.mockResolvedValue({
+      connected: true,
+      address: "claw1agent123",
+      blockHeight: 55,
+      rewards: { total: "1000", pending: "25" },
+      heartbeat: { enabled: true, inFlight: false },
+    });
     queryGatewayRuntimeStatusMock.mockResolvedValue({
       readiness: {
         checks: {
@@ -108,10 +141,12 @@ describe("evaluateProviderLifecycle", () => {
     const report = await evaluateProviderLifecycle();
 
     expect(report.ready).toBe(true);
-    expect(report.registration.detail).toContain("chain.agents.info");
-    expect(report.heartbeat.detail).toContain("chain.agents.info");
+    expect(report.gateway.currentPhase).toBe("earn");
+    expect(report.registration.detail).toContain("provider.status");
+    expect(report.registration.evidence?.[0]).toContain("heartbeat active");
+    expect(report.heartbeat.detail).toContain("provider.status");
     expect(report.recovery.trackedTaskCount).toBe(1);
-    expect(report.rewards.detail).toContain("agent=1000");
+    expect(report.rewards.detail).toContain("providerRewards=1000");
     expect(report.rewards.detail).toContain("staking=25uclaw");
   });
 

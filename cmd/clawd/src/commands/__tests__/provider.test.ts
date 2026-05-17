@@ -25,6 +25,14 @@ function makeLifecycleReport(overrides: Record<string, unknown> = {}): any {
     agentAddress: "claw1agent123456789012345678",
     ready: true,
     blockers: [],
+    gateway: {
+      source: "gateway",
+      currentPhase: "earn",
+      ready: true,
+      blockHeight: 123,
+      connectedPeers: 4,
+      evidence: ["provider.status available", "provider.dashboard available"],
+    },
     registration: { ok: true, detail: "registered via gateway", source: "gateway" },
     heartbeat: { ok: true, detail: "live via gateway", source: "gateway" },
     recovery: {
@@ -69,6 +77,8 @@ describe("runProviderStatus", () => {
     expect(output).toContain("Chain ID:      clawchain-1");
     expect(output).toContain("Agent:         claw1agent123456789012345678");
     expect(output).toContain("Ready:         true");
+    expect(output).toContain("Source:        gateway");
+    expect(output).toContain("Phase:         earn");
     expect(output).toContain("Registration:  true (registered via gateway)");
     expect(output).toContain("Reward total:  42 uclaw");
     expect(output).toContain("Staking lines: 1");
@@ -87,6 +97,8 @@ describe("runProviderStatus", () => {
     expect(parsed.chainId).toBe("clawchain-1");
     expect(parsed.agentAddress).toBe("claw1agent123456789012345678");
     expect(parsed.ready).toBe(true);
+    expect(parsed.gateway.currentPhase).toBe("earn");
+    expect(parsed.gateway.evidence).toContain("provider.status available");
     expect(parsed.registration.detail).toBe("registered via gateway");
     expect(parsed.rewards.agentRewardsUclaw).toBe("42");
     expect(parsed.rewards.stakingRewards).toHaveLength(1);

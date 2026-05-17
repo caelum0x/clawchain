@@ -60,6 +60,67 @@ export type ClawdGatewayRuntimeStatus = {
   };
 };
 
+export type ClawdGatewayProviderPhase = "install" | "run" | "earn";
+
+export type ClawdGatewayProviderPhaseStatus = {
+  phase?: ClawdGatewayProviderPhase;
+  label?: string;
+  ok?: boolean;
+  detail?: string;
+  action?: string;
+};
+
+export type ClawdGatewayProviderStatus = {
+  ready?: boolean;
+  currentPhase?: ClawdGatewayProviderPhase;
+  phases?: {
+    install?: ClawdGatewayProviderPhaseStatus;
+    run?: ClawdGatewayProviderPhaseStatus;
+    earn?: ClawdGatewayProviderPhaseStatus;
+  };
+  address?: string | null;
+  blockHeight?: number | null;
+  connectedPeers?: number | null;
+};
+
+export type ClawdGatewayProviderDashboard = {
+  connected?: boolean;
+  address?: string | null;
+  balance?: string | null;
+  shieldedBalance?: string | null;
+  blockHeight?: number | null;
+  rewards?: {
+    total?: string;
+    pending?: string;
+  } | null;
+  stats?: {
+    tasksCompleted?: number;
+    tasksFailed?: number;
+    tasksAccepted?: number;
+    reputationScore?: number;
+    successRate?: number | null;
+  } | null;
+  network?: {
+    connectedPeers?: number | null;
+    liveAgents?: number | null;
+    chainAlive?: boolean;
+    catchingUp?: boolean | null;
+  } | null;
+  readiness?: ClawdGatewayRuntimeStatus["readiness"] | null;
+  heartbeat?: {
+    enabled?: boolean;
+    inFlight?: boolean;
+  };
+  messaging?: {
+    enabled?: boolean;
+    reachable?: boolean | null;
+  };
+  faucet?: {
+    enabled?: boolean;
+    available?: boolean | null;
+  };
+};
+
 export function resolveOpenClawBin(): string {
   const explicit = process.env.CLAWD_OPENCLAW_BIN?.trim() || process.env.OPENCLAW_BIN?.trim();
   if (explicit) return explicit;
@@ -77,6 +138,18 @@ export async function queryGatewayRuntimeStatus(
   timeoutMs = 10_000,
 ): Promise<ClawdGatewayRuntimeStatus | null> {
   return await queryGatewayMethod<ClawdGatewayRuntimeStatus>("runtime.status", {}, timeoutMs);
+}
+
+export async function queryGatewayProviderStatus(
+  timeoutMs = 10_000,
+): Promise<ClawdGatewayProviderStatus | null> {
+  return await queryGatewayMethod<ClawdGatewayProviderStatus>("provider.status", {}, timeoutMs);
+}
+
+export async function queryGatewayProviderDashboard(
+  timeoutMs = 10_000,
+): Promise<ClawdGatewayProviderDashboard | null> {
+  return await queryGatewayMethod<ClawdGatewayProviderDashboard>("provider.dashboard", {}, timeoutMs);
 }
 
 export async function queryGatewayMethod<T>(

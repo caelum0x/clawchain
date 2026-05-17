@@ -170,6 +170,9 @@ describe("GatewayClient close handling", () => {
     await client.chain.wallet.stakingDelegations({});
     await client.chain.wallet.stakingRewards({});
     await client.chain.wallet.history({ limit: 7 });
+    await client.provider.status();
+    await client.provider.help({ phase: "earn" });
+    await client.provider.dashboard();
 
     expect(requestSpy).toHaveBeenNthCalledWith(1, "chain.status", {});
     expect(requestSpy).toHaveBeenNthCalledWith(2, "runtime.status", {});
@@ -192,5 +195,8 @@ describe("GatewayClient close handling", () => {
     expect(requestSpy).toHaveBeenNthCalledWith(10, "chain.wallet.staking.delegations", {});
     expect(requestSpy).toHaveBeenNthCalledWith(11, "chain.wallet.staking.rewards", {});
     expect(requestSpy).toHaveBeenNthCalledWith(12, "chain.wallet.history", { limit: 7 });
+    expect(requestSpy).toHaveBeenNthCalledWith(13, "provider.status", {});
+    expect(requestSpy).toHaveBeenNthCalledWith(14, "provider.help", { phase: "earn" });
+    expect(requestSpy).toHaveBeenNthCalledWith(15, "provider.dashboard", {});
   });
 });

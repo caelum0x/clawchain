@@ -1,5 +1,29 @@
 # Task Plan
 
+## Operator Runtime Gateway Contract 2026-05-17
+
+- [x] Add formal OpenClaw protocol schemas/types for `provider.status`, `provider.help`, and `provider.dashboard`.
+- [x] Register provider schemas in the protocol schema registry and add representative contract validation tests.
+- [x] Add typed provider helpers in OpenClaw gateway client/call wrappers with method-name mapping tests.
+- [x] Update `clawd` gateway bridge helpers to query `provider.status` and `provider.dashboard` directly.
+- [x] Update provider lifecycle, readiness, `clawd provider`, and `clawd dashboard` aggregation to prefer gateway provider contracts while retaining existing fallbacks.
+- [x] Keep JSON output backward-compatible and add gateway source/phase/evidence fields when provider gateway data is available.
+- [x] Run focused OpenClaw, clawd, Go module, and whitespace verification commands.
+
+### Review
+
+- Added provider protocol schemas and static TypeScript aliases for `provider.status`, `provider.help`, and `provider.dashboard`.
+- Registered the provider schemas in `ProtocolSchemas` and added representative validation payloads to `protocol-contract-registry.test.ts`.
+- Added typed OpenClaw `GatewayClient.provider.*` and `callGatewayProvider.*` helpers with exact method-name mapping tests.
+- Added `clawd` bridge helpers for `provider.status` and `provider.dashboard`.
+- Updated `clawd` provider lifecycle/readiness to prefer provider gateway contracts, with existing `chain.*`, `runtime.status`, REST, and local fallbacks retained.
+- Added gateway source/current phase/evidence fields to `clawd provider --out json` and `clawd dashboard --json`, plus concise pretty-output source/phase lines.
+- Verification passed:
+  - `cd openclaw && npm test -- --run src/gateway/server-methods/provider-lifecycle.test.ts src/gateway/server-methods/provider-dashboard.test.ts src/gateway/protocol/schema/protocol-contract-registry.test.ts src/gateway/call.test.ts src/gateway/client.test.ts` (46/46 tests)
+  - `cd cmd/clawd && npm test -- --run src/commands/__tests__/dashboard.test.ts src/commands/__tests__/provider.test.ts src/commands/__tests__/readiness.test.ts src/lib/provider-lifecycle.test.ts src/lib/readiness.test.ts` (26/26 tests)
+  - `go test -timeout 10m ./x/agent/... ./x/marketplace/... ./x/modelregistry/... ./x/privacy/... ./x/reputation/...`
+  - `git diff --check`
+
 ## README Funding and Vendor Flattening 2026-05-17
 
 - [x] Add the project funding Solana wallet to `readme.md`.

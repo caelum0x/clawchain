@@ -46,6 +46,14 @@ function makeProviderLifecycle(overrides: Record<string, unknown> = {}): any {
   return {
     ready: true,
     blockers: [],
+    gateway: {
+      source: "gateway",
+      currentPhase: "earn",
+      ready: true,
+      blockHeight: 123,
+      connectedPeers: 4,
+      evidence: ["provider.status available", "provider.dashboard available"],
+    },
     registration: { ok: true, detail: "registered via gateway", source: "gateway" },
     heartbeat: { ok: true, detail: "live via gateway", source: "gateway" },
     recovery: {
@@ -307,6 +315,9 @@ describe("runDashboard", () => {
 
     const output = logs.join("\n");
     expect(output).toContain("Local Provider");
+    expect(output).toContain("Source");
+    expect(output).toContain("gateway");
+    expect(output).toContain("Phase");
     expect(output).toContain("registered via gateway");
     expect(output).toContain("live via gateway");
     expect(output).toContain("agent=0 staking=none");
@@ -351,6 +362,9 @@ describe("runDashboard", () => {
     expect(parsed.validators).toBeDefined();
     expect(parsed.agents).toBeDefined();
     expect(parsed.provider).toBeDefined();
+    expect(parsed.provider.source).toBe("gateway");
+    expect(parsed.provider.currentPhase).toBe("earn");
+    expect(parsed.provider.evidence).toContain("provider.status available");
     expect(parsed.provider.registration).toBe("registered via gateway");
     expect(parsed.provider.ready).toBe(true);
     expect(parsed.privacy).toBeDefined();

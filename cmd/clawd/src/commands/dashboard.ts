@@ -178,11 +178,14 @@ interface DashboardData {
   };
   provider: {
     ready: boolean;
+    source: string;
+    currentPhase: string | null;
     registration: string;
     heartbeat: string;
     recovery: string;
     rewards: string;
     blockers: string[];
+    evidence: string[];
     reachable: boolean;
   };
   privacy: {
@@ -349,11 +352,14 @@ async function gatherDashboardData(): Promise<DashboardData> {
     },
     provider: {
       ready: providerLifecycle.ready,
+      source: providerLifecycle.gateway.source,
+      currentPhase: providerLifecycle.gateway.currentPhase,
       registration: providerLifecycle.registration.detail,
       heartbeat: providerLifecycle.heartbeat.detail,
       recovery: providerLifecycle.recovery.detail,
       rewards: providerLifecycle.rewards.detail,
       blockers: providerLifecycle.blockers,
+      evidence: providerLifecycle.gateway.evidence,
       reachable: true,
     },
     privacy: {
@@ -450,6 +456,10 @@ function renderDashboard(data: DashboardData): string {
   lines.push(boxLine("Local Provider"));
   if (data.provider.reachable) {
     lines.push(boxLine(`  Ready            : ${data.provider.ready ? "YES" : "no"}`));
+    lines.push(boxLine(`  Source           : ${data.provider.source}`));
+    if (data.provider.currentPhase) {
+      lines.push(boxLine(`  Phase            : ${data.provider.currentPhase}`));
+    }
     lines.push(boxLine(`  Registration     : ${data.provider.registration}`));
     lines.push(boxLine(`  Heartbeat        : ${data.provider.heartbeat}`));
     lines.push(boxLine(`  Recovery         : ${data.provider.recovery}`));

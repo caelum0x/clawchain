@@ -2,7 +2,11 @@ import { loadClawdConfig } from "./config.js";
 import { shouldRequireSignedManifest } from "./manifest-security.js";
 import {
   queryGatewayMethod,
+  queryGatewayProviderDashboard,
+  queryGatewayProviderStatus,
   queryGatewayRuntimeStatus,
+  type ClawdGatewayProviderDashboard,
+  type ClawdGatewayProviderStatus,
   type ClawdGatewayRuntimeStatus,
 } from "./openclaw-gateway.js";
 
@@ -53,10 +57,19 @@ export async function evaluateIntegratedReadiness(): Promise<ReadinessReport> {
     trimSlash(process.env.OPENCLAW_GATEWAY_URL ?? "http://localhost:18789"),
     "http://localhost:3000",
   ];
-  const runtime = await queryGatewayRuntimeStatus();
-  const agentInfo = cfg.agentAddress
+  const [providerStatus, providerDashboard, runtime] = await Promise.all([
+    queryGatewayProviderStatus(),
+    queryGatewayProviderDashboard(),
+    queryGatewayRuntimeStatus(),
+  ]);
+  const agentAddress =
+    cfg.agentAddress?.trim() ||
+    providerStatus?.address?.trim() ||
+    providerDashboard?.address?.trim() ||
+    undefined;
+  const agentInfo = agentAddress
     ? await queryGatewayMethod<GatewayAgentInfoResult>("chain.agents.info", {
-        address: cfg.agentAddress,
+        address: agentAddress,
       })
     : null;
 
@@ -64,9 +77,11 @@ export async function evaluateIntegratedReadiness(): Promise<ReadinessReport> {
   checks.push(await checkRpc(rpcUrl, cfg.chainId));
   checks.push(await checkRest(restUrl));
   checks.push(checkManifestSignature(cfg));
-  checks.push(await checkGateway(gatewayCandidates, runtime));
-  checks.push(await checkAgentRegistered(restUrl, cfg.agentAddress, runtime, agentInfo));
-  checks.push(await checkAgentLiveness(restUrl, cfg.agentAddress, runtime, agentInfo));
+  checks.push(await checkGateway(gatewayCandidates, runtime, providerStatus, providerDashboard));
+  checks.push(await checkAgentRegistered(restUrl, agentAddress, providerStatus, runtime, agentInfo));
+  checks.push(
+    await checkAgentLiveness(restUrl, agentAddress, providerStatus, providerDashboard, runtime, agentInfo),
+  );
   checks.push(await checkMessagingEndpoint(cfg.messagingEndpoint, runtime));
   checks.push(await checkPeers(rpcUrl, runtime));
   checks.push(checkIncidentMode(cfg.incidentMode));
@@ -75,7 +90,7 @@ export async function evaluateIntegratedReadiness(): Promise<ReadinessReport> {
 
   return {
     chainId: cfg.chainId,
-    agentAddress: cfg.agentAddress ?? null,
+    agentAddress: agentAddress ?? null,
     rpcUrl,
     restUrl,
     messagingEndpoint: cfg.messagingEndpoint ?? null,
@@ -272,7 +287,20 @@ async function checkRest(restUrl: string): Promise<ReadinessCheck> {
 async function checkGateway(
   candidates: string[],
   runtime: ClawdGatewayRuntimeStatus | null,
+  providerStatus: ClawdGatewayProviderStatus | null,
+  providerDashboard: ClawdGatewayProviderDashboard | null,
 ): Promise<ReadinessCheck> {
+  if (providerStatus || providerDashboard) {
+    const currentPhase = providerStatus?.currentPhase ?? "unknown";
+    const ready = providerStatus?.ready ?? providerDashboard?.readiness?.ready ?? null;
+    return {
+      name: "OpenClaw gateway",
+      ok: true,
+      detail: `provider gateway available phase=${currentPhase} ready=${ready ?? "unknown"}`,
+      required: true,
+    };
+  }
+
   if (runtime) {
     const blockers = runtime.readiness?.blockers ?? [];
     return {
@@ -312,6 +340,7 @@ async function checkGateway(
 async function checkAgentRegistered(
   restUrl: string,
   agentAddress?: string,
+  providerStatus?: ClawdGatewayProviderStatus | null,
   runtime?: ClawdGatewayRuntimeStatus | null,
   agentInfo?: GatewayAgentInfoResult | null,
 ): Promise<ReadinessCheck> {
@@ -320,6 +349,20 @@ async function checkAgentRegistered(
       name: "On-chain agent identity",
       ok: false,
       detail: "agentAddress is missing in clawd config",
+      required: true,
+    };
+  }
+
+  const runPhase = providerStatus?.phases?.run;
+  if (runPhase?.ok !== undefined) {
+    const detail = runPhase.detail ?? "provider.status run phase unavailable";
+    const registered = runPhase.ok === true || detail.toLowerCase().includes("registered but");
+    return {
+      name: "On-chain agent identity",
+      ok: registered,
+      detail: registered
+        ? `registered=true via provider.status phase=run evidence=${detail}`
+        : `registered=false via provider.status phase=run evidence=${detail}`,
       required: true,
     };
   }
@@ -387,6 +430,8 @@ async function checkAgentRegistered(
 async function checkAgentLiveness(
   restUrl: string,
   agentAddress?: string,
+  providerStatus?: ClawdGatewayProviderStatus | null,
+  providerDashboard?: ClawdGatewayProviderDashboard | null,
   runtime?: ClawdGatewayRuntimeStatus | null,
   agentInfo?: GatewayAgentInfoResult | null,
 ): Promise<ReadinessCheck> {
@@ -395,6 +440,24 @@ async function checkAgentLiveness(
       name: "Agent heartbeat/liveness",
       ok: false,
       detail: "agentAddress is missing in clawd config",
+      required: true,
+    };
+  }
+
+  const runPhase = providerStatus?.phases?.run;
+  if (runPhase?.ok !== undefined) {
+    const detail = runPhase.detail ?? "provider.status run phase unavailable";
+    const heartbeat = providerDashboard?.heartbeat;
+    const heartbeatDetail = heartbeat
+      ? ` heartbeat.enabled=${Boolean(heartbeat.enabled)} inFlight=${Boolean(heartbeat.inFlight)}`
+      : "";
+    return {
+      name: "Agent heartbeat/liveness",
+      ok: runPhase.ok === true,
+      detail:
+        runPhase.ok === true
+          ? `agentLive=true via provider.status phase=run evidence=${detail}${heartbeatDetail}`
+          : `agentLive=false via provider.status phase=run evidence=${detail}${heartbeatDetail}`,
       required: true,
     };
   }

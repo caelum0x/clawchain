@@ -161,6 +161,16 @@ import {
 } from "./sessions.js";
 import { PresenceEntrySchema, SnapshotSchema, StateVersionSchema } from "./snapshot.js";
 import {
+  ProviderDashboardParamsSchema,
+  ProviderDashboardResultSchema,
+  ProviderHelpParamsSchema,
+  ProviderHelpResultSchema,
+  ProviderPhaseSchema,
+  ProviderPhaseStatusSchema,
+  ProviderStatusParamsSchema,
+  ProviderStatusResultSchema,
+} from "./provider.js";
+import {
   WizardCancelParamsSchema,
   WizardNextParamsSchema,
   WizardNextResultSchema,
@@ -249,6 +259,14 @@ export const ProtocolSchemas: Record<string, TSchema> = {
   ChainWalletHistoryResult: ChainWalletHistoryResultSchema,
   RuntimeStatusParams: RuntimeStatusParamsSchema,
   RuntimeStatusResult: RuntimeStatusResultSchema,
+  ProviderStatusParams: ProviderStatusParamsSchema,
+  ProviderStatusResult: ProviderStatusResultSchema,
+  ProviderPhase: ProviderPhaseSchema,
+  ProviderPhaseStatus: ProviderPhaseStatusSchema,
+  ProviderHelpParams: ProviderHelpParamsSchema,
+  ProviderHelpResult: ProviderHelpResultSchema,
+  ProviderDashboardParams: ProviderDashboardParamsSchema,
+  ProviderDashboardResult: ProviderDashboardResultSchema,
   ChainContracts: ChainContractsSchema,
   TalkConfigParams: TalkConfigParamsSchema,
   TalkConfigResult: TalkConfigResultSchema,

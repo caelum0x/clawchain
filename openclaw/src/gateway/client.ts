@@ -46,6 +46,10 @@ import {
   type ConnectParams,
   type EventFrame,
   type HelloOk,
+  type ProviderDashboardResult,
+  type ProviderHelpParams,
+  type ProviderHelpResult,
+  type ProviderStatusResult,
   PROTOCOL_VERSION,
   type RequestFrame,
   type RuntimeStatusResult,
@@ -156,6 +160,15 @@ export class GatewayClient {
       history: async (params: ChainWalletHistoryParams = {}): Promise<ChainWalletHistoryResult> =>
         await this.request<ChainWalletHistoryResult>("chain.wallet.history", params),
     },
+  };
+
+  readonly provider = {
+    status: async (): Promise<ProviderStatusResult> =>
+      await this.request<ProviderStatusResult>("provider.status", {}),
+    help: async (params: ProviderHelpParams = {}): Promise<ProviderHelpResult> =>
+      await this.request<ProviderHelpResult>("provider.help", params),
+    dashboard: async (): Promise<ProviderDashboardResult> =>
+      await this.request<ProviderDashboardResult>("provider.dashboard", {}),
   };
 
   constructor(opts: GatewayClientOptions) {

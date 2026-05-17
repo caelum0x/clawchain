@@ -6,6 +6,12 @@ const queryGatewayRuntimeStatusMock = vi.hoisted(() =>
 const queryGatewayMethodMock = vi.hoisted(() =>
   vi.fn<(method: string, params?: unknown, timeoutMs?: number) => Promise<any | null>>(async () => null),
 );
+const queryGatewayProviderStatusMock = vi.hoisted(() =>
+  vi.fn<() => Promise<any | null>>(async () => null),
+);
+const queryGatewayProviderDashboardMock = vi.hoisted(() =>
+  vi.fn<() => Promise<any | null>>(async () => null),
+);
 
 vi.mock("./config.js", () => ({
   loadClawdConfig: vi.fn(() => ({
@@ -24,6 +30,8 @@ vi.mock("./manifest-security.js", () => ({
 vi.mock("./openclaw-gateway.js", () => ({
   queryGatewayRuntimeStatus: queryGatewayRuntimeStatusMock,
   queryGatewayMethod: queryGatewayMethodMock,
+  queryGatewayProviderStatus: queryGatewayProviderStatusMock,
+  queryGatewayProviderDashboard: queryGatewayProviderDashboardMock,
 }));
 
 import { evaluateIntegratedReadiness } from "./readiness.js";
@@ -35,6 +43,12 @@ describe("evaluateIntegratedReadiness", () => {
     originalFetch = globalThis.fetch;
     queryGatewayRuntimeStatusMock.mockReset();
     queryGatewayMethodMock.mockReset();
+    queryGatewayProviderStatusMock.mockReset();
+    queryGatewayProviderDashboardMock.mockReset();
+    queryGatewayRuntimeStatusMock.mockResolvedValue(null);
+    queryGatewayMethodMock.mockResolvedValue(null);
+    queryGatewayProviderStatusMock.mockResolvedValue(null);
+    queryGatewayProviderDashboardMock.mockResolvedValue(null);
   });
 
   afterEach(() => {
@@ -42,7 +56,25 @@ describe("evaluateIntegratedReadiness", () => {
     vi.restoreAllMocks();
   });
 
-  it("prefers gateway runtime and chain agent contracts when available", async () => {
+  it("prefers gateway provider contracts when available", async () => {
+    queryGatewayProviderStatusMock.mockResolvedValue({
+      ready: true,
+      currentPhase: "earn",
+      phases: {
+        run: {
+          phase: "run",
+          ok: true,
+          detail: "Agent registered at claw1agent123, heartbeat active",
+        },
+      },
+      address: "claw1agent123",
+    });
+    queryGatewayProviderDashboardMock.mockResolvedValue({
+      connected: true,
+      address: "claw1agent123",
+      heartbeat: { enabled: true, inFlight: false },
+      readiness: { ready: true },
+    });
     queryGatewayRuntimeStatusMock.mockResolvedValue({
       messaging: {
         enabled: true,
@@ -109,14 +141,14 @@ describe("evaluateIntegratedReadiness", () => {
     expect(report.ready).toBe(true);
     expect(report.blockers).toHaveLength(0);
     expect(report.checks.find((check) => check.name === "OpenClaw gateway")?.detail).toContain(
-      "runtime.status available",
+      "provider gateway available",
     );
     expect(
       report.checks.find((check) => check.name === "On-chain agent identity")?.detail,
-    ).toContain("chain.agents.info");
+    ).toContain("provider.status");
     expect(
       report.checks.find((check) => check.name === "Agent heartbeat/liveness")?.detail,
-    ).toContain("chain.agents.info");
+    ).toContain("provider.status");
     expect(report.checks.find((check) => check.name === "Peer connectivity")?.detail).toContain(
       "runtime.status",
     );

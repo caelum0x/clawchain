@@ -14,6 +14,7 @@ export async function runProviderStatus(opts: { out?: string } = {}): Promise<vo
           agentAddress: lifecycle.agentAddress,
           ready: lifecycle.ready,
           blockers: lifecycle.blockers,
+          gateway: lifecycle.gateway,
           registration: lifecycle.registration,
           heartbeat: lifecycle.heartbeat,
           recovery: lifecycle.recovery,
@@ -30,6 +31,10 @@ export async function runProviderStatus(opts: { out?: string } = {}): Promise<vo
   console.log(`  Chain ID:      ${lifecycle.chainId || config.chainId}`);
   console.log(`  Agent:         ${lifecycle.agentAddress ?? "(not configured)"}`);
   console.log(`  Ready:         ${lifecycle.ready}`);
+  console.log(`  Source:        ${lifecycle.gateway.source}`);
+  if (lifecycle.gateway.currentPhase) {
+    console.log(`  Phase:         ${lifecycle.gateway.currentPhase}`);
+  }
   console.log(`  Registration:  ${lifecycle.registration.ok} (${lifecycle.registration.detail})`);
   console.log(`  Heartbeat:     ${lifecycle.heartbeat.ok} (${lifecycle.heartbeat.detail})`);
   console.log(`  Recovery:      ${lifecycle.recovery.ok} (${lifecycle.recovery.detail})`);

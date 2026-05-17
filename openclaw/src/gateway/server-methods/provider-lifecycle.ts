@@ -197,7 +197,7 @@ export const providerLifecycleHandlers: GatewayRequestHandlers = {
         ready: allOk,
         currentPhase,
         phases: { install, run, earn },
-        address: getBlockchainAddress(),
+        address: getBlockchainAddress() ?? null,
         blockHeight: runtime?.chain.latestBlockHeight ?? null,
         connectedPeers: runtime?.peers.connectedPeers ?? null,
       });

@@ -81,7 +81,8 @@ vi.mock("./client.js", () => ({
   },
 }));
 
-const { buildGatewayConnectionDetails, callGateway, callGatewayChain } = await import("./call.js");
+const { buildGatewayConnectionDetails, callGateway, callGatewayChain, callGatewayProvider } =
+  await import("./call.js");
 
 describe("callGateway url resolution", () => {
   beforeEach(() => {
@@ -612,6 +613,40 @@ describe("callGatewayChain wrappers", () => {
     expect(lastRequest).toEqual({
       method: "chain.wallet.history",
       params: { limit: 5 },
+      opts: { expectFinal: undefined },
+    });
+  });
+});
+
+describe("callGatewayProvider wrappers", () => {
+  beforeEach(() => {
+    loadConfig.mockReset();
+    resolveGatewayPort.mockReset();
+    pickPrimaryTailnetIPv4.mockReset();
+    pickPrimaryLanIPv4.mockReset();
+    lastClientOptions = null;
+    lastRequest = null;
+    startMode = "hello";
+    resolveGatewayPort.mockReturnValue(18789);
+    pickPrimaryTailnetIPv4.mockReturnValue(undefined);
+    loadConfig.mockReturnValue({ gateway: { mode: "local", bind: "loopback" } });
+  });
+
+  it("maps typed provider call wrappers to the expected gateway methods", async () => {
+    await callGatewayProvider.status();
+    expect(lastRequest).toEqual({ method: "provider.status", params: {}, opts: { expectFinal: undefined } });
+
+    await callGatewayProvider.help({ phase: "run" });
+    expect(lastRequest).toEqual({
+      method: "provider.help",
+      params: { phase: "run" },
+      opts: { expectFinal: undefined },
+    });
+
+    await callGatewayProvider.dashboard();
+    expect(lastRequest).toEqual({
+      method: "provider.dashboard",
+      params: {},
       opts: { expectFinal: undefined },
     });
   });

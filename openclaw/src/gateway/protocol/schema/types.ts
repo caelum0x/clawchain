@@ -154,6 +154,16 @@ import type {
 } from "./sessions.js";
 import type { PresenceEntrySchema, SnapshotSchema, StateVersionSchema } from "./snapshot.js";
 import type {
+  ProviderDashboardParamsSchema,
+  ProviderDashboardResultSchema,
+  ProviderHelpParamsSchema,
+  ProviderHelpResultSchema,
+  ProviderPhaseSchema,
+  ProviderPhaseStatusSchema,
+  ProviderStatusParamsSchema,
+  ProviderStatusResultSchema,
+} from "./provider.js";
+import type {
   WizardCancelParamsSchema,
   WizardNextParamsSchema,
   WizardNextResultSchema,
@@ -239,6 +249,14 @@ export type ChainWalletHistoryResult = Static<typeof ChainWalletHistoryResultSch
 export type RuntimeStatusParams = Static<typeof RuntimeStatusParamsSchema>;
 export type RuntimeStatusResult = Static<typeof RuntimeStatusResultSchema>;
 export type ChainContracts = Static<typeof ChainContractsSchema>;
+export type ProviderStatusParams = Static<typeof ProviderStatusParamsSchema>;
+export type ProviderStatusResult = Static<typeof ProviderStatusResultSchema>;
+export type ProviderPhase = Static<typeof ProviderPhaseSchema>;
+export type ProviderPhaseStatus = Static<typeof ProviderPhaseStatusSchema>;
+export type ProviderHelpParams = Static<typeof ProviderHelpParamsSchema>;
+export type ProviderHelpResult = Static<typeof ProviderHelpResultSchema>;
+export type ProviderDashboardParams = Static<typeof ProviderDashboardParamsSchema>;
+export type ProviderDashboardResult = Static<typeof ProviderDashboardResultSchema>;
 export type TalkConfigParams = Static<typeof TalkConfigParamsSchema>;
 export type TalkConfigResult = Static<typeof TalkConfigResultSchema>;
 export type ChannelsStatusParams = Static<typeof ChannelsStatusParamsSchema>;
