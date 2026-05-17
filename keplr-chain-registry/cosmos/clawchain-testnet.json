@@ -1,0 +1,45 @@
+{
+  "chainId": "clawchain-testnet-1",
+  "chainName": "ClawChain Testnet",
+  "chainSymbolImageUrl": "https://raw.githubusercontent.com/chainapsis/keplr-chain-registry/main/images/clawchain-testnet/chain.png",
+  "rpc": "https://rpc-testnet.clawchain.io",
+  "rest": "https://api-testnet.clawchain.io",
+  "bip44": {
+    "coinType": 118
+  },
+  "bech32Config": {
+    "bech32PrefixAccAddr": "claw",
+    "bech32PrefixAccPub": "clawpub",
+    "bech32PrefixValAddr": "clawvaloper",
+    "bech32PrefixValPub": "clawvaloperpub",
+    "bech32PrefixConsAddr": "clawvalcons",
+    "bech32PrefixConsPub": "clawvalconspub"
+  },
+  "currencies": [
+    {
+      "coinDenom": "CLAW",
+      "coinMinimalDenom": "uclaw",
+      "coinDecimals": 6,
+      "coinGeckoId": "clawchain",
+      "coinImageUrl": "https://raw.githubusercontent.com/chainapsis/keplr-chain-registry/main/images/clawchain-testnet/uclaw.png"
+    }
+  ],
+  "feeCurrencies": [
+    {
+      "coinDenom": "CLAW",
+      "coinMinimalDenom": "uclaw",
+      "coinDecimals": 6,
+      "gasPriceStep": {
+        "low": 0.01,
+        "average": 0.025,
+        "high": 0.04
+      }
+    }
+  ],
+  "stakeCurrency": {
+    "coinDenom": "CLAW",
+    "coinMinimalDenom": "uclaw",
+    "coinDecimals": 6
+  },
+  "features": ["ibc-transfer", "ibc-go"]
+}

@@ -1,0 +1,1138 @@
+/*
+	Copyright NetFoundry Inc.
+
+	Licensed under the Apache License, Version 2.0 (the "License");
+	you may not use this file except in compliance with the License.
+	You may obtain a copy of the License at
+
+	https://www.apache.org/licenses/LICENSE-2.0
+
+	Unless required by applicable law or agreed to in writing, software
+	distributed under the License is distributed on an "AS IS" BASIS,
+	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	See the License for the specific language governing permissions and
+	limitations under the License.
+*/
+
+package raft
+
+import (
+	"crypto/x509"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
+	"path"
+	"reflect"
+	"strconv"
+	"sync"
+	"sync/atomic"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/hashicorp/raft"
+	raftboltdb "github.com/hashicorp/raft-boltdb/v2"
+	"github.com/michaelquigley/pfxlog"
+	"github.com/mitchellh/mapstructure"
+	"github.com/openziti/channel/v4"
+	"github.com/openziti/foundation/v2/concurrenz"
+	"github.com/openziti/foundation/v2/errorz"
+	"github.com/openziti/foundation/v2/rate"
+	"github.com/openziti/foundation/v2/versions"
+	"github.com/openziti/identity"
+	"github.com/openziti/metrics"
+	"github.com/openziti/ziti/v2/controller/storage/boltz"
+	"github.com/openziti/ziti/v2/common/pb/cmd_pb"
+	"github.com/openziti/ziti/v2/common/pb/ctrl_pb"
+	"github.com/openziti/ziti/v2/controller/apierror"
+	"github.com/openziti/ziti/v2/controller/change"
+	"github.com/openziti/ziti/v2/controller/command"
+	"github.com/openziti/ziti/v2/controller/config"
+	"github.com/openziti/ziti/v2/controller/db"
+	"github.com/openziti/ziti/v2/controller/event"
+	"github.com/openziti/ziti/v2/controller/model"
+	"github.com/openziti/ziti/v2/controller/peermsg"
+	"github.com/openziti/ziti/v2/controller/raft/mesh"
+	"github.com/sirupsen/logrus"
+	"github.com/teris-io/shortid"
+)
+
+const (
+	LeaderCheckInterval = 5 * time.Second
+	MeshCleanupInterval = time.Minute
+)
+
+type ClusterEvent uint32
+
+func (self ClusterEvent) String() string {
+	switch self {
+	case ClusterEventReadOnly:
+		return "ClusterEventReadOnly"
+	case ClusterEventReadWrite:
+		return "ClusterEventReadWrite"
+	case ClusterEventLeadershipGained:
+		return "ClusterEventLeadershipGained"
+	case ClusterEventLeadershipLost:
+		return "ClusterEventLeadershipLost"
+	default:
+		return fmt.Sprintf("UnhandledClusterEventType[%v]", uint32(self))
+	}
+}
+
+const (
+	ClusterEventReadOnly         ClusterEvent = 0
+	ClusterEventReadWrite        ClusterEvent = 1
+	ClusterEventLeadershipGained ClusterEvent = 2
+	ClusterEventLeadershipLost   ClusterEvent = 3
+	ClusterEventHasLeader        ClusterEvent = 4
+	ClusterEventIsLeaderless     ClusterEvent = 5
+
+	isLeaderMask    = 0b01
+	isReadWriteMask = 0b10
+)
+
+type ClusterState uint8
+
+func (c ClusterState) IsLeader() bool {
+	return uint8(c)&isLeaderMask == isLeaderMask
+}
+
+func (c ClusterState) IsReadWrite() bool {
+	return uint8(c)&isReadWriteMask == isReadWriteMask
+}
+
+func (c ClusterState) String() string {
+	return fmt.Sprintf("ClusterState[isLeader=%v, isReadWrite=%v]", c.IsLeader(), c.IsReadWrite())
+}
+
+func newClusterState(isLeader, isReadWrite bool) ClusterState {
+	var val uint8
+	if isLeader {
+		val = val | isLeaderMask
+	}
+	if isReadWrite {
+		val = val | isReadWriteMask
+	}
+	return ClusterState(val)
+}
+
+type Env interface {
+	GetId() *identity.TokenId
+	GetVersionProvider() versions.VersionProvider
+	GetRaftRateLimiterConfig() command.AdaptiveRateLimitTrackerConfig
+	GetRaftConfig() *config.RaftConfig
+	GetMetricsRegistry() metrics.Registry
+	GetEventDispatcher() event.Dispatcher
+	GetCloseNotify() <-chan struct{}
+	GetHelloHeaderProviders() []mesh.HeaderProvider
+	InitTimelineId(timelineId string)
+	TimelineId() string
+}
+
+func NewController(env Env, migrationMgr MigrationManager) *Controller {
+	result := &Controller{
+		env:             env,
+		Config:          env.GetRaftConfig(),
+		indexTracker:    NewIndexTracker(),
+		migrationMgr:    migrationMgr,
+		clusterEvents:   make(chan raft.Observation, 16),
+		raftRateLimiter: command.NewAdaptiveRateLimitTracker(env.GetRaftRateLimiterConfig(), env.GetMetricsRegistry(), env.GetCloseNotify()),
+		errorMappers:    map[string]func(map[string]any) error{},
+	}
+	result.initErrorMappers()
+	return result
+}
+
+// Controller manages RAFT related state and operations
+type Controller struct {
+	clusterId                  concurrenz.AtomicValue[string]
+	env                        Env
+	Config                     *config.RaftConfig
+	Mesh                       mesh.Mesh
+	Raft                       *raft.Raft
+	Fsm                        *BoltDbFsm
+	raftStore                  *raftboltdb.BoltStore
+	bootstrapped               atomic.Bool
+	clusterLock                sync.Mutex
+	indexTracker               IndexTracker
+	migrationMgr               MigrationManager
+	clusterStateChangeHandlers concurrenz.CopyOnWriteSlice[func(event ClusterEvent, state ClusterState, leaderId string)]
+	isLeader                   atomic.Bool
+	clusterEvents              chan raft.Observation
+	raftRateLimiter            rate.AdaptiveRateLimitTracker
+	errorMappers               map[string]func(map[string]any) error
+}
+
+func (self *Controller) GetNodeId() *identity.TokenId {
+	return self.env.GetId()
+}
+
+func (self *Controller) GetClusterId() string {
+	return self.clusterId.Load()
+}
+
+func (self *Controller) GetVersionProvider() versions.VersionProvider {
+	return self.env.GetVersionProvider()
+}
+
+func (self *Controller) GetEventDispatcher() event.Dispatcher {
+	return self.env.GetEventDispatcher()
+}
+
+func (self *Controller) IsPeerMember(id string) bool {
+	result := self.Fsm.GetCurrentState(self.Raft)
+	for _, srv := range result.Servers {
+		if string(srv.ID) == id {
+			return true
+		}
+	}
+	return false
+}
+
+func (self *Controller) GetListenerHeaders() map[int32][]byte {
+	headers := map[int32][]byte{
+		mesh.ClusterIdHeader:       []byte(self.clusterId.Load()),
+		mesh.LegacyClusterIdHeader: []byte(self.clusterId.Load()),
+		mesh.PeerAddrHeader:        []byte(self.Config.AdvertiseAddress.String()),
+		mesh.LegacyPeerAddrHeader:  []byte(self.Config.AdvertiseAddress.String()),
+	}
+	if self.Config.PreferredLeader {
+		headers[mesh.PreferredLeaderHeader] = []byte{1}
+	}
+	return headers
+}
+
+func (self *Controller) initErrorMappers() {
+	self.errorMappers[fmt.Sprintf("%T", &boltz.RecordNotFoundError{})] = self.parseBoltzNotFoundError
+	self.errorMappers[fmt.Sprintf("%T", &errorz.FieldError{})] = self.parseFieldError
+}
+
+func (self *Controller) RegisterClusterEventHandler(f func(event ClusterEvent, state ClusterState, leaderId string)) {
+	if self.isLeader.Load() {
+		f(ClusterEventLeadershipGained, newClusterState(true, !self.Mesh.IsReadOnly()), self.env.GetId().Token)
+	}
+	self.clusterStateChangeHandlers.Append(f)
+}
+
+func (self *Controller) InitEnv(env model.Env) error {
+	model.RegisterCommand(env, &InitClusterIdCmd{}, &cmd_pb.InitClusterIdCommand{})
+	clusterId, err := db.LoadClusterId(env.GetDb())
+	if err != nil {
+		return err
+	}
+	self.clusterId.Store(clusterId)
+	return nil
+}
+
+// GetRaft returns the managed raft instance
+func (self *Controller) GetRaft() *raft.Raft {
+	return self.Raft
+}
+
+// GetMesh returns the related Mesh instance
+func (self *Controller) GetMesh() mesh.Mesh {
+	return self.Mesh
+}
+
+func (self *Controller) GetRateLimiter() rate.RateLimiter {
+	// this is only used by the API session store, which is not generally used
+	// when using HA
+	return command.NoOpRateLimiter{}
+}
+
+func (self *Controller) ConfigureMeshHandlers(bindHandler channel.BindHandler) {
+	self.Mesh.Init(bindHandler)
+}
+
+// GetDb returns the DB instance
+func (self *Controller) GetDb() boltz.Db {
+	return self.Fsm.GetDb()
+}
+
+// IsLeader returns true if the current node is the RAFT leader
+func (self *Controller) IsLeader() bool {
+	return self.Raft.State() == raft.Leader
+}
+
+func (self *Controller) IsLeaderOrLeaderless() bool {
+	return self.IsLeader() || self.GetLeaderAddr() == ""
+}
+
+func (self *Controller) IsLeaderless() bool {
+	return self.GetLeaderAddr() == ""
+}
+
+func (self *Controller) IsBootstrapped() bool {
+	return self.bootstrapped.Load() || self.GetRaft().LastIndex() > 0
+}
+
+func (self *Controller) IsReadOnlyMode() bool {
+	return self.Mesh.IsReadOnly()
+}
+
+func (self *Controller) IsDistributed() bool {
+	return true
+}
+
+// GetLeaderAddr returns the current leader address, which may be blank if there is no leader currently
+func (self *Controller) GetLeaderAddr() string {
+	addr, _ := self.Raft.LeaderWithID()
+	return string(addr)
+}
+
+func (self *Controller) GetPeers() map[string]channel.Channel {
+	result := map[string]channel.Channel{}
+	for k, v := range self.Mesh.GetPeers() {
+		result[k] = v.Channel
+	}
+	return result
+}
+
+func (self *Controller) GetCloseNotify() <-chan struct{} {
+	return self.env.GetCloseNotify()
+}
+
+func (self *Controller) GetMetricsRegistry() metrics.Registry {
+	return self.env.GetMetricsRegistry()
+}
+
+// Dispatch dispatches the given command to the current leader. If the current node is the leader, the command
+// will be applied and the result returned
+func (self *Controller) Dispatch(cmd command.Command) error {
+	log := pfxlog.Logger()
+	if validatable, ok := cmd.(command.Validatable); ok {
+		if err := validatable.Validate(); err != nil {
+			return err
+		}
+	}
+
+	if self.Mesh.IsReadOnly() {
+		return errors.New("unable to execute command. In a readonly state: different versions detected in cluster")
+	}
+
+	if self.IsLeader() {
+		idx, err := self.applyCommand(cmd)
+		if err == nil {
+			return self.indexTracker.WaitForIndex(idx, time.Now().Add(5*time.Second))
+		}
+		return err
+	}
+
+	if self.GetLeaderAddr() == "" {
+		return apierror.NewClusterHasNoLeaderError()
+	}
+
+	log.WithField("cmd", reflect.TypeOf(cmd)).WithField("dest", self.GetLeaderAddr()).Debug("forwarding command")
+
+	peer, err := self.GetMesh().GetOrConnectPeer(self.GetLeaderAddr(), 5*time.Second)
+	if err != nil {
+		result := apierror.NewTooManyUpdatesError()
+		result.Cause = err
+		return result
+	}
+
+	encoded, err := cmd.Encode()
+	if err != nil {
+		return err
+	}
+
+	msg := channel.NewMessage(int32(cmd_pb.ContentType_NewLogEntryType), encoded)
+	result, err := msg.WithTimeout(5 * time.Second).SendForReply(peer.Channel)
+	if err != nil {
+		if channel.IsTimeout(err) {
+			tooManyUpdatesErr := apierror.NewTooManyUpdatesError()
+			tooManyUpdatesErr.Cause = err
+			return tooManyUpdatesErr
+		}
+		return err
+	}
+
+	if result.ContentType == int32(cmd_pb.ContentType_SuccessResponseType) {
+		idx, found := result.GetUint64Header(int32(peermsg.HeaderIndex))
+		if found {
+			if err = self.indexTracker.WaitForIndex(idx, time.Now().Add(5*time.Second)); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	if result.ContentType == int32(cmd_pb.ContentType_ErrorResponseType) {
+		errCode, found := result.GetUint32Header(peermsg.HeaderErrorCode)
+		if found && errCode == peermsg.ErrorCodeApiError {
+			return self.decodeApiError(result.Body)
+		}
+		return errors.New(string(result.Body))
+	}
+
+	return fmt.Errorf("unexpected response type %v", result.ContentType)
+}
+
+func (self *Controller) decodeApiError(data []byte) error {
+	m := map[string]interface{}{}
+	if err := json.Unmarshal(data, &m); err != nil {
+		pfxlog.Logger().Warnf("invalid api error encoding, unable to decode: %v", string(data))
+		return errors.New(string(data))
+	}
+
+	apiErr := &errorz.ApiError{}
+
+	if code, ok := m["code"]; ok {
+		if apiErr.AppCode, ok = code.(string); !ok {
+			pfxlog.Logger().Warnf("invalid api error encoding, invalid code, not string: %v", string(data))
+			return errors.New(string(data))
+		}
+	} else {
+		pfxlog.Logger().Warnf("invalid api error encoding, no code: %v", string(data))
+		return errors.New(string(data))
+	}
+
+	if status, ok := m["status"]; ok {
+		statusStr := fmt.Sprintf("%v", status)
+		statusInt, err := strconv.Atoi(statusStr)
+		if err != nil {
+			pfxlog.Logger().Warnf("invalid api error encoding, invalid code, not int: %v", string(data))
+			return errors.New(string(data))
+		}
+		apiErr.Status = statusInt
+	} else {
+		pfxlog.Logger().Warnf("invalid api error encoding, no status: %v", string(data))
+		return errors.New(string(data))
+	}
+
+	if message, ok := m["message"]; ok {
+		if apiErr.Message, ok = message.(string); !ok {
+			pfxlog.Logger().Warnf("invalid api error encoding, no message: %v", string(data))
+			return errors.New(string(data))
+		}
+	} else {
+		pfxlog.Logger().Warnf("invalid api error encoding, invalid message, not string: %v", string(data))
+		return errors.New(string(data))
+	}
+
+	if cause, ok := m["cause"]; ok && cause != nil {
+		if strCause, ok := cause.(string); ok {
+			apiErr.Cause = errors.New(strCause)
+		} else if objCause, ok := cause.(map[string]any); ok {
+			if parser := self.getErrorParser(m); parser != nil {
+				pfxlog.Logger().Info("parser found for cause type")
+				apiErr.Cause = parser(objCause)
+			} else {
+				pfxlog.Logger().Info("no parser found for cause type")
+			}
+
+			if apiErr.Cause == nil {
+				apiErr.Cause = self.fallbackMarshallError(objCause)
+			}
+		} else {
+			pfxlog.Logger().Warnf("invalid api error encoding, no cause: %v", string(data))
+			return errors.New(string(data))
+		}
+	}
+
+	return apiErr
+}
+
+func (self *Controller) parseFieldError(m map[string]any) error {
+	var fieldError *errorz.FieldError
+	field, ok := m["field"]
+	if !ok {
+		return nil
+	}
+
+	fieldStr, ok := field.(string)
+	if !ok {
+		return nil
+	}
+
+	fieldError = &errorz.FieldError{
+		FieldName:  fieldStr,
+		FieldValue: m["value"],
+	}
+
+	if reason, ok := m["message"]; ok {
+		if reasonStr, ok := reason.(string); ok {
+			fieldError.Reason = reasonStr
+		}
+	} else if reason, ok := m["reason"]; ok {
+		if reasonStr, ok := reason.(string); ok {
+			fieldError.Reason = reasonStr
+		}
+	}
+
+	return fieldError
+}
+
+func (self *Controller) parseBoltzNotFoundError(m map[string]any) error {
+	result := &boltz.RecordNotFoundError{}
+	err := mapstructure.Decode(m, result)
+	if err != nil {
+		var errList []error
+		errList = append(errList, fmt.Errorf("unable to decode RecordNotFoundError (%w)", err))
+		errList = append(errList, self.fallbackMarshallError(m))
+		return errors.Join(errList...)
+	}
+	return result
+}
+
+func (self *Controller) fallbackMarshallError(m map[string]any) error {
+	if b, err := json.Marshal(m); err == nil {
+		return errors.New(string(b))
+	}
+	return fmt.Errorf("%+v", m)
+}
+
+func (self *Controller) getErrorParser(m map[string]any) func(map[string]any) error {
+	causeType, ok := m["causeType"]
+	if !ok {
+		pfxlog.Logger().Info("no causetype defined for error parser")
+		return nil
+	}
+
+	causeTypeStr, ok := causeType.(string)
+	if !ok {
+		pfxlog.Logger().Info("causetype not string")
+		return nil
+	}
+
+	pfxlog.Logger().Infof("causetype %s", causeTypeStr)
+
+	return self.errorMappers[causeTypeStr]
+}
+
+// applyCommand encodes the command and passes it to ApplyEncodedCommand
+func (self *Controller) applyCommand(cmd command.Command) (uint64, error) {
+	encoded, err := cmd.Encode()
+	if err != nil {
+		return 0, err
+	}
+
+	return self.ApplyEncodedCommand(encoded)
+}
+
+// ApplyEncodedCommand applies the command to the RAFT distributed log
+func (self *Controller) ApplyEncodedCommand(encoded []byte) (uint64, error) {
+	val, idx, err := self.ApplyWithTimeout(encoded)
+	return self.HandleApplyOutput(encoded, val, idx, err)
+}
+
+func (self *Controller) HandleApplyOutput(cmd []byte, val interface{}, idx uint64, applyErr error) (uint64, error) {
+	if applyErr != nil {
+		return 0, applyErr
+	}
+	if err, ok := val.(error); ok {
+		return 0, err
+	}
+	if val != nil {
+		cmd, err := self.Fsm.decoders.Decode(cmd)
+		if err != nil {
+			pfxlog.Logger().WithError(err).Error("failed to unmarshal command which returned non-nil, non-error value")
+			return 0, err
+		}
+		pfxlog.Logger().WithField("cmdType", reflect.TypeOf(cmd)).Error("command return non-nil, non-error value")
+	}
+	return idx, nil
+}
+
+// ApplyWithTimeout applies the given command to the RAFT distributed log with the given timeout
+func (self *Controller) ApplyWithTimeout(log []byte) (interface{}, uint64, error) {
+	secondPhase, err := self.ApplyTwoPhase(log)
+	if err != nil {
+		return nil, 0, err
+	}
+	return secondPhase()
+}
+
+// ApplyTwoPhase applies the given command to the RAFT distributed but returns an operation which will return the result
+func (self *Controller) ApplyTwoPhase(log []byte) (func() (interface{}, uint64, error), error) {
+	start := time.Now()
+	raftOperation, err := self.raftRateLimiter.RunRateLimited("raft operation")
+	if err != nil {
+		return nil, err
+	}
+
+	f := self.Raft.Apply(log, self.Config.ApplyTimeout)
+
+	return func() (interface{}, uint64, error) {
+		if err = f.Error(); err != nil {
+			if errors.Is(err, raft.ErrNotLeader) {
+				noLeaderErr := apierror.NewClusterHasNoLeaderError()
+				noLeaderErr.Cause = err
+				err = noLeaderErr
+				raftOperation.Failed()
+			} else if errors.Is(err, raft.ErrEnqueueTimeout) {
+				tooBusyErr := apierror.NewTooManyUpdatesError()
+				tooBusyErr.Cause = err
+				err = tooBusyErr
+				raftOperation.Backoff()
+			} else {
+				raftOperation.Failed()
+			}
+
+			return nil, 0, err
+		}
+
+		defer func() {
+			if time.Since(start) > self.Config.ApplyTimeout {
+				raftOperation.Backoff()
+			} else {
+				raftOperation.Success()
+			}
+		}()
+
+		response := f.Response()
+		index := f.Index()
+		return response, index, nil
+	}, nil
+}
+
+// Init sets up the Mesh and Raft instances
+func (self *Controller) Init() error {
+	self.validateCert()
+
+	raftConfig := self.Config
+
+	if raftConfig.Logger == nil {
+		raftConfig.Logger = NewHcLogrusLogger()
+	}
+
+	if err := os.MkdirAll(raftConfig.DataDir, 0700); err != nil {
+		logrus.WithField("dir", raftConfig.DataDir).WithError(err).Error("failed to initialize data directory")
+		return err
+	}
+
+	localAddr := raft.ServerAddress(raftConfig.AdvertiseAddress.String())
+	conf := raft.DefaultConfig()
+	conf.LocalID = raft.ServerID(self.env.GetId().Token)
+	conf.NoSnapshotRestoreOnStart = true
+	self.Configure(raftConfig, conf)
+
+	// Create the log store and stable store.
+	raftBoltFile := path.Join(raftConfig.DataDir, "raft.db")
+	var err error
+	self.raftStore, err = raftboltdb.NewBoltStore(raftBoltFile)
+	if err != nil {
+		logrus.WithError(err).Error("failed to initialize raft bolt storage")
+		return err
+	}
+
+	snapshotsDir := raftConfig.DataDir
+	snapshotStore, err := raft.NewFileSnapshotStoreWithLogger(snapshotsDir, 5, raftConfig.Logger)
+	if err != nil {
+		logrus.WithField("snapshotDir", snapshotsDir).WithError(err).Errorf("failed to initialize raft snapshot store in: '%v'", snapshotsDir)
+		return err
+	}
+
+	helloHeaderProviders := self.env.GetHelloHeaderProviders()
+
+	self.Mesh = mesh.New(self, localAddr, helloHeaderProviders)
+	self.Mesh.RegisterClusterStateHandler(func(state mesh.ClusterState) {
+		obs := raft.Observation{
+			Raft: self.Raft,
+			Data: state,
+		}
+		self.clusterEvents <- obs
+	})
+
+	self.Fsm = NewFsm(raftConfig.DataDir, raftConfig.RestartSelf, command.GetDefaultDecoders(), self.indexTracker, self.env.GetEventDispatcher())
+
+	if err = self.Fsm.Init(); err != nil {
+		return fmt.Errorf("failed to init FSM (%w)", err)
+	}
+
+	raftTransport := raft.NewNetworkTransportWithLogger(self.Mesh, 3, 10*time.Second, raftConfig.Logger)
+
+	if raftConfig.Recover {
+		err := raft.RecoverCluster(conf, self.Fsm, self.raftStore, self.raftStore, snapshotStore, raftTransport, raft.Configuration{
+			Servers: []raft.Server{
+				{ID: conf.LocalID, Address: localAddr},
+			},
+		})
+		if err != nil {
+			return fmt.Errorf("failed to recover cluster (%w)", err)
+		}
+
+		logrus.Info("raft configuration reset to only include local node. exiting.")
+		os.Exit(0)
+	}
+
+	r, err := raft.NewRaft(conf, self.Fsm, self.raftStore, self.raftStore, snapshotStore, raftTransport)
+	if err != nil {
+		return fmt.Errorf("failed to initialise raft (%w)", err)
+	}
+
+	r.RegisterObserver(raft.NewObserver(self.clusterEvents, true, func(o *raft.Observation) bool {
+		_, isRaftState := o.Data.(raft.RaftState)
+		_, isLeaderState := o.Data.(raft.LeaderObservation)
+		return isRaftState || isLeaderState
+	}))
+
+	rc := r.ReloadableConfig()
+	self.ConfigureReloadable(raftConfig, &rc)
+	if err = r.ReloadConfig(rc); err != nil {
+		return fmt.Errorf("error reloading raft configuration (%w)", err)
+	}
+
+	self.Raft = r
+
+	return nil
+}
+
+func (self *Controller) StartEventGeneration() {
+	self.addEventsHandlers()
+	go self.eventLoop()
+	self.setupPreferredLeaderTransfer()
+}
+
+func (self *Controller) setupPreferredLeaderTransfer() {
+	log := pfxlog.Logger()
+
+	if self.Config.PreferredLeader {
+		log.Info("this controller is configured as a preferred leader")
+		return // Preferred leaders keep leadership, nothing to do
+	}
+
+	log.Info("this controller is NOT a preferred leader, setting up leadership transfer handlers")
+
+	// Transfer when we gain leadership
+	self.RegisterClusterEventHandler(func(evt ClusterEvent, state ClusterState, leaderId string) {
+		if evt == ClusterEventLeadershipGained {
+			log.Info("non-preferred controller gained leadership, scheduling transfer in 10s")
+			go self.attemptTransferToPreferredLeader()
+		}
+	})
+
+	// Transfer when a preferred peer connects while we're leader
+	self.env.GetEventDispatcher().AddClusterEventHandler(event.ClusterEventHandlerF(func(evt *event.ClusterEvent) {
+		if evt.EventType == event.ClusterPeerConnected && self.IsLeader() {
+			for _, peer := range evt.Peers {
+				if peer.IsPreferredLeader {
+					log.WithField("preferredPeer", peer.Id).
+						Info("preferred leader peer connected while we're leader, scheduling transfer in 10s")
+					go self.attemptTransferToPreferredLeader()
+					return
+				}
+			}
+		}
+	}))
+
+	// Safety net: if we're already leader, schedule a transfer. This handles the case where
+	// the leadership event was processed before our handler was registered.
+	if self.IsLeader() {
+		log.Info("non-preferred controller is already leader at setup time, scheduling transfer in 10s (safety net)")
+		go self.attemptTransferToPreferredLeader()
+	}
+}
+
+func (self *Controller) attemptTransferToPreferredLeader() {
+	select {
+	case <-self.env.GetCloseNotify():
+	case <-time.After(10 * time.Second):
+		self.transferToPreferredLeader()
+	}
+}
+
+func (self *Controller) transferToPreferredLeader() {
+	log := pfxlog.Logger()
+
+	if !self.IsLeader() {
+		log.Info("transfer check: no longer leader, skipping")
+		return
+	}
+
+	peers := self.Mesh.GetPeers()
+	log.Infof("transfer check: evaluating %d connected peers for preferred leader", len(peers))
+	for _, peer := range peers {
+		log.Infof("transfer check: peer %s preferred=%v", peer.Id, peer.PreferredLeader)
+		if peer.PreferredLeader {
+			log.WithField("targetPeer", peer.Id).Info("transferring leadership to preferred leader")
+			req := &cmd_pb.TransferLeadershipRequest{
+				Id: string(peer.Id),
+			}
+			if err := self.HandleTransferLeadershipAsLeader(req); err != nil {
+				log.WithField("targetPeer", peer.Id).WithError(err).
+					Warn("leadership transfer to preferred leader failed, will try next")
+				continue
+			}
+			log.WithField("targetPeer", peer.Id).Info("leadership transfer to preferred leader succeeded")
+			return
+		}
+	}
+
+	log.Warn("no preferred leader peers are connected, retaining leadership")
+}
+
+func (self *Controller) Configure(ctrlConfig *config.RaftConfig, conf *raft.Config) {
+	conf.SnapshotThreshold = uint64(ctrlConfig.SnapshotThreshold)
+	conf.SnapshotInterval = ctrlConfig.SnapshotInterval
+	conf.TrailingLogs = uint64(ctrlConfig.TrailingLogs)
+
+	if ctrlConfig.MaxAppendEntries != nil {
+		conf.MaxAppendEntries = int(*ctrlConfig.MaxAppendEntries)
+	}
+
+	if ctrlConfig.CommitTimeout != nil {
+		conf.CommitTimeout = *ctrlConfig.CommitTimeout
+	}
+
+	conf.ElectionTimeout = ctrlConfig.ElectionTimeout
+	conf.HeartbeatTimeout = ctrlConfig.HeartbeatTimeout
+	conf.LeaderLeaseTimeout = ctrlConfig.LeaderLeaseTimeout
+
+	if ctrlConfig.LogLevel != nil {
+		conf.LogLevel = *ctrlConfig.LogLevel
+	}
+
+	conf.Logger = ctrlConfig.Logger
+}
+
+func (self *Controller) ConfigureReloadable(ctrlConfig *config.RaftConfig, conf *raft.ReloadableConfig) {
+	conf.SnapshotThreshold = uint64(ctrlConfig.SnapshotThreshold)
+	conf.SnapshotInterval = ctrlConfig.SnapshotInterval
+	conf.TrailingLogs = uint64(ctrlConfig.TrailingLogs)
+
+	conf.ElectionTimeout = ctrlConfig.ElectionTimeout
+	conf.HeartbeatTimeout = ctrlConfig.HeartbeatTimeout
+}
+
+func (self *Controller) validateCert() {
+	var certs []*x509.Certificate
+	for _, cert := range self.env.GetId().ServerCert() {
+		certs = append(certs, cert.Leaf)
+	}
+	if _, err := mesh.ExtractSpiffeId(certs); err != nil {
+		logrus.WithError(err).Fatal("controller cert must have Subject Alternative Name URI of form spiffe://<trust domain>/controller/<controller id>")
+	}
+}
+
+type clusterEventState struct {
+	isReadWrite    bool
+	hasLeader      bool
+	noLeaderAt     time.Time
+	warningEmitted bool
+	leaderId       string
+}
+
+func (self *Controller) eventLoop() {
+	leaderAddr, leaderId := self.Raft.LeaderWithID()
+
+	eventState := &clusterEventState{
+		isReadWrite: true,
+		hasLeader:   leaderAddr != "",
+		noLeaderAt:  time.Now(),
+		leaderId:    string(leaderId),
+	}
+
+	if eventState.hasLeader {
+		self.handleClusterStateChange(ClusterEventHasLeader, eventState)
+	} else {
+		self.handleClusterStateChange(ClusterEventIsLeaderless, eventState)
+	}
+
+	leaderTicker := time.NewTicker(LeaderCheckInterval)
+	defer leaderTicker.Stop()
+
+	dialCleanupTicker := time.NewTicker(MeshCleanupInterval)
+	defer dialCleanupTicker.Stop()
+
+	for {
+		select {
+		case observation := <-self.clusterEvents:
+			self.processRaftObservation(observation, eventState)
+		case <-leaderTicker.C:
+			if !eventState.warningEmitted && !eventState.hasLeader && time.Since(eventState.noLeaderAt) > self.Config.WarnWhenLeaderlessFor {
+				pfxlog.Logger().WithField("timeSinceLeader", time.Since(eventState.noLeaderAt).String()).
+					Warn("cluster running without leader for longer than configured threshold")
+				eventState.warningEmitted = true
+			}
+		case <-dialCleanupTicker.C:
+			self.Mesh.CleanupDialRecords()
+		}
+	}
+}
+
+func (self *Controller) processRaftObservation(observation raft.Observation, eventState *clusterEventState) {
+	pfxlog.Logger().Tracef("raft observation received: isLeader: %v, isReadWrite: %v", self.isLeader.Load(), eventState.isReadWrite)
+
+	if raftState, ok := observation.Data.(raft.RaftState); ok {
+		if raftState == raft.Leader {
+			if wasLeader := self.isLeader.Swap(true); !wasLeader {
+				self.handleClusterStateChange(ClusterEventLeadershipGained, eventState)
+			}
+		} else if wasLeader := self.isLeader.Swap(false); wasLeader {
+			self.handleClusterStateChange(ClusterEventLeadershipLost, eventState)
+		}
+	}
+
+	if state, ok := observation.Data.(mesh.ClusterState); ok {
+		if state == mesh.ClusterReadWrite {
+			eventState.isReadWrite = true
+			self.handleClusterStateChange(ClusterEventReadWrite, eventState)
+		} else if state == mesh.ClusterReadOnly {
+			eventState.isReadWrite = false
+			self.handleClusterStateChange(ClusterEventReadOnly, eventState)
+		}
+	}
+
+	if leaderState, ok := observation.Data.(raft.LeaderObservation); ok {
+		if leaderState.LeaderAddr == "" {
+			if eventState.hasLeader {
+				eventState.warningEmitted = false
+				eventState.noLeaderAt = time.Now()
+				eventState.hasLeader = false
+				eventState.leaderId = ""
+				self.handleClusterStateChange(ClusterEventIsLeaderless, eventState)
+			}
+		} else if !eventState.hasLeader {
+			eventState.hasLeader = true
+			eventState.leaderId = string(leaderState.LeaderID)
+			self.handleClusterStateChange(ClusterEventHasLeader, eventState)
+		}
+	}
+
+	pfxlog.Logger().Tracef("raft observation processed: isLeader: %v, isReadWrite: %v", self.isLeader.Load(), eventState.isReadWrite)
+}
+
+func (self *Controller) handleClusterStateChange(event ClusterEvent, eventState *clusterEventState) {
+	for _, handler := range self.clusterStateChangeHandlers.Value() {
+		handler(event, newClusterState(self.isLeader.Load(), eventState.isReadWrite), eventState.leaderId)
+	}
+}
+
+func (self *Controller) Bootstrap() error {
+	if self.Raft.LastIndex() > 0 {
+		logrus.Info("raft already bootstrapped")
+		self.bootstrapped.Store(true)
+	} else {
+		if err := self.migrationMgr.ValidateMigrationEnvironment(); err != nil {
+			return err
+		}
+
+		log := pfxlog.Logger()
+
+		log.Infof("bootstrapping cluster")
+		f := self.GetRaft().BootstrapCluster(raft.Configuration{Servers: []raft.Server{
+			{
+				ID:       raft.ServerID(self.env.GetId().Token),
+				Address:  self.Mesh.GetAdvertiseAddr(),
+				Suffrage: raft.Voter,
+			},
+		}})
+		if err := f.Error(); err != nil {
+			return fmt.Errorf("failed to bootstrap cluster (%w)", err)
+		}
+		self.bootstrapped.Store(true)
+		log.Info("raft cluster bootstrap complete")
+
+		start := time.Now()
+		firstCheckPassed := false
+		for {
+			// make sure this is in a reasonably steady state by waiting a bit longer and checking twice
+			if _, leaderId := self.Raft.LeaderWithID(); leaderId != "" {
+				if firstCheckPassed {
+					break
+				} else {
+					firstCheckPassed = true
+				}
+			}
+			if time.Since(start) > time.Second*10 {
+				return fmt.Errorf("node did not bootstrap in time")
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+
+		self.clusterId.Store(uuid.NewString())
+		pfxlog.Logger().WithField("clusterId", self.clusterId.Load()).Info("cluster id initialized")
+
+		timelineId, err := shortid.Generate()
+		if err != nil {
+			return fmt.Errorf("unable to generate timeline id (%w)", err)
+		}
+		pfxlog.Logger().WithField("timelineId", timelineId).Info("timelineId initialized")
+
+		return self.Dispatch(&InitClusterIdCmd{
+			ClusterId:      self.clusterId.Load(),
+			raftController: self,
+			TimelineId:     timelineId,
+		})
+	}
+	return nil
+}
+
+// Join adds the given node to the raft cluster
+func (self *Controller) Join(req *cmd_pb.AddPeerRequest) error {
+	self.clusterLock.Lock()
+	defer self.clusterLock.Unlock()
+
+	if req.Addr == "" {
+		return fmt.Errorf("invalid server addr '%v' for servier %v", req.Addr, req.Id)
+	}
+
+	return self.HandleAddPeer(req)
+}
+
+// RemoveServer removes the node specified by the given id from the raft cluster
+func (self *Controller) RemoveServer(id string) error {
+	req := &cmd_pb.RemovePeerRequest{
+		Id: id,
+	}
+
+	return self.HandleRemovePeer(req)
+}
+
+func (self *Controller) CtrlAddresses() (uint64, []string, []*ctrl_pb.CtrlDetail) {
+	srvs := self.Fsm.GetCurrentState(self.Raft)
+	var addresses []string
+	var controllers []*ctrl_pb.CtrlDetail
+	for _, srvr := range srvs.Servers {
+		addr := string(srvr.Address)
+		addresses = append(addresses, addr)
+		controllers = append(controllers, &ctrl_pb.CtrlDetail{
+			Id:        string(srvr.ID),
+			Endpoints: []*ctrl_pb.CtrlEndpoint{{Address: addr}},
+		})
+	}
+	return srvs.Index, addresses, controllers
+}
+
+func (self *Controller) RenderJsonConfig() (string, error) {
+	cfg := self.Raft.ReloadableConfig()
+	b, err := json.Marshal(cfg)
+	return string(b), err
+}
+
+func (self *Controller) getClusterPeersForEvent() []*event.ClusterPeer {
+	var peers []*event.ClusterPeer
+
+	srvs := self.Fsm.GetCurrentState(self.Raft)
+	meshPeers := map[string]*mesh.Peer{}
+
+	for _, peer := range self.Mesh.GetPeers() {
+		meshPeers[string(peer.Id)] = peer
+	}
+
+	for _, srv := range srvs.Servers {
+		peer := &event.ClusterPeer{
+			Id:   string(srv.ID),
+			Addr: string(srv.Address),
+		}
+
+		if meshPeer := meshPeers[peer.Id]; meshPeer != nil {
+			peer.ServerCert = meshPeer.SigningCerts
+			if meshPeer.Version != nil {
+				peer.Version = meshPeer.Version.Version
+			}
+			peer.ApiAddresses = meshPeer.ApiAddresses
+			peer.IsPreferredLeader = meshPeer.PreferredLeader
+		}
+
+		peers = append(peers, peer)
+	}
+
+	return peers
+}
+
+func (self *Controller) addEventsHandlers() {
+	self.RegisterClusterEventHandler(func(evt ClusterEvent, state ClusterState, leaderId string) {
+		switch evt {
+		case ClusterEventLeadershipGained:
+			clusterEvent := event.NewClusterEvent(event.ClusterLeadershipGained)
+			clusterEvent.Peers = self.getClusterPeersForEvent()
+			self.env.GetEventDispatcher().AcceptClusterEvent(clusterEvent)
+		case ClusterEventLeadershipLost:
+			clusterEvent := event.NewClusterEvent(event.ClusterLeadershipLost)
+			self.env.GetEventDispatcher().AcceptClusterEvent(clusterEvent)
+		case ClusterEventReadOnly:
+			clusterEvent := event.NewClusterEvent(event.ClusterStateReadOnly)
+			self.env.GetEventDispatcher().AcceptClusterEvent(clusterEvent)
+		case ClusterEventReadWrite:
+			clusterEvent := event.NewClusterEvent(event.ClusterStateReadWrite)
+			self.env.GetEventDispatcher().AcceptClusterEvent(clusterEvent)
+		case ClusterEventHasLeader:
+			clusterEvent := event.NewClusterEvent(event.ClusterHasLeader)
+			clusterEvent.LeaderId = leaderId
+			self.env.GetEventDispatcher().AcceptClusterEvent(clusterEvent)
+		case ClusterEventIsLeaderless:
+			clusterEvent := event.NewClusterEvent(event.ClusterIsLeaderless)
+			self.env.GetEventDispatcher().AcceptClusterEvent(clusterEvent)
+		default:
+			pfxlog.Logger().Errorf("unhandled cluster event type: %v", evt)
+		}
+	})
+}
+
+func (self *Controller) Shutdown() error {
+	var errs []error
+
+	if self.Raft != nil {
+		if err := self.Raft.Shutdown().Error(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	if self.Fsm != nil {
+		if err := self.Fsm.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	if self.raftStore != nil {
+		if err := self.raftStore.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	if self.Mesh != nil {
+		if err := self.Mesh.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	return errors.Join(errs...)
+}
+
+type MigrationManager interface {
+	ValidateMigrationEnvironment() error
+	TryInitializeRaftFromBoltDb() error
+	InitializeRaftFromBoltDb(srcDb string) error
+}
+
+type InitClusterIdCmd struct {
+	ClusterId      string `json:"clusterId"`
+	TimelineId     string `json:"timelineId"`
+	raftController *Controller
+}
+
+func (self *InitClusterIdCmd) Apply(ctx boltz.MutateContext) error {
+	self.raftController.clusterId.Store(self.ClusterId)
+	_, err := self.raftController.Fsm.GetDb().GetTimelineId(boltz.TimelineModeForceReset, func() (string, error) {
+		return self.TimelineId, nil
+	})
+	if err != nil {
+		return err
+	}
+
+	if self.raftController.env.TimelineId() != self.TimelineId {
+		self.raftController.env.InitTimelineId(self.TimelineId)
+	}
+	return db.InitClusterId(self.raftController.Fsm.GetDb(), ctx, self.ClusterId)
+}
+
+func (self *InitClusterIdCmd) Encode() ([]byte, error) {
+	cmd := &cmd_pb.InitClusterIdCommand{
+		ClusterId:  self.ClusterId,
+		TimelineId: self.TimelineId,
+	}
+	return cmd_pb.EncodeProtobuf(cmd)
+}
+
+func (self *InitClusterIdCmd) Decode(env model.Env, msg *cmd_pb.InitClusterIdCommand) error {
+	self.ClusterId = msg.ClusterId
+	self.TimelineId = msg.TimelineId
+	self.raftController = env.GetManagers().Dispatcher.(*Controller)
+	return nil
+}
+
+func (self *InitClusterIdCmd) GetChangeContext() *change.Context {
+	return change.New().SetChangeAuthorType(change.AuthorTypeController)
+}

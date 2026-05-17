@@ -1,0 +1,860 @@
+import { spawn, execFileSync, type ChildProcess } from "node:child_process";
+import { Transform } from "node:stream";
+import fs from "node:fs";
+import path from "node:path";
+import { ClientSideConnection, ndJsonStream } from "@agentclientprotocol/sdk";
+import { PathGuard } from "../security/path-guard.js";
+import { filterEnv } from "../security/env-filter.js";
+import type {
+  Agent,
+  Client,
+  PromptResponse,
+  PermissionOption as SdkPermissionOption,
+} from "@agentclientprotocol/sdk";
+import { nodeToWebWritable, nodeToWebReadable } from "../utils/streams.js";
+import { StderrCapture } from "../utils/stderr-capture.js";
+import { TypedEmitter } from "../utils/typed-emitter.js";
+import type {
+  AgentDefinition,
+  AgentEvent,
+  Attachment,
+  ConfigOption,
+  McpServerConfig,
+  PermissionRequest,
+  SetConfigOptionValue,
+} from "../types.js";
+import { readTextFileWithRange } from "../utils/read-text-file.js";
+import { SUPPORTED_IMAGE_MIMES, buildAttachmentNote } from "./attachment-blocks.js";
+import type { MiddlewareChain } from "../plugin/middleware-chain.js";
+import { PROTOCOL_VERSION } from "@agentclientprotocol/sdk";
+import { TerminalManager } from "../sessions/terminal-manager.js";
+import { McpManager } from "./mcp-manager.js";
+import type {
+  ListSessionsResponse,
+  LoadSessionResponse,
+  ForkSessionResponse,
+  SetSessionConfigOptionResponse,
+} from "@agentclientprotocol/sdk";
+import { createDebugTracer, type DebugTracer } from "../utils/debug-tracer.js";
+import { createChildLogger } from "../utils/log.js";
+import { Hook, SessionEv } from "../events.js";
+const log = createChildLogger({ module: "agent-instance" });
+
+/** Find the nearest ancestor directory containing package.json */
+function findPackageRoot(startDir: string): string {
+  let dir = startDir;
+  while (dir !== path.dirname(dir)) {
+    if (fs.existsSync(path.join(dir, "package.json"))) {
+      return dir;
+    }
+    dir = path.dirname(dir);
+  }
+  return startDir;
+}
+
+/** Resolve an agent command to a directly executable form (avoids shell wrappers) */
+function resolveAgentCommand(cmd: string): { command: string; args: string[] } {
+  // Directories to search for node_modules: cwd AND the package's own directory
+  const searchRoots = [process.cwd()];
+  // Add the directory where this package is installed (for global installs)
+  // Use findPackageRoot instead of hardcoded "../.." to handle both tsc (dist/core/)
+  // and tsup bundle (dist/) directory structures correctly
+  const ownDir = findPackageRoot(import.meta.dirname);
+  if (ownDir !== process.cwd()) {
+    searchRoots.push(ownDir);
+  }
+
+  // 1. Check node_modules for the package's actual JS entry point
+  for (const root of searchRoots) {
+    const packageDirs = [
+      path.resolve(root, "node_modules", "@zed-industries", cmd, "dist", "index.js"),
+      path.resolve(root, "node_modules", cmd, "dist", "index.js"),
+    ];
+    for (const jsPath of packageDirs) {
+      if (fs.existsSync(jsPath)) {
+        return { command: process.execPath, args: [jsPath] };
+      }
+    }
+  }
+
+  // 2. Check .bin — if it's a JS file with shebang, run with node directly
+  for (const root of searchRoots) {
+    const localBin = path.resolve(root, "node_modules", ".bin", cmd);
+    if (fs.existsSync(localBin)) {
+      const content = fs.readFileSync(localBin, "utf-8");
+      if (content.startsWith("#!/usr/bin/env node")) {
+        return { command: process.execPath, args: [localBin] };
+      }
+      // Shell wrapper — try to find the target JS file
+      const match = content.match(/"([^"]+\.js)"/);
+      if (match) {
+        const target = path.resolve(path.dirname(localBin), match[1]);
+        if (fs.existsSync(target)) {
+          return { command: process.execPath, args: [target] };
+        }
+      }
+    }
+  }
+
+  // 3. Try resolving from PATH using which
+  try {
+    const fullPath = execFileSync("which", [cmd], { encoding: "utf-8" }).trim();
+    if (fullPath) {
+      const content = fs.readFileSync(fullPath, "utf-8");
+      if (content.startsWith("#!/usr/bin/env node")) {
+        return { command: process.execPath, args: [fullPath] };
+      }
+    }
+  } catch {
+    // which failed
+  }
+
+  // 4. Fallback: use command as-is
+  return { command: cmd, args: [] };
+}
+
+// TerminalState has been extracted to TerminalManager
+
+// Local types for ACP session update shapes not fully typed by SDK
+interface SdkToolCallFields {
+  rawInput?: unknown;
+  rawOutput?: unknown;
+  _meta?: Record<string, unknown>;
+}
+
+interface SdkSessionInfoUpdate {
+  sessionUpdate: 'session_info_update';
+  title?: string | null;
+  updatedAt?: string | null;
+  _meta?: Record<string, unknown>;
+}
+
+interface SdkConfigOptionUpdate {
+  sessionUpdate: 'config_option_update';
+  configOptions: unknown[];
+  _meta?: Record<string, unknown>;
+}
+
+
+interface SdkUserMessageChunk {
+  sessionUpdate: 'user_message_chunk';
+  content: { type: string; text?: string };
+}
+
+interface SdkReadTextFileParams {
+  path: string;
+  line?: number;
+  limit?: number;
+}
+
+export interface AgentInstanceEvents {
+  agent_event: (event: AgentEvent) => void;
+}
+
+export class AgentInstance extends TypedEmitter<AgentInstanceEvents> {
+  private connection!: ClientSideConnection;
+  private child!: ChildProcess;
+  private stderrCapture!: StderrCapture;
+  private terminalManager = new TerminalManager();
+  private static mcpManager = new McpManager();
+  private _destroying = false;
+  private pathGuard!: PathGuard;
+
+  sessionId!: string;
+  agentName: string;
+  promptCapabilities?: { image?: boolean; audio?: boolean };
+  agentCapabilities?: import("../types.js").AgentCapabilities;
+  /** Preserved from newSession/resumeSession response for ACP state propagation */
+  initialSessionResponse?: { modes?: unknown; configOptions?: unknown; models?: unknown };
+  middlewareChain?: MiddlewareChain;
+  debugTracer: DebugTracer | null = null;
+
+  /** Allow external callers (e.g. SessionFactory) to whitelist additional read paths */
+  addAllowedPath(p: string): void {
+    this.pathGuard.addAllowedPath(p);
+  }
+
+  // Callback — set by core when wiring events
+  onPermissionRequest: (request: PermissionRequest) => Promise<string> =
+    async () => "";
+
+  private constructor(agentName: string) {
+    super();
+    this.agentName = agentName;
+  }
+
+  private static async spawnSubprocess(
+    agentDef: AgentDefinition,
+    workingDirectory: string,
+    allowedPaths: string[] = [],
+  ): Promise<AgentInstance> {
+    const instance = new AgentInstance(agentDef.name);
+    const resolved = resolveAgentCommand(agentDef.command);
+    log.debug(
+      {
+        agentName: agentDef.name,
+        command: resolved.command,
+        args: resolved.args,
+      },
+      "Resolved agent command",
+    );
+
+    const ignorePatterns = PathGuard.loadIgnoreFile(workingDirectory);
+    instance.pathGuard = new PathGuard({
+      cwd: workingDirectory,
+      allowedPaths,
+      ignorePatterns,
+    });
+
+    instance.child = spawn(
+      resolved.command,
+      [...resolved.args, ...agentDef.args],
+      {
+        stdio: ["pipe", "pipe", "pipe"],
+        cwd: workingDirectory,
+        // envWhitelist from workspace.security.envWhitelist config would extend DEFAULT_ENV_WHITELIST.
+        // Tracked as follow-up: pass workspace security config through spawn/resume call chain.
+        env: filterEnv(process.env as Record<string, string>, agentDef.env),
+      },
+    );
+
+    await new Promise<void>((resolve, reject) => {
+      instance.child.on("error", (err) => {
+        reject(
+          new Error(
+            `Failed to spawn agent "${agentDef.name}": ${err.message}. Is "${agentDef.command}" installed?`,
+          ),
+        );
+      });
+      instance.child.on("spawn", () => resolve());
+    });
+
+    instance.stderrCapture = new StderrCapture(50);
+    instance.child.stderr!.on("data", (chunk: Buffer) => {
+      instance.stderrCapture.append(chunk.toString());
+    });
+
+    const stdinLogger = new Transform({
+      transform(chunk, _enc, cb) {
+        if (instance.debugTracer) {
+          const raw = chunk.toString().trimEnd();
+          try {
+            instance.debugTracer.log("acp", { dir: "send", data: JSON.parse(raw) });
+          } catch {
+            instance.debugTracer.log("acp", { dir: "send", data: raw });
+          }
+        }
+        cb(null, chunk);
+      },
+    });
+    stdinLogger.pipe(instance.child.stdin!);
+
+    const stdoutLogger = new Transform({
+      transform(chunk, _enc, cb) {
+        if (instance.debugTracer) {
+          const raw = chunk.toString().trimEnd();
+          try {
+            instance.debugTracer.log("acp", { dir: "recv", data: JSON.parse(raw) });
+          } catch {
+            instance.debugTracer.log("acp", { dir: "recv", data: raw });
+          }
+        }
+        cb(null, chunk);
+      },
+    });
+    instance.child.stdout!.pipe(stdoutLogger);
+
+    const toAgent = nodeToWebWritable(stdinLogger);
+    const fromAgent = nodeToWebReadable(stdoutLogger);
+    const stream = ndJsonStream(toAgent, fromAgent);
+
+    instance.connection = new ClientSideConnection(
+      (_agent: Agent): Client => instance.createClient(_agent),
+      stream,
+    );
+
+    const initResponse = await instance.connection.initialize({
+      protocolVersion: PROTOCOL_VERSION,
+      clientCapabilities: {
+        fs: { readTextFile: true, writeTextFile: true },
+        terminal: true,
+      },
+    });
+
+    if (initResponse.protocolVersion !== PROTOCOL_VERSION) {
+      log.warn(
+        { expected: PROTOCOL_VERSION, got: initResponse.protocolVersion },
+        "ACP protocol version mismatch — some features may not work correctly",
+      );
+    }
+
+    instance.promptCapabilities =
+      initResponse.agentCapabilities?.promptCapabilities;
+
+    // Store full agent capabilities for introspection (session list, fork, close, etc.)
+    instance.agentCapabilities = initResponse.agentCapabilities as import("../types.js").AgentCapabilities | undefined;
+
+    log.info(
+      { promptCapabilities: instance.promptCapabilities ?? {} },
+      "Agent prompt capabilities",
+    );
+
+    return instance;
+  }
+
+  private setupCrashDetection(): void {
+    this.child.on("exit", (code, signal) => {
+      if (this._destroying) return;
+      log.info(
+        { sessionId: this.sessionId, exitCode: code, signal },
+        "Agent process exited",
+      );
+      // SIGINT/SIGTERM are graceful shutdown signals — not crashes
+      if (signal === "SIGINT" || signal === "SIGTERM") return;
+      if ((code !== 0 && code !== null) || signal) {
+        const stderr = this.stderrCapture.getLastLines();
+        this.emit(SessionEv.AGENT_EVENT, {
+          type: "error",
+          message: signal
+            ? `Agent killed by signal ${signal}\n${stderr}`
+            : `Agent crashed (exit code ${code})\n${stderr}`,
+        });
+      }
+    });
+
+    this.connection.closed.then(() => {
+      log.debug({ sessionId: this.sessionId }, "ACP connection closed");
+    });
+  }
+
+  static async spawn(
+    agentDef: AgentDefinition,
+    workingDirectory: string,
+    mcpServers?: McpServerConfig[],
+    allowedPaths?: string[],
+  ): Promise<AgentInstance> {
+    log.debug(
+      { agentName: agentDef.name, command: agentDef.command },
+      "Spawning agent",
+    );
+    const spawnStart = Date.now();
+
+    const instance = await AgentInstance.spawnSubprocess(
+      agentDef,
+      workingDirectory,
+      allowedPaths,
+    );
+
+    const resolvedMcp = AgentInstance.mcpManager.resolve(mcpServers);
+    const response = await instance.connection.newSession({
+      cwd: workingDirectory,
+      mcpServers: resolvedMcp as any,
+    });
+
+    log.info(response, 'newSession response');
+    instance.sessionId = response.sessionId;
+    instance.initialSessionResponse = response;
+    instance.debugTracer = createDebugTracer(response.sessionId, workingDirectory);
+    instance.setupCrashDetection();
+
+    log.info(
+      {
+        sessionId: response.sessionId,
+        durationMs: Date.now() - spawnStart,
+        configOptions: (response as any).configOptions ?? [],
+        agentCapabilities: instance.agentCapabilities ?? null,
+      },
+      "Agent spawn complete",
+    );
+    return instance;
+  }
+
+  static async resume(
+    agentDef: AgentDefinition,
+    workingDirectory: string,
+    agentSessionId: string,
+    mcpServers?: McpServerConfig[],
+    allowedPaths?: string[],
+  ): Promise<AgentInstance> {
+    log.debug({ agentName: agentDef.name, agentSessionId }, "Resuming agent");
+    const spawnStart = Date.now();
+
+    const instance = await AgentInstance.spawnSubprocess(
+      agentDef,
+      workingDirectory,
+      allowedPaths,
+    );
+
+    const resolvedMcp = AgentInstance.mcpManager.resolve(mcpServers);
+
+    try {
+      if (instance.agentCapabilities?.loadSession) {
+        // Agent supports session/load — preferred over unstable session/resume
+        const response = await instance.connection.loadSession({
+          sessionId: agentSessionId,
+          cwd: workingDirectory,
+          mcpServers: resolvedMcp as any,
+        });
+        instance.sessionId = agentSessionId;
+        instance.initialSessionResponse = response;
+        instance.debugTracer = createDebugTracer(agentSessionId, workingDirectory);
+        log.info(
+          {
+            sessionId: agentSessionId,
+            durationMs: Date.now() - spawnStart,
+            agentCapabilities: instance.agentCapabilities ?? null,
+          },
+          "Agent load complete",
+        );
+      } else {
+        const response = await instance.connection.unstable_resumeSession({
+          sessionId: agentSessionId,
+          cwd: workingDirectory,
+        });
+        instance.sessionId = response.sessionId;
+        instance.initialSessionResponse = response;
+        instance.debugTracer = createDebugTracer(response.sessionId, workingDirectory);
+        log.info(
+          {
+            sessionId: response.sessionId,
+            durationMs: Date.now() - spawnStart,
+            agentCapabilities: instance.agentCapabilities ?? null,
+          },
+          "Agent resume complete",
+        );
+      }
+    } catch (err) {
+      log.warn(
+        { err, agentSessionId },
+        "Resume failed, falling back to new session",
+      );
+      const response = await instance.connection.newSession({
+        cwd: workingDirectory,
+        mcpServers: resolvedMcp as any,
+      });
+      instance.sessionId = response.sessionId;
+      instance.initialSessionResponse = response;
+      instance.debugTracer = createDebugTracer(response.sessionId, workingDirectory);
+      log.info(
+        { sessionId: response.sessionId, durationMs: Date.now() - spawnStart },
+        "Agent fallback spawn complete",
+      );
+    }
+
+    instance.setupCrashDetection();
+    return instance;
+  }
+
+  // createClient — implemented in Task 6b
+  private createClient(_agent: Agent): Client {
+    const self = this;
+    const MAX_OUTPUT_BYTES = 1024 * 1024; // 1MB cap
+
+    return {
+      // ── Session updates ──────────────────────────────────────────────────
+      async sessionUpdate(params) {
+        const update = params.update;
+        let event: AgentEvent | null = null;
+
+        switch (update.sessionUpdate) {
+          case "agent_message_chunk":
+            if (update.content.type === "text") {
+              event = { type: "text", content: update.content.text };
+            } else if (update.content.type === "image") {
+              // ACP SDK types don't expose data/mimeType fields for image content
+              const c = update.content as unknown as { data: string; mimeType: string };
+              event = { type: "image_content", data: c.data, mimeType: c.mimeType };
+            } else if (update.content.type === "audio") {
+              // ACP SDK types don't expose data/mimeType fields for audio content
+              const c = update.content as unknown as { data: string; mimeType: string };
+              event = { type: "audio_content", data: c.data, mimeType: c.mimeType };
+            } else if (update.content.type === "resource") {
+              // EmbeddedResource: content.resource is TextResourceContents or BlobResourceContents
+              // TextResourceContents has { uri, text, mimeType? }
+              // BlobResourceContents has { uri, blob, mimeType? }
+              const c = update.content as unknown as {
+                resource: { uri: string; text?: string; blob?: string; mimeType?: string };
+                annotations?: { audience?: string[]; priority?: number };
+              };
+              // The EmbeddedResource content block doesn't carry a top-level name field —
+              // use the uri as a fallback name since AgentEvent.resource_content requires one.
+              event = {
+                type: "resource_content",
+                uri: c.resource.uri,
+                name: c.resource.uri,
+                text: c.resource.text ?? undefined,
+                blob: c.resource.blob ?? undefined,
+                mimeType: c.resource.mimeType ?? undefined,
+              };
+            } else if (update.content.type === "resource_link") {
+              // ResourceLink: { uri, name, mimeType?, title?, description?, size? }
+              const c = update.content as unknown as {
+                uri: string;
+                name: string;
+                mimeType?: string | null;
+                title?: string | null;
+                description?: string | null;
+                size?: number | null;
+              };
+              event = {
+                type: "resource_link",
+                uri: c.uri,
+                name: c.name,
+                mimeType: c.mimeType ?? undefined,
+                title: c.title ?? undefined,
+                description: c.description ?? undefined,
+                size: c.size ?? undefined,
+              };
+            }
+            break;
+          case "agent_thought_chunk":
+            if (update.content.type === "text") {
+              event = { type: "thought", content: update.content.text };
+            }
+            break;
+          case "tool_call": {
+            const tc = update as unknown as SdkToolCallFields;
+            event = {
+              type: "tool_call",
+              id: update.toolCallId,
+              name: update.title,
+              kind: update.kind ?? undefined,
+              status: update.status ?? "pending",
+              content: update.content ?? undefined,
+              rawInput: tc.rawInput ?? undefined,
+              rawOutput: tc.rawOutput ?? undefined,
+              meta: tc._meta ?? undefined,
+            };
+            break;
+          }
+          case "tool_call_update": {
+            const tcu = update as unknown as SdkToolCallFields;
+            event = {
+              type: "tool_update",
+              id: update.toolCallId,
+              name: update.title ?? undefined,
+              kind: update.kind ?? undefined,
+              status: update.status ?? "pending",
+              content: update.content ?? undefined,
+              rawInput: tcu.rawInput ?? undefined,
+              rawOutput: tcu.rawOutput ?? undefined,
+              meta: tcu._meta ?? undefined,
+            };
+            break;
+          }
+          case "plan":
+            event = { type: "plan", entries: update.entries };
+            break;
+          case "usage_update":
+            event = {
+              type: "usage",
+              tokensUsed: update.used,
+              contextSize: update.size,
+              cost: update.cost ?? undefined,
+            };
+            break;
+          case "available_commands_update":
+            event = {
+              type: "commands_update",
+              commands: update.availableCommands,
+            };
+            break;
+          case "session_info_update": {
+            const si = update as unknown as SdkSessionInfoUpdate;
+            event = {
+              type: "session_info_update",
+              title: si.title ?? undefined,
+              updatedAt: si.updatedAt ?? undefined,
+              _meta: si._meta ?? undefined,
+            };
+            break;
+          }
+          case "config_option_update": {
+            const co = update as unknown as SdkConfigOptionUpdate;
+            event = {
+              type: "config_option_update",
+              options: (co.configOptions ?? []) as ConfigOption[],
+            };
+            break;
+          }
+          case "user_message_chunk": {
+            const um = update as unknown as SdkUserMessageChunk;
+            event = {
+              type: "user_message_chunk",
+              content: um.content?.text ?? "",
+            };
+            break;
+          }
+          // NOTE: model_update is NOT a session update type in the ACP SDK schema.
+          // Model changes are applied via setSessionConfigOption() and the response
+          // is synchronous — the SDK does not push a model_update notification to
+          // the client. Therefore AgentEvent "model_update" cannot originate from
+          // sessionUpdate and must be emitted by callers of setConfigOption()
+          // if they need to propagate the change downstream.
+          default:
+            // Unknown update type — ignore
+            return;
+        }
+
+        if (event !== null) {
+          self.emit(SessionEv.AGENT_EVENT, event);
+        }
+      },
+
+      // ── Permission requests ──────────────────────────────────────────────
+      async requestPermission(params) {
+        const permissionRequest: PermissionRequest = {
+          id: params.toolCall.toolCallId,
+          description: params.toolCall.title ?? params.toolCall.toolCallId,
+          options: params.options.map((opt: SdkPermissionOption) => ({
+            id: opt.optionId,
+            label: opt.name,
+            isAllow: opt.kind === "allow_once" || opt.kind === "allow_always",
+          })),
+        };
+
+        const selectedOptionId =
+          await self.onPermissionRequest(permissionRequest);
+        return {
+          outcome: { outcome: "selected" as const, optionId: selectedOptionId },
+        };
+      },
+
+      // ── File operations ──────────────────────────────────────────────────
+      async readTextFile(params) {
+        const p = params as unknown as SdkReadTextFileParams;
+        // Security: validate path against workspace boundary
+        const pathCheck = self.pathGuard.validatePath(p.path, "read");
+        if (!pathCheck.allowed) {
+          throw new Error(`[Access denied] ${pathCheck.reason}`);
+        }
+        // Hook: fs:beforeRead — modifiable, can block
+        if (self.middlewareChain) {
+          const result = await self.middlewareChain.execute(Hook.FS_BEFORE_READ, { sessionId: self.sessionId, path: p.path, line: p.line, limit: p.limit }, async (r) => r);
+          if (!result) return { content: "" }; // blocked by middleware
+          p.path = result.path;
+        }
+        const content = await readTextFileWithRange(p.path, {
+          line: p.line ?? undefined,
+          limit: p.limit ?? undefined,
+        });
+        return { content };
+      },
+
+      async writeTextFile(params) {
+        let writePath = params.path;
+        let writeContent = params.content;
+        // Security: validate path against workspace boundary
+        const pathCheck = self.pathGuard.validatePath(writePath, "write");
+        if (!pathCheck.allowed) {
+          throw new Error(`[Access denied] ${pathCheck.reason}`);
+        }
+        // Hook: fs:beforeWrite — modifiable, can block
+        if (self.middlewareChain) {
+          const result = await self.middlewareChain.execute(Hook.FS_BEFORE_WRITE, { sessionId: self.sessionId, path: writePath, content: writeContent }, async (r) => r);
+          if (!result) return {}; // blocked by middleware
+          writePath = result.path;
+          writeContent = result.content;
+        }
+        await fs.promises.mkdir(path.dirname(writePath), { recursive: true });
+        await fs.promises.writeFile(writePath, writeContent, "utf-8");
+        return {};
+      },
+
+      // ── Terminal operations (delegated to TerminalManager) ─────────────
+      async createTerminal(params) {
+        return self.terminalManager.createTerminal(
+          self.sessionId,
+          {
+            command: params.command,
+            args: params.args,
+            env: params.env,
+            cwd: params.cwd,
+            outputByteLimit: params.outputByteLimit ?? MAX_OUTPUT_BYTES,
+          },
+          self.middlewareChain,
+        );
+      },
+
+      async terminalOutput(params) {
+        return self.terminalManager.getOutput(params.terminalId);
+      },
+
+      async waitForTerminalExit(params) {
+        return self.terminalManager.waitForExit(params.terminalId);
+      },
+
+      async killTerminal(params) {
+        self.terminalManager.kill(params.terminalId);
+        return {};
+      },
+
+      async releaseTerminal(params) {
+        self.terminalManager.release(params.terminalId);
+      },
+    };
+  }
+
+  // ── New ACP methods ──────────────────────────────────────────────────
+
+  async setConfigOption(
+    configId: string,
+    value: SetConfigOptionValue,
+  ): Promise<SetSessionConfigOptionResponse> {
+    try {
+      return await this.connection.setSessionConfigOption({
+        sessionId: this.sessionId,
+        configId,
+        ...value,
+      } as any);
+    } catch (err) {
+      // Fall back to legacy setSessionMode / unstable_setSessionModel for agents
+      // (e.g. Gemini CLI) that implement the old separate methods instead of the
+      // unified session/set_config_option method (ACP -32601 Method Not Found).
+      if (typeof err === 'object' && err !== null && (err as any).code === -32601) {
+        if (configId === 'mode' && value.type === 'select') {
+          await this.connection.setSessionMode({
+            sessionId: this.sessionId,
+            modeId: value.value as string,
+          });
+          return { configOptions: [] };
+        }
+        if (configId === 'model' && value.type === 'select') {
+          await this.connection.unstable_setSessionModel({
+            sessionId: this.sessionId,
+            modelId: value.value as string,
+          });
+          return { configOptions: [] };
+        }
+      }
+      throw err;
+    }
+  }
+
+  async listSessions(
+    cwd?: string,
+    cursor?: string,
+  ): Promise<ListSessionsResponse> {
+    return await this.connection.listSessions({
+      cwd: cwd ?? null,
+      cursor: cursor ?? null,
+    });
+  }
+
+  async loadSession(
+    sessionId: string,
+    cwd: string,
+    mcpServers?: McpServerConfig[],
+  ): Promise<LoadSessionResponse> {
+    const resolvedMcp = AgentInstance.mcpManager.resolve(mcpServers);
+    return await this.connection.loadSession({
+      sessionId,
+      cwd,
+      mcpServers: resolvedMcp as any,
+    });
+  }
+
+  async authenticate(methodId: string): Promise<void> {
+    await this.connection.authenticate({ methodId });
+  }
+
+  async forkSession(
+    sessionId: string,
+    cwd: string,
+    mcpServers?: McpServerConfig[],
+  ): Promise<ForkSessionResponse> {
+    const resolvedMcp = AgentInstance.mcpManager.resolve(mcpServers);
+    return await this.connection.unstable_forkSession({
+      sessionId,
+      cwd,
+      mcpServers: resolvedMcp as any,
+    });
+  }
+
+  async closeSession(sessionId: string): Promise<void> {
+    await this.connection.unstable_closeSession({ sessionId });
+  }
+
+  // ── Prompt & lifecycle ──────────────────────────────────────────────
+
+  async prompt(text: string, attachments?: Attachment[]): Promise<PromptResponse> {
+    const contentBlocks: Array<Record<string, unknown>> = [{ type: "text", text }];
+    const capabilities = this.promptCapabilities ?? {};
+
+    for (const att of attachments ?? []) {
+      // Check if this attachment should be skipped (too large, unsupported format)
+      const skipNote = buildAttachmentNote(att, capabilities);
+      if (skipNote !== null) {
+        (contentBlocks[0] as { text: string }).text += `\n\n${skipNote}`;
+        continue;
+      }
+
+      if (att.type === "image" && capabilities.image && SUPPORTED_IMAGE_MIMES.has(att.mimeType)) {
+        const attCheck = this.pathGuard.validatePath(att.filePath, "read");
+        if (!attCheck.allowed) {
+          (contentBlocks[0] as { text: string }).text += `\n\n[Attachment access denied: ${attCheck.reason}]`;
+          continue;
+        }
+        const data = await fs.promises.readFile(att.filePath);
+        contentBlocks.push({ type: "image", data: data.toString("base64"), mimeType: att.mimeType });
+      } else if (att.type === "audio" && capabilities.audio) {
+        const attCheck = this.pathGuard.validatePath(att.filePath, "read");
+        if (!attCheck.allowed) {
+          (contentBlocks[0] as { text: string }).text += `\n\n[Attachment access denied: ${attCheck.reason}]`;
+          continue;
+        }
+        const data = await fs.promises.readFile(att.filePath);
+        contentBlocks.push({ type: "audio", data: data.toString("base64"), mimeType: att.mimeType });
+      } else {
+        // Fallback: append file path to text so agent can read from disk
+        if (att.type === "image" || att.type === "audio") {
+          log.debug(
+            { type: att.type, capabilities },
+            "Agent does not support %s content, falling back to file path",
+            att.type,
+          );
+        }
+        (contentBlocks[0] as { text: string }).text += `\n\n[Attached file: ${att.filePath}]`;
+      }
+    }
+
+    return this.connection.prompt({
+      sessionId: this.sessionId,
+      prompt: contentBlocks as any,
+    });
+  }
+
+  async cancel(): Promise<void> {
+    await this.connection.cancel({ sessionId: this.sessionId });
+  }
+
+  async destroy(): Promise<void> {
+    this._destroying = true;
+
+    // Cleanup terminals
+    this.terminalManager.destroyAll();
+
+    // If process already exited, nothing to do
+    if (this.child.exitCode !== null) return;
+
+    // Kill agent subprocess and wait for it to actually exit
+    await new Promise<void>((resolve) => {
+      // Register exit listener BEFORE sending signal to avoid race
+      this.child.on("exit", () => {
+        clearTimeout(forceKillTimer);
+        resolve();
+      });
+
+      this.child.kill("SIGTERM");
+
+      const forceKillTimer = setTimeout(() => {
+        // Use exitCode check — child.killed is true after ANY kill() call
+        if (this.child.exitCode === null) this.child.kill("SIGKILL");
+        resolve();
+      }, 10_000);
+      if (typeof forceKillTimer === 'object' && forceKillTimer !== null && 'unref' in forceKillTimer) {
+        (forceKillTimer as NodeJS.Timeout).unref();
+      }
+    });
+  }
+}

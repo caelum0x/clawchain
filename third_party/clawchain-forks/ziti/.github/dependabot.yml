@@ -1,0 +1,69 @@
+version: 2
+updates:
+- package-ecosystem: gomod
+  directory: /
+  schedule:
+    interval: daily
+  open-pull-requests-limit: 10
+  groups:
+    openziti:
+      applies-to: version-updates
+      update-types:
+        - minor
+        - patch
+      patterns:
+        - "*openziti*"
+
+    third-party:
+      applies-to: version-updates
+      update-types:
+        - minor
+        - patch
+      exclude-patterns:
+        - "*openziti*"
+        - "*rabbitmq*"
+        - "*blackfriday*"
+        - "*zitadel*"
+
+- package-ecosystem: github-actions
+  directory: /
+  schedule:
+    interval: weekly
+  open-pull-requests-limit: 10
+  groups:
+    all:
+      applies-to: version-updates
+      update-types:
+        - major
+        - minor
+        - patch
+
+# bump the console SPA version that is built in to the controller image
+- package-ecosystem: docker
+  directory: /dist/docker-images/ziti-controller
+  schedule:
+    interval: weekly
+  open-pull-requests-limit: 10
+  groups:
+    all:
+      applies-to: version-updates
+      update-types:
+        - major
+        - minor
+        - patch
+
+# bump the kubectl version in the cli image
+- package-ecosystem: docker
+  directory: /dist/docker-images/ziti-cli
+  schedule:
+    interval: weekly
+  open-pull-requests-limit: 10
+  allow:
+    - dependency-name: portainer/kubectl-shell
+  groups:
+    all:
+      applies-to: version-updates
+      update-types:
+        - major
+        - minor
+        - patch

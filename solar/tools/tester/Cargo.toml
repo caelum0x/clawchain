@@ -1,0 +1,25 @@
+[package]
+name = "solar-tester"
+description = "Solar test runner"
+homepage = "https://github.com/paradigmxyz/solar/tree/main/tools/tester"
+publish = false
+
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+regex.workspace = true
+tempfile.workspace = true
+ui_test = "0.30"
+
+[features]
+nightly = []

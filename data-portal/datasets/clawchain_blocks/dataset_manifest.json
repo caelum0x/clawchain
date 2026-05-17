@@ -1,0 +1,48 @@
+{
+    "name": "clawchain_blocks",
+    "version": "1.0.0",
+    "description": "block-level data from ClawChain",
+    "datatype": "blocks",
+    "network": "clawchain",
+    "files": [],
+    "schema": {
+        "description": "block-level data from ClawChain",
+        "tables": {
+            "blocks": {
+                "description": "each row corresponds to one committed block",
+                "columns": [
+                    {
+                        "description": "block height",
+                        "name": "height",
+                        "type": "INTEGER"
+                    },
+                    {
+                        "description": "ISO-8601 block timestamp",
+                        "name": "time",
+                        "type": "TEXT"
+                    },
+                    {
+                        "description": "block hash (hex)",
+                        "name": "hash",
+                        "type": "TEXT"
+                    },
+                    {
+                        "description": "proposer validator address",
+                        "name": "proposer",
+                        "type": "TEXT"
+                    },
+                    {
+                        "description": "number of transactions in the block",
+                        "name": "tx_count",
+                        "type": "INTEGER"
+                    },
+                    {
+                        "description": "total gas used across all transactions",
+                        "name": "gas_used",
+                        "type": "INTEGER"
+                    }
+                ]
+            }
+        }
+    }
+}

@@ -1,0 +1,47 @@
+{
+  "name": "@oko-wallet/oko-common-ui",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./anchored_menu": "./src/anchored_menu/anchored_menu.tsx",
+    "./badge": "./src/badge/badge.tsx",
+    "./button": "./src/button/button.tsx",
+    "./card": "./src/card/card.tsx",
+    "./checkbox": "./src/checkbox/checkbox.tsx",
+    "./command_block": "./src/command_block/command_block.tsx",
+    "./dropdown": "./src/dropdown/dropdown.tsx",
+    "./icons/*": "./src/icons/*.tsx",
+    "./input": "./src/input/input.tsx",
+    "./logo": "./src/logo/logo.tsx",
+    "./menu": "./src/menu/menu_item.tsx",
+    "./otp_input": "./src/otp_input/otp_input.tsx",
+    "./sidebar_account_info": "./src/sidebar_account_info/sidebar_account_info.tsx",
+    "./spacing": "./src/spacing/spacing.tsx",
+    "./styles/*": "./src/styles/*",
+    "./table": "./src/table/table.tsx",
+    "./theme": "./src/theme/theme_provider.tsx",
+    "./toast": "./src/toast/toast.tsx",
+    "./toggle": "./src/toggle/toggle.tsx",
+    "./tooltip": "./src/tooltip/tooltip.tsx",
+    "./typography": "./src/typography/typography.tsx",
+    "./skeleton": "./src/skeleton/skeleton.tsx",
+    "./image_with_alt": "./src/image_with_alt/image_with_alt.tsx"
+  },
+  "dependencies": {
+    "@floating-ui/dom": "^1.7.4",
+    "@floating-ui/react": "^0.27.16",
+    "@oko-wallet/stdlib-js": "0.0.2-rc.40",
+    "classnames": "^2.5.1",
+    "next": "^16.1.1",
+    "react": "^19.2.1",
+    "react-dom": "^19.2.1",
+    "sass": "^1.94.2"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.3"
+  }
+}

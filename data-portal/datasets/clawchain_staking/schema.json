@@ -1,0 +1,15 @@
+{
+  "name": "clawchain_staking",
+  "description": "Staking events from ClawChain",
+  "network": "clawchain",
+  "category": "staking",
+  "columns": [
+    { "name": "height", "type": "uint64", "description": "Block height" },
+    { "name": "tx_hash", "type": "string", "description": "Transaction hash" },
+    { "name": "action", "type": "string", "description": "Staking action (delegate/undelegate/redelegate/claim_rewards)" },
+    { "name": "delegator", "type": "string", "description": "Delegator address" },
+    { "name": "validator", "type": "string", "description": "Validator address" },
+    { "name": "amount", "type": "string", "description": "Staked or claimed amount" },
+    { "name": "timestamp", "type": "string", "description": "ISO-8601 timestamp" }
+  ]
+}

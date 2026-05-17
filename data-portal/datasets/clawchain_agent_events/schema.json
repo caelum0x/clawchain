@@ -1,0 +1,15 @@
+{
+  "name": "clawchain_agent_events",
+  "description": "Agent module events from ClawChain",
+  "network": "clawchain",
+  "category": "agent",
+  "columns": [
+    { "name": "height", "type": "uint64", "description": "Block height" },
+    { "name": "tx_hash", "type": "string", "description": "Transaction hash" },
+    { "name": "action", "type": "string", "description": "Event action (register/heartbeat/delegate_task/complete_task/accept_task)" },
+    { "name": "agent_address", "type": "string", "description": "Agent address" },
+    { "name": "task_id", "type": "string", "description": "Task identifier" },
+    { "name": "amount", "type": "string", "description": "Token amount" },
+    { "name": "timestamp", "type": "string", "description": "ISO-8601 timestamp" }
+  ]
+}

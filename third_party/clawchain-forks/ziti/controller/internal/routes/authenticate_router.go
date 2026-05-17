@@ -1,0 +1,295 @@
+/*
+	Copyright NetFoundry Inc.
+
+	Licensed under the Apache License, Version 2.0 (the "License");
+	you may not use this file except in compliance with the License.
+	You may obtain a copy of the License at
+
+	https://www.apache.org/licenses/LICENSE-2.0
+
+	Unless required by applicable law or agreed to in writing, software
+	distributed under the License is distributed on an "AS IS" BASIS,
+	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	See the License for the specific language governing permissions and
+	limitations under the License.
+*/
+
+package routes
+
+import (
+	"errors"
+	"net"
+	"net/http"
+	"time"
+
+	"github.com/go-openapi/runtime/middleware"
+	"github.com/google/uuid"
+	"github.com/michaelquigley/pfxlog"
+	clientApiAuthentication "github.com/openziti/edge-api/rest_client_api_server/operations/authentication"
+	managementApiAuthentication "github.com/openziti/edge-api/rest_management_api_server/operations/authentication"
+	"github.com/openziti/edge-api/rest_model"
+	"github.com/openziti/foundation/v2/concurrenz"
+	"github.com/openziti/foundation/v2/errorz"
+	"github.com/openziti/foundation/v2/rate"
+	"github.com/openziti/metrics"
+	"github.com/openziti/ziti/v2/common"
+	"github.com/openziti/ziti/v2/controller/apierror"
+	"github.com/openziti/ziti/v2/controller/db"
+	"github.com/openziti/ziti/v2/controller/env"
+	"github.com/openziti/ziti/v2/controller/model"
+	"github.com/openziti/ziti/v2/controller/permissions"
+	"github.com/openziti/ziti/v2/controller/response"
+)
+
+func init() {
+	r := NewAuthRouter()
+	env.AddRouter(r)
+}
+
+type AuthRouter struct {
+	createTimer   metrics.Timer
+	lastAdminAuth concurrenz.AtomicValue[time.Time]
+}
+
+func NewAuthRouter() *AuthRouter {
+	return &AuthRouter{}
+}
+
+func (ro *AuthRouter) Register(ae *env.AppEnv) {
+	ro.createTimer = ae.GetHostController().GetNetwork().GetMetricsRegistry().Timer("api-session.create")
+	ae.ClientApi.AuthenticationAuthenticateHandler = clientApiAuthentication.AuthenticateHandlerFunc(func(params clientApiAuthentication.AuthenticateParams) middleware.Responder {
+		return ae.IsAllowed(func(ae *env.AppEnv, rc *response.RequestContext) {
+			ro.authHandler(ae, rc, params.HTTPRequest, params.Method, params.Auth)
+		}, params.HTTPRequest, "", "", permissions.Always())
+	})
+
+	ae.ClientApi.AuthenticationAuthenticateMfaHandler = clientApiAuthentication.AuthenticateMfaHandlerFunc(func(params clientApiAuthentication.AuthenticateMfaParams, i interface{}) middleware.Responder {
+		return ae.IsAllowed(func(ae *env.AppEnv, rc *response.RequestContext) { ro.authMfa(ae, rc, params.MfaAuth) }, params.HTTPRequest, "", "", permissions.HasOneOf(permissions.IsAuthenticated(), permissions.IsPartiallyAuthenticated()))
+	})
+
+	ae.ManagementApi.AuthenticationAuthenticateHandler = managementApiAuthentication.AuthenticateHandlerFunc(func(params managementApiAuthentication.AuthenticateParams) middleware.Responder {
+		return ae.IsAllowed(func(ae *env.AppEnv, rc *response.RequestContext) {
+			ro.authHandler(ae, rc, params.HTTPRequest, params.Method, params.Auth)
+		}, params.HTTPRequest, "", "", permissions.Always())
+	})
+
+	ae.ManagementApi.AuthenticationAuthenticateMfaHandler = managementApiAuthentication.AuthenticateMfaHandlerFunc(func(params managementApiAuthentication.AuthenticateMfaParams, i interface{}) middleware.Responder {
+		return ae.IsAllowed(func(ae *env.AppEnv, rc *response.RequestContext) { ro.authMfa(ae, rc, params.MfaAuth) }, params.HTTPRequest, "", "", permissions.HasOneOf(permissions.IsAuthenticated(), permissions.IsPartiallyAuthenticated()))
+	})
+}
+
+func (ro *AuthRouter) authHandler(ae *env.AppEnv, rc *response.RequestContext, httpRequest *http.Request, method string, auth *rest_model.Authenticate) {
+	start := time.Now()
+	logger := pfxlog.Logger()
+	authContext := model.NewAuthContextHttp(rc.Request, method, auth, rc.NewChangeContext())
+
+	authContext.SetSecurityTokenCtx(rc.SecurityCtx.GetSecurityTokenCtx())
+
+	authResult, err := ae.Managers.Authenticator.Authorize(authContext)
+
+	if err != nil {
+		rc.RespondWithError(err)
+		return
+	}
+
+	if !authResult.IsSuccessful() {
+		rc.RespondWithApiError(errorz.NewUnauthorized())
+		return
+	}
+
+	identity := authResult.Identity()
+
+	if identity.EnvInfo == nil {
+		identity.EnvInfo = &model.EnvInfo{}
+	}
+
+	if identity.SdkInfo == nil {
+		identity.SdkInfo = &model.SdkInfo{}
+	}
+
+	changeCtx := rc.NewChangeContextForIdentity(identity)
+	err = ae.GetManagers().Identity.UpdateSdkEnvInfo(identity, authContext.GetEnvInfo(), authContext.GetSdkInfo(), changeCtx)
+
+	if err != nil {
+		pfxlog.Logger().WithError(err).Errorf("failed to update sdk and env info: %s, continuining to process authentication", err)
+	}
+
+	token := uuid.New().String()
+	configTypes := map[string]struct{}{}
+
+	if auth != nil {
+		configTypes = ae.Managers.ConfigType.MapConfigTypeNamesToIds(auth.ConfigTypes, identity.Id)
+	}
+	remoteIpStr := ""
+	if remoteIp, _, err := net.SplitHostPort(rc.Request.RemoteAddr); err == nil {
+		remoteIpStr = remoteIp
+	}
+
+	logger.Debugf("client %v requesting configTypes: %v", identity.Name, configTypes)
+	newApiSession := &model.ApiSession{
+		IdentityId:              identity.Id,
+		Token:                   token,
+		ConfigTypes:             configTypes,
+		IPAddress:               remoteIpStr,
+		AuthenticatorId:         authResult.AuthenticatorId(),
+		LastActivityAt:          time.Now().UTC(),
+		ImproperClientCertChain: authResult.ImproperClientCertChain(),
+	}
+
+	authenticator := authResult.Authenticator()
+
+	if authenticator != nil && authenticator.Method == db.MethodAuthenticatorCert {
+		cert := authResult.Authenticator().ToCert()
+
+		if cert != nil {
+			newApiSession.IsCertExtendable = cert.IsIssuedByNetwork
+
+			header := rc.ResponseWriter.Header()
+			if cert.IsExtendRequested {
+				header.Add(model.ZitiAuthenticatorExtendRequested, "true")
+				if cert.IsKeyRollRequested {
+					header.Add(model.ZitiAuthenticatorRollKeyRequested, "true")
+				}
+			}
+		}
+	}
+
+	mfa, err := ae.Managers.Mfa.ReadOneByIdentityId(identity.Id)
+
+	if err != nil {
+		rc.RespondWithError(err)
+		return
+	}
+
+	if mfa != nil && mfa.IsVerified {
+		newApiSession.TotpRequired = true
+		newApiSession.TotpComplete = false
+	}
+
+	var sessionCerts []*model.ApiSessionCertificate
+
+	for _, cert := range authResult.SessionCerts() {
+		sessionCert := model.NewApiSessionCertificate(cert)
+		sessionCerts = append(sessionCerts, sessionCert)
+	}
+
+	var sessionIdHolder concurrenz.AtomicValue[string]
+
+	lastAdminAuth := ro.lastAdminAuth.Load()
+	allowAdminBypass := identity.IsAdmin && time.Since(lastAdminAuth) > 10*time.Second &&
+		ro.lastAdminAuth.CompareAndSwap(lastAdminAuth, time.Now())
+
+	var ctrl rate.RateLimitControl
+	if allowAdminBypass {
+		var sessionId string
+		sessionId, err = ae.Managers.ApiSession.Create(changeCtx.NewMutateContext(), newApiSession, sessionCerts)
+		sessionIdHolder.Store(sessionId)
+		ctrl = rate.NoOpRateLimitControl()
+	} else {
+		ctrl, err = ae.AuthRateLimiter.RunRateLimited(func() error {
+			sessionId, err := ae.Managers.ApiSession.Create(changeCtx.NewMutateContext(), newApiSession, sessionCerts)
+			sessionIdHolder.Store(sessionId)
+			return err
+		})
+	}
+
+	if err != nil {
+		rc.RespondWithError(err)
+		return
+	}
+
+	sessionId := sessionIdHolder.Load()
+
+	filledApiSession, err := ae.Managers.ApiSession.Read(sessionId)
+
+	if err != nil {
+		logger.WithField("cause", err).Error("loading session by id resulted in an error")
+		rc.RespondWithApiError(errorz.NewUnauthorized())
+		return
+	}
+
+	ae.GetManagers().PostureResponse.SetSdkInfo(identity.Id, sessionId, identity.SdkInfo)
+
+	rc.Request.Header.Set("zt-session", filledApiSession.Token)
+	securityToken, err := common.NewSecurityTokenCtx(rc.Request, ae.TokenIssuerCache)
+
+	if err != nil {
+		pfxlog.Logger().WithError(err).Error("failed to create security token")
+		rc.RespondWithApiError(errorz.NewUnauthorized())
+		return
+	}
+
+	rc.SecurityCtx = env.NewSecurityCtx(securityToken, ae)
+
+	apiSession := MapToCurrentApiSessionRestModel(ae, rc, ae.GetConfig().Edge.SessionTimeoutDuration())
+
+	//re-calc session headers as they were not set when ApiSession == NIL
+	response.AddApiSessionHeaders(rc)
+
+	envelope := &rest_model.CurrentAPISessionDetailEnvelope{Data: apiSession, Meta: &rest_model.Meta{}}
+
+	rc.ResponseWriter.Header().Set(env.ZitiSession, filledApiSession.Token)
+
+	ro.createTimer.UpdateSince(start)
+
+	writeOk := rc.RespondWithProducer(rc.GetProducer(), envelope, http.StatusOK)
+	if writeOk {
+		ctrl.Success()
+	} else {
+		ctrl.Backoff()
+	}
+}
+
+func (ro *AuthRouter) authMfa(ae *env.AppEnv, rc *response.RequestContext, mfaCode *rest_model.MfaCode) {
+	identity, err := rc.SecurityCtx.GetIdentity()
+
+	if err != nil {
+		rc.RespondWithError(err)
+		return
+	}
+
+	if identity == nil {
+		rc.RespondWithError(errors.New("identity is nil, expected value"))
+		return
+	}
+
+	apiSession, err := rc.SecurityCtx.GetApiSession()
+
+	if err != nil {
+		rc.RespondWithError(err)
+		return
+	}
+
+	if apiSession == nil {
+		rc.RespondWithError(errors.New("api session is nil, expected a value"))
+		return
+	}
+
+	mfa, err := ae.Managers.Mfa.ReadOneByIdentityId(identity.Id)
+
+	if err != nil {
+		rc.RespondWithError(err)
+		return
+	}
+
+	if mfa == nil {
+		rc.RespondWithError(apierror.NewMfaNotEnrolledError())
+		return
+	}
+
+	ok, _ := ae.Managers.Mfa.Verify(mfa, *mfaCode.Code, rc.NewChangeContext())
+
+	if !ok {
+		rc.RespondWithError(apierror.NewInvalidMfaTokenError())
+		return
+	}
+
+	if err := ae.Managers.ApiSession.MfaCompleted(apiSession, rc.NewChangeContext()); err != nil {
+		rc.RespondWithError(err)
+		return
+	}
+
+	ae.Managers.PostureResponse.SetMfaPosture(identity.Id, apiSession.Id, true)
+
+	rc.RespondWithEmptyOk()
+}

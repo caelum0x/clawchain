@@ -1,0 +1,48 @@
+v: 3
+
+identity:
+  cert:                 etc/ca/intermediate/certs/002-client.cert.pem
+  server_cert:          etc/ca/intermediate/certs/002-server.cert.pem
+  key:                  etc/ca/intermediate/private/002.key.pem
+  ca:                   etc/ca/intermediate/certs/ca-chain.cert.pem
+
+#trace:
+#  path:                 002.trace
+
+ctrl:
+  endpoint:             tls:127.0.0.1:6262
+
+csr:
+  country: US
+  province: NC
+  locality: Charlotte
+  organization: NetFoundry
+  organizationalUnit: Ziti
+  sans:
+    dns:
+      - "localhost"
+    ip:
+      - "127.0.0.1"
+/
+link:
+  listeners:
+    - binding:          transport
+      bind:             tls:127.0.0.1:6002
+      advertise:        tls:127.0.0.1:6002
+      options:
+        outQueueSize:   16
+  dialers:
+    - binding:          transport
+      options:
+        outQueueSize:   32
+
+transport:
+  westworld3:
+    profile_version:              1
+    #tx_portal_min_sz:             16384
+    #tx_portal_max_sz:             1073741824
+    #instrument:
+    #  name:                       metrics
+    #  path:                       /tmp/westworld3
+    #  snapshot_ms:                250
+    #  enabled:                    true

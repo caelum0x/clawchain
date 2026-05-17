@@ -1,0 +1,463 @@
+# DanteGPU Platform - Complete Development Environment
+version: '3.8'
+
+services:
+  # Infrastructure Services
+  postgres:
+    image: postgres:15
+    container_name: dante-postgres
+    environment:
+      POSTGRES_DB: dante_auth
+      POSTGRES_USER: dante_user
+      POSTGRES_PASSWORD: dante_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/db_setup/00_create_user_and_databases.sql:/docker-entrypoint-initdb.d/00_create_user_and_databases.sql
+    networks:
+      - dante-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dante_user -d dante_auth"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: dante-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - dante-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  nats:
+    image: nats:2.10-alpine
+    container_name: dante-nats
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+      - "6222:6222"
+    command: 
+      - "--jetstream"
+      - "--store_dir=/data"
+      - "--http_port=8222"
+    volumes:
+      - nats_data:/data
+    networks:
+      - dante-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8222/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  consul:
+    image: hashicorp/consul:1.16
+    container_name: dante-consul
+    ports:
+      - "8500:8500"
+    environment:
+      CONSUL_BIND_INTERFACE: eth0
+    command: ["consul", "agent", "-server", "-bootstrap-expect=1", "-ui", "-client=0.0.0.0", "-data-dir=/consul/data", "-log-level=INFO"]
+    volumes:
+      - consul_data:/consul/data
+    networks:
+      - dante-network
+    healthcheck:
+      test: ["CMD", "consul", "members"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Monitoring Services
+  loki:
+    image: grafana/loki:2.9.8
+    container_name: dante-loki
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - loki_data:/loki
+    networks:
+      - dante-network
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v2.45.0
+    container_name: dante-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - prometheus_data:/prometheus
+    networks:
+      - dante-network
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:10.0.0
+    container_name: dante-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: "admin"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    networks:
+      - dante-network
+    restart: unless-stopped
+
+  promtail:
+    image: grafana/promtail:2.9.8
+    container_name: dante-promtail
+    volumes:
+      - /var/log:/var/log:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    command: -config.file=/etc/promtail/config.yml
+    networks:
+      - dante-network
+    depends_on:
+      - loki
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio:latest
+    container_name: dante-minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: dante_admin
+      MINIO_ROOT_PASSWORD: dante_minio_secure_123
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - dante-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    restart: unless-stopped
+
+  # Backend Services
+  auth-service:
+    build:
+      context: ./auth-service
+      dockerfile: Dockerfile
+    container_name: dante-auth-service
+    ports:
+      - "8090:8090"
+    environment:
+      DATABASE_URL: "postgresql://dante_user:dante_password@postgres:5432/dante_auth?sslmode=disable"
+      JWT_SECRET: "dante_jwt_super_secret_key_2024_very_secure_wow"
+      JWT_ALGORITHM: "HS256"
+      ACCESS_TOKEN_EXPIRE_MINUTES: 60
+      REFRESH_TOKEN_EXPIRE_DAYS: 7
+      LOG_LEVEL: "info"
+      CORS_ORIGINS: "http://localhost:3000,http://127.0.0.1:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - dante-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8090/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  dashboard-service:
+    build:
+      context: ./auth-service
+      dockerfile: dashboard_service.Dockerfile
+    container_name: dante-dashboard-service
+    ports:
+      - "8091:8091"
+    environment:
+      DATABASE_URL: "postgresql://dante_user:dante_password@postgres:5432/dante_auth?sslmode=disable"
+      JWT_SECRET: "dante_jwt_super_secret_key_2024_very_secure_wow"
+      JWT_ALGORITHM: "HS256"
+      LOG_LEVEL: "info"
+      CORS_ORIGINS: "http://localhost:3000,http://127.0.0.1:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+    networks:
+      - dante-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8091/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  gpu-monitor-service:
+    build:
+      context: ./auth-service
+      dockerfile: gpu_monitor_service.Dockerfile
+    container_name: dante-gpu-monitor-service
+    ports:
+      - "8092:8092"
+    environment:
+      DATABASE_URL: "postgresql://dante_user:dante_password@postgres:5432/dante_auth?sslmode=disable"
+      PROVIDER_REGISTRY_URL: "http://provider-registry-service:8081"
+      NATS_URL: "nats://nats:4222"
+      CONSUL_ADDRESS: "consul:8500"
+      LOG_LEVEL: "info"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+      consul:
+        condition: service_healthy
+      provider-registry-service:
+        condition: service_healthy
+    networks:
+      - dante-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8092/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  billing-payment-service:
+    build:
+      context: ./billing-payment-service
+      dockerfile: Dockerfile
+    container_name: dante-billing-service
+    ports:
+      - "8082:8080"
+    environment:
+      DATABASE_URL: "postgres://dante_user:dante_password@postgres:5432/dante_billing?sslmode=disable"
+      NATS_URL: "nats://nats:4222"
+      CONSUL_ADDRESS: "consul:8500"
+      CLAWCHAIN_REST_URL: "http://clawchain-node:1317"
+      CLAWCHAIN_CHAIN_ID: "clawchain-1"
+      LOG_LEVEL: "info"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+      consul:
+        condition: service_healthy
+    networks:
+      - dante-network
+    volumes:
+      - ./billing-payment-service/configs:/app/configs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  storage-service:
+    build:
+      context: ./storage-service
+      dockerfile: Dockerfile
+    container_name: dante-storage-service
+    ports:
+      - "8083:8083"
+    environment:
+      MINIO_ENDPOINT: "minio:9000"
+      MINIO_ACCESS_KEY: "dante_admin"
+      MINIO_SECRET_KEY: "dante_minio_secure_123"
+      MINIO_USE_SSL: "false"
+      MINIO_REGION: "us-east-1"
+      DEFAULT_BUCKET: "dante-storage"
+      LOG_LEVEL: "info"
+    depends_on:
+      minio:
+        condition: service_healthy
+    networks:
+      - dante-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  scheduler-orchestrator-service:
+    build:
+      context: ./scheduler-orchestrator-service
+      dockerfile: Dockerfile
+    container_name: dante-scheduler-service
+    ports:
+      - "8084:8003"
+    environment:
+      DATABASE_URL: "postgres://dante_user:dante_password@postgres:5432/dante_scheduler?sslmode=disable"
+      NATS_URL: "nats://nats:4222"
+      CONSUL_ADDRESS: "consul:8500"
+      PROVIDER_REGISTRY_URL: "http://provider-registry-service:8081"
+      LOG_LEVEL: "info"
+    depends_on:
+      - postgres
+      - nats
+      - consul
+      - provider-registry-service
+    networks:
+      dante-network:
+        aliases:
+          - scheduler-orchestrator
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # Provider Daemon (real runtime path; no simulated lifecycle mode)
+  provider-daemon:
+    build:
+      context: ./provider-daemon
+      dockerfile: Dockerfile
+    container_name: dante-provider-daemon
+    environment:
+      NATS_URL: "nats://nats:4222"
+      CONSUL_ADDRESS: "consul:8500"
+      PROVIDER_REGISTRY_URL: "http://provider-registry-service:8081"
+      PROVIDER_NAME: "Local GPU Provider"
+      PROVIDER_LOCATION: "US-East-1"
+      GPU_MODEL: "NVIDIA RTX 4090"
+      GPU_VRAM_MB: "24576"
+      LOG_LEVEL: "info"
+    depends_on:
+      nats:
+        condition: service_healthy
+      consul:
+        condition: service_healthy
+      provider-registry-service:
+        condition: service_healthy
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - dante-network
+
+  # Frontend Service
+  frontend:
+    build:
+      context: ./provider-web-app
+      dockerfile: Dockerfile
+    container_name: dante-frontend
+    ports:
+      - "5174:80"
+    environment:
+      REACT_APP_API_URL: "http://localhost:8080"
+      REACT_APP_WS_URL: "ws://localhost:8080"
+      REACT_APP_ENVIRONMENT: "development"
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    networks:
+      - dante-network
+
+  provider-registry-service:
+    build:
+      context: ./provider-registry-service
+      dockerfile: Dockerfile
+    container_name: dante-provider-registry-service
+    ports:
+      - "8081:8002"
+    environment:
+      DATABASE_URL: "postgresql://dante_user:dante_password@postgres:5432/dante_registry?sslmode=disable"
+      NATS_URL: "nats://nats:4222"
+      CONSUL_ADDRESS: "consul:8500"
+      LOG_LEVEL: "info"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+      consul:
+        condition: service_healthy
+    networks:
+      dante-network:
+        aliases:
+          - provider-registry
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    container_name: dante-api-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: ":8080"
+      NATS_ADDRESS: "nats://nats:4222"
+      CONSUL_ADDRESS: "consul:8500"
+      LOKI_URL: "http://loki:3100"
+      LOG_LEVEL: "info"
+      AUTH_SERVICE_URL: "http://auth-service:8090"
+      DASHBOARD_SERVICE_URL: "http://dashboard-service:8091"
+      GPU_MONITOR_SERVICE_URL: "http://gpu-monitor-service:8092"
+      PROVIDER_REGISTRY_URL: "http://provider-registry-service:8081"
+      BILLING_SERVICE_URL: "http://billing-payment-service:8080"
+      STORAGE_SERVICE_URL: "http://storage-service:8083"
+      SCHEDULER_SERVICE_URL: "http://scheduler-orchestrator-service:8084"
+    depends_on:
+      nats:
+        condition: service_healthy
+      consul:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+      dashboard-service:
+        condition: service_healthy
+      gpu-monitor-service:
+        condition: service_healthy
+      provider-registry-service:
+        condition: service_healthy
+      billing-payment-service:
+        condition: service_healthy
+      storage-service:
+        condition: service_healthy
+      scheduler-orchestrator-service:
+        condition: service_healthy
+    networks:
+      - dante-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+  nats_data:
+  consul_data:
+  minio_data:
+  prometheus_data:
+  grafana_data:
+  loki_data:
+
+networks:
+  dante-network:
+    driver: bridge

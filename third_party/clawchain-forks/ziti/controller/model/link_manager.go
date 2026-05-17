@@ -1,0 +1,308 @@
+/*
+	Copyright NetFoundry Inc.
+
+	Licensed under the Apache License, Version 2.0 (the "License");
+	you may not use this file except in compliance with the License.
+	You may obtain a copy of the License at
+
+	https://www.apache.org/licenses/LICENSE-2.0
+
+	Unless required by applicable law or agreed to in writing, software
+	distributed under the License is distributed on an "AS IS" BASIS,
+	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	See the License for the specific language governing permissions and
+	limitations under the License.
+*/
+
+package model
+
+import (
+	"math"
+	"sync"
+	"time"
+
+	"github.com/michaelquigley/pfxlog"
+	"github.com/openziti/ziti/v2/controller/storage/boltz"
+	"github.com/openziti/ziti/v2/controller/storage/objectz"
+	"github.com/openziti/ziti/v2/common/datastructures"
+	"github.com/openziti/ziti/v2/common/pb/ctrl_pb"
+	"github.com/openziti/ziti/v2/controller/config"
+	"github.com/openziti/ziti/v2/controller/models"
+	"github.com/orcaman/concurrent-map/v2"
+)
+
+type LinkManager struct {
+	linkTable      *linkTable
+	lock           sync.Mutex
+	initialLatency time.Duration
+	models.BaseObjectStoreManager[*Link]
+}
+
+func NewLinkManager(env Env) *LinkManager {
+	initialLatency := config.DefaultOptionsInitialLinkLatency
+	if env != nil {
+		initialLatency = env.GetConfig().Network.InitialLinkLatency
+	}
+
+	result := &LinkManager{
+		linkTable:      newLinkTable(),
+		initialLatency: initialLatency,
+	}
+
+	result.InitStore(objectz.NewObjectStore[*Link](func() objectz.ObjectIterator[*Link] {
+		return datastructures.IterateCMap[*Link](result.linkTable.links)
+	}))
+
+	result.GetStore().AddStringSymbol("id", func(entity *Link) *string {
+		return &entity.Id
+	})
+	result.GetStore().AddStringSymbol("protocol", func(entity *Link) *string {
+		return &entity.Protocol
+	})
+	result.GetStore().AddStringSymbol("dialAddress", func(entity *Link) *string {
+		return &entity.DialAddress
+	})
+	result.GetStore().AddStringSymbol("sourceRouter", func(entity *Link) *string {
+		return &entity.Src.Id
+	})
+	result.GetStore().AddStringSymbol("destRouter", func(entity *Link) *string {
+		return &entity.DstId
+	})
+	result.GetStore().AddInt64Symbol("cost", func(entity *Link) *int64 {
+		val := entity.GetCost()
+		return &val
+	})
+	result.GetStore().AddInt64Symbol("staticCost", func(entity *Link) *int64 {
+		val := int64(entity.GetStaticCost())
+		return &val
+	})
+	result.GetStore().AddInt64Symbol("destLatency", func(entity *Link) *int64 {
+		val := entity.GetDstLatency()
+		return &val
+	})
+	result.GetStore().AddInt64Symbol("sourceLatency", func(entity *Link) *int64 {
+		val := entity.GetSrcLatency()
+		return &val
+	})
+	result.GetStore().AddStringSymbol("state", func(entity *Link) *string {
+		val := entity.CurrentState().Mode.String()
+		return &val
+	})
+	result.GetStore().AddInt64Symbol("iteration", func(entity *Link) *int64 {
+		val := int64(entity.Iteration)
+		return &val
+	})
+
+	return result
+}
+
+func (self *LinkManager) BaseLoad(id string) (*Link, error) {
+	entity, found := self.Get(id)
+	if !found {
+		return nil, boltz.NewNotFoundError("link", "id", id)
+	}
+	return entity, nil
+}
+
+func (self *LinkManager) BuildRouterLinks(router *Router) {
+	self.linkTable.links.IterCb(func(_ string, link *Link) {
+		if link.DstId == router.Id {
+			router.routerLinks.Add(link, link.Src.Id)
+			link.Dst.Store(router)
+		}
+	})
+}
+
+func (self *LinkManager) Add(link *Link) {
+	self.linkTable.add(link)
+	link.Src.routerLinks.Add(link, link.DstId)
+	if dest := link.GetDest(); dest != nil {
+		dest.routerLinks.Add(link, link.Src.Id)
+	}
+}
+
+func (self *LinkManager) has(link *Link) bool {
+	return self.linkTable.has(link)
+}
+
+func (self *LinkManager) ScanForDeadLinks() {
+	var toRemove []*Link
+	self.linkTable.links.IterCb(func(_ string, link *Link) {
+		if !link.Src.Connected.Load() {
+			toRemove = append(toRemove, link)
+		}
+	})
+
+	for _, link := range toRemove {
+		self.Remove(link)
+	}
+}
+
+func (self *LinkManager) RouterReportedLink(reportedLink *ctrl_pb.RouterLinks_RouterLink, src, dst *Router) (*Link, bool) {
+	self.lock.Lock()
+	defer self.lock.Unlock()
+
+	link, _ := self.Get(reportedLink.Id)
+	if link != nil && link.Iteration >= reportedLink.Iteration {
+		return link, false
+	}
+
+	// remove the older link before adding the new one
+	if link != nil {
+		log := pfxlog.Logger().
+			WithField("routerId", src.Id).
+			WithField("linkId", reportedLink.Id).
+			WithField("destRouterId", reportedLink.DestRouterId).
+			WithField("iteration", reportedLink.Iteration)
+
+		self.Remove(link)
+		log.Infof("replaced link with newer iteration %v => %v", link.Iteration, reportedLink.Iteration)
+	}
+
+	link = newLink(reportedLink.Id, reportedLink.LinkProtocol, reportedLink.DialAddress, self.initialLatency)
+	link.Iteration = reportedLink.Iteration
+	link.Src = src
+	link.Dst.Store(dst)
+	link.DstId = reportedLink.DestRouterId
+	link.SetState(Connected)
+	link.SetConnsState(reportedLink.ConnState)
+	self.Add(link)
+	return link, true
+}
+
+func (self *LinkManager) Get(linkId string) (*Link, bool) {
+	return self.linkTable.get(linkId)
+}
+
+func (self *LinkManager) All() []*Link {
+	return self.linkTable.all()
+}
+
+func (self *LinkManager) IterateLinks() <-chan cmap.Tuple[string, *Link] {
+	return self.linkTable.links.IterBuffered()
+}
+
+func (self *LinkManager) GetLinkMap() map[string]*Link {
+	linkMap := make(map[string]*Link)
+	self.linkTable.links.IterCb(func(key string, link *Link) {
+		linkMap[key] = link
+	})
+	return linkMap
+}
+
+func (self *LinkManager) Remove(link *Link) {
+	if self.linkTable.remove(link) {
+		link.Src.routerLinks.Remove(link, link.DstId)
+		if dest := link.GetDest(); dest != nil {
+			dest.routerLinks.Remove(link, link.Src.Id)
+		}
+	}
+}
+
+func (self *LinkManager) ConnectedNeighborsOfRouter(router *Router) []*Router {
+	neighborMap := make(map[string]*Router)
+
+	links := router.routerLinks.GetLinks()
+	for _, link := range links {
+		dstRouter := link.GetDest()
+		if dstRouter != nil && dstRouter.Connected.Load() && link.IsUsable() {
+			if link.Src.Id != router.Id {
+				neighborMap[link.Src.Id] = link.Src
+			}
+			if link.DstId != router.Id {
+				neighborMap[link.DstId] = dstRouter
+			}
+		}
+	}
+
+	neighbors := make([]*Router, 0)
+	for _, r := range neighborMap {
+		neighbors = append(neighbors, r)
+	}
+	return neighbors
+}
+
+func (self *LinkManager) LeastExpensiveLink(a, b *Router) (*Link, bool) {
+	var selected *Link
+	var cost int64 = math.MaxInt64
+
+	linksByRouter := a.routerLinks.GetLinksByRouter()
+	links := linksByRouter[b.Id]
+	for _, link := range links {
+		if link.IsUsable() {
+			linkCost := link.GetCost()
+			if link.DstId == b.Id {
+				if linkCost < cost {
+					selected = link
+					cost = linkCost
+				}
+			} else if link.Src.Id == b.Id {
+				if linkCost < cost {
+					selected = link
+					cost = linkCost
+				}
+			}
+		}
+	}
+
+	if selected != nil {
+		return selected, true
+	}
+
+	return nil, false
+}
+
+func (self *LinkManager) LinksInMode(mode LinkMode) []*Link {
+	return self.linkTable.allInMode(mode)
+}
+
+/*
+ * linkTable
+ */
+
+type linkTable struct {
+	links cmap.ConcurrentMap[string, *Link]
+}
+
+func newLinkTable() *linkTable {
+	return &linkTable{links: cmap.New[*Link]()}
+}
+
+func (lt *linkTable) add(link *Link) {
+	lt.links.Set(link.Id, link)
+}
+
+func (lt *linkTable) get(linkId string) (*Link, bool) {
+	return lt.links.Get(linkId)
+}
+
+func (lt *linkTable) has(link *Link) bool {
+	if _, found := lt.links.Get(link.Id); found {
+		return true
+	}
+	return false
+}
+
+func (lt *linkTable) all() []*Link {
+	links := make([]*Link, 0, lt.links.Count())
+	lt.links.IterCb(func(_ string, link *Link) {
+		links = append(links, link)
+	})
+	return links
+}
+
+func (lt *linkTable) allInMode(mode LinkMode) []*Link {
+	links := make([]*Link, 0)
+	lt.links.IterCb(func(_ string, link *Link) {
+		if link.CurrentState().Mode == mode {
+			links = append(links, link)
+		}
+	})
+	return links
+}
+
+func (lt *linkTable) remove(link *Link) bool {
+	return lt.links.RemoveCb(link.Id, func(key string, v *Link, exists bool) bool {
+		return v != nil && v.Iteration == link.Iteration
+	})
+}

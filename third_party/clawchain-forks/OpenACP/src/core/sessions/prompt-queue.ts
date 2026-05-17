@@ -1,0 +1,81 @@
+import type { Attachment } from '../types.js'
+import type { TurnRouting } from './turn-context.js'
+
+/**
+ * Serial prompt queue — ensures prompts are processed one at a time.
+ */
+export class PromptQueue {
+  private queue: Array<{ text: string; attachments?: Attachment[]; routing?: TurnRouting; turnId?: string; resolve: () => void }> = []
+  private processing = false
+  private abortController: AbortController | null = null
+  /** Set when abort is triggered; drainNext waits for the current processor to settle before starting the next item. */
+  private processorSettled: Promise<void> | null = null
+
+  constructor(
+    private processor: (text: string, attachments?: Attachment[], routing?: TurnRouting, turnId?: string) => Promise<void>,
+    private onError?: (err: unknown) => void,
+  ) {}
+
+  async enqueue(text: string, attachments?: Attachment[], routing?: TurnRouting, turnId?: string): Promise<void> {
+    if (this.processing) {
+      return new Promise<void>((resolve) => {
+        this.queue.push({ text, attachments, routing, turnId, resolve })
+      })
+    }
+    await this.process(text, attachments, routing, turnId)
+  }
+
+  private async process(text: string, attachments?: Attachment[], routing?: TurnRouting, turnId?: string): Promise<void> {
+    this.processing = true
+    this.abortController = new AbortController()
+    const { signal } = this.abortController
+    let settledResolve: () => void
+    this.processorSettled = new Promise<void>((r) => { settledResolve = r })
+    try {
+      await Promise.race([
+        this.processor(text, attachments, routing, turnId),
+        new Promise<never>((_, reject) => {
+          signal.addEventListener('abort', () => reject(new Error('Prompt aborted')), { once: true })
+        }),
+      ])
+    } catch (err) {
+      // Only forward non-abort errors to onError handler
+      if (!(err instanceof Error && err.message === 'Prompt aborted')) {
+        this.onError?.(err)
+      }
+    } finally {
+      this.abortController = null
+      this.processing = false
+      settledResolve!()
+      this.processorSettled = null
+      this.drainNext()
+    }
+  }
+
+  private drainNext(): void {
+    const next = this.queue.shift()
+    if (next) {
+      this.process(next.text, next.attachments, next.routing, next.turnId).then(next.resolve)
+    }
+  }
+
+  clear(): void {
+    // Abort the currently running prompt so the queue can drain
+    if (this.abortController) {
+      this.abortController.abort()
+    }
+    // Resolve pending promises so callers don't hang
+    for (const item of this.queue) {
+      item.resolve()
+    }
+    this.queue = []
+  }
+
+  get pending(): number {
+    return this.queue.length
+  }
+
+  get isProcessing(): boolean {
+    return this.processing
+  }
+}

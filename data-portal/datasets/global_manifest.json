@@ -1,0 +1,296 @@
+{
+    "datasets": {
+        "clawchain_blocks": {
+            "datatype": "blocks",
+            "description": "block-level data from ClawChain",
+            "n_bytes": 0,
+            "n_files": 0,
+            "name": "clawchain_blocks",
+            "network": "clawchain",
+            "schema": {
+                "description": "block-level data from ClawChain",
+                "tables": {
+                    "blocks": {
+                        "columns": [
+                            {"description": "block height", "name": "height", "type": "INTEGER"},
+                            {"description": "ISO-8601 block timestamp", "name": "time", "type": "TEXT"},
+                            {"description": "block hash (hex)", "name": "hash", "type": "TEXT"},
+                            {"description": "proposer validator address", "name": "proposer", "type": "TEXT"},
+                            {"description": "number of transactions in the block", "name": "tx_count", "type": "INTEGER"},
+                            {"description": "total gas used across all transactions", "name": "gas_used", "type": "INTEGER"}
+                        ],
+                        "description": "each row corresponds to one committed block"
+                    }
+                }
+            },
+            "version": "1.0.0"
+        },
+        "clawchain_transactions": {
+            "datatype": "transactions",
+            "description": "transaction-level data from ClawChain",
+            "n_bytes": 0,
+            "n_files": 0,
+            "name": "clawchain_transactions",
+            "network": "clawchain",
+            "schema": {
+                "description": "transaction-level data from ClawChain",
+                "tables": {
+                    "transactions": {
+                        "columns": [
+                            {"description": "block height containing the transaction", "name": "height", "type": "INTEGER"},
+                            {"description": "transaction hash (hex)", "name": "hash", "type": "TEXT"},
+                            {"description": "result code (0 = success)", "name": "code", "type": "INTEGER"},
+                            {"description": "gas requested by the transaction", "name": "gas_wanted", "type": "INTEGER"},
+                            {"description": "gas actually consumed", "name": "gas_used", "type": "INTEGER"},
+                            {"description": "comma-separated message type URLs", "name": "messages", "type": "TEXT"}
+                        ],
+                        "description": "each row corresponds to one transaction"
+                    }
+                }
+            },
+            "version": "1.0.0"
+        },
+        "clawchain_agents": {
+            "datatype": "agents",
+            "description": "registered agents on ClawChain",
+            "n_bytes": 0,
+            "n_files": 0,
+            "name": "clawchain_agents",
+            "network": "clawchain",
+            "schema": {
+                "description": "registered agents on ClawChain",
+                "tables": {
+                    "agents": {
+                        "columns": [
+                            {"description": "bech32 agent address", "name": "address", "type": "TEXT"},
+                            {"description": "human-readable agent name", "name": "name", "type": "TEXT"},
+                            {"description": "current agent status (active / inactive / jailed)", "name": "status", "type": "TEXT"},
+                            {"description": "reputation score (0-100)", "name": "reputation", "type": "INTEGER"},
+                            {"description": "total number of tasks completed", "name": "tasks_completed", "type": "INTEGER"},
+                            {"description": "amount of uclaw staked by the agent", "name": "staked_amount", "type": "TEXT"}
+                        ],
+                        "description": "each row corresponds to a registered agent"
+                    }
+                }
+            },
+            "version": "1.0.0"
+        },
+        "clawchain_prices": {
+            "datatype": "prices",
+            "description": "oracle price feeds on ClawChain",
+            "n_bytes": 0,
+            "n_files": 0,
+            "name": "clawchain_prices",
+            "network": "clawchain",
+            "schema": {
+                "description": "oracle price feeds on ClawChain",
+                "tables": {
+                    "prices": {
+                        "columns": [
+                            {"description": "denomination pair (e.g. CLAW/USD)", "name": "denom_pair", "type": "TEXT"},
+                            {"description": "price as a decimal string", "name": "price", "type": "TEXT"},
+                            {"description": "ISO-8601 timestamp of the price observation", "name": "timestamp", "type": "TEXT"},
+                            {"description": "block height when the price was recorded", "name": "block_height", "type": "INTEGER"},
+                            {"description": "oracle source identifier", "name": "source", "type": "TEXT"}
+                        ],
+                        "description": "each row corresponds to a price observation from the oracle"
+                    }
+                }
+            },
+            "version": "1.0.0"
+        },
+        "clawchain_privacy": {
+            "datatype": "privacy",
+            "description": "privacy pool statistics from ClawChain",
+            "n_bytes": 0,
+            "n_files": 0,
+            "name": "clawchain_privacy",
+            "network": "clawchain",
+            "schema": {
+                "description": "privacy pool statistics from ClawChain",
+                "tables": {
+                    "privacy": {
+                        "columns": [
+                            {"description": "total number of commitments in the Merkle tree", "name": "commitment_count", "type": "INTEGER"},
+                            {"description": "total number of spent nullifiers", "name": "nullifier_count", "type": "INTEGER"},
+                            {"description": "current Merkle tree root hash", "name": "merkle_root", "type": "TEXT"},
+                            {"description": "depth of the Merkle tree", "name": "tree_depth", "type": "INTEGER"},
+                            {"description": "total amount currently shielded (uclaw)", "name": "shielded_amount", "type": "TEXT"},
+                            {"description": "block height at which the snapshot was taken", "name": "snapshot_height", "type": "INTEGER"}
+                        ],
+                        "description": "each row corresponds to a snapshot of the shielded pool state"
+                    }
+                }
+            },
+            "version": "1.0.0"
+        },
+        "ethereum_contracts": {
+            "datatype": "contracts",
+            "description": "all historical contract deployments",
+            "n_bytes": 7051921809,
+            "n_files": 17,
+            "name": "ethereum_contracts",
+            "network": "ethereum",
+            "schema": {
+                "description": "all historical contract deployments",
+                "tables": {
+                    "contracts": {
+                        "columns": [
+                            {
+                                "description": "block number when contract was created",
+                                "name": "block_number",
+                                "type": "INTEGER"
+                            },
+                            {
+                                "description": "increased by 1 for each contract created in block",
+                                "name": "create_index",
+                                "type": "INTEGER"
+                            },
+                            {
+                                "description": "hash of transaction that created contract",
+                                "name": "transaction_hash",
+                                "type": "BINARY"
+                            },
+                            {
+                                "description": "address of deployed contract",
+                                "name": "contract_address",
+                                "type": "BINARY"
+                            },
+                            {
+                                "description": "EOA that deployed the contract",
+                                "name": "deployer",
+                                "type": "BINARY"
+                            },
+                            {
+                                "description": "the `from` field in the creation trace",
+                                "name": "factory",
+                                "type": "BINARY"
+                            },
+                            {
+                                "description": "initialization bytecode of contract",
+                                "name": "init_code",
+                                "type": "BINARY"
+                            },
+                            {
+                                "description": "bytecode of contract",
+                                "name": "code",
+                                "type": "BINARY"
+                            },
+                            {
+                                "description": "keccak hash of contract initialization code",
+                                "name": "init_code_hash",
+                                "type": "BINARY"
+                            },
+                            {
+                                "description": "keccak hash of contract bytecode",
+                                "name": "code_hash",
+                                "type": "BINARY"
+                            }
+                        ],
+                        "description": "each row corresponds to a contract create trace"
+                    }
+                }
+            },
+            "version": "1.0.0"
+        },
+        "ethereum_native_transfers": {
+            "datatype": "native_transfers",
+            "description": "all native transfers in similar format to ERC20 Transfers (excluding tx fees)",
+            "n_bytes": 65501766122,
+            "n_files": 84,
+            "name": "ethereum_native_transfers",
+            "network": "ethereum",
+            "schema": {
+                "description": "all native transfers in similar format to ERC20 Transfers (excluding tx fees)",
+                "tables": {
+                    "native_transfers": {
+                        "columns": [
+                            {
+                                "description": "block number where native token was transfered",
+                                "name": "block_number",
+                                "type": "INTEGER"
+                            },
+                            {
+                                "description": "increased by 1 for each native transfer in block",
+                                "name": "transfer_index",
+                                "type": "INTEGER"
+                            },
+                            {
+                                "description": "hash of transaction that contains transfer",
+                                "name": "transaction_hash",
+                                "type": "BINARY"
+                            },
+                            {
+                                "description": "address that native token is transferred to",
+                                "name": "to_address",
+                                "type": "BINARY"
+                            },
+                            {
+                                "description": "address that native token is transferred from",
+                                "name": "from_address",
+                                "type": "BINARY"
+                            },
+                            {
+                                "description": "amount of native token transferred",
+                                "name": "value",
+                                "type": "BINARY"
+                            }
+                        ],
+                        "description": "each row corresponds to a trace that transfers native token"
+                    }
+                }
+            },
+            "version": "1.0.0"
+        },
+        "ethereum_slots": {
+            "datatype": "slots",
+            "description": "all slots of each contract, including historical usage metadata",
+            "n_bytes": 41212724800,
+            "n_files": 16,
+            "name": "ethereum_slots",
+            "network": "ethereum",
+            "schema": {
+                "description": "all slots of each contract, including historical usage metadata",
+                "tables": {
+                    "slots": {
+                        "columns": [
+                            {
+                                "description": "contract of slot",
+                                "name": "contract_address",
+                                "type": "BINARY"
+                            },
+                            {
+                                "description": "address of slot",
+                                "name": "slot",
+                                "type": "BINARY"
+                            },
+                            {
+                                "description": "last data stored in slot",
+                                "name": "value",
+                                "type": "BINARY"
+                            },
+                            {
+                                "description": "first block where slot was used",
+                                "name": "first_updated_block",
+                                "type": "INTEGER"
+                            },
+                            {
+                                "description": "last block where slot was updated",
+                                "name": "last_updated_block",
+                                "type": "INTEGER"
+                            },
+                            {
+                                "description": "number of transactions that updated slot",
+                                "name": "n_tx_updates",
+                                "type": "INTEGER"
+                            }
+                        ],
+                        "description": "each row corresponds to a slot of a contract"
+                    }
+                }
+            },
+            "version": "1.0.0"
+        }
+    },
+    "version": "1.0.0"
+}

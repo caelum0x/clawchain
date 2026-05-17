@@ -1,0 +1,20 @@
+[files]
+extend-exclude = [
+    ".git",
+    "target",
+    "testdata",
+    "Cargo.toml",
+    "Cargo.lock",
+    "CHANGELOG.md",
+    "*.json",
+    "**/tests/**",
+    "**/test/**",
+    "**/*_test.*",
+    "**/*_tests.*",
+    "crates/parse/src/lexer/unicode_chars.rs", # Weird words.
+    "dist-workspace.toml",
+]
+
+[default.extend-words]
+ket = "ket"
+numer = "numer"

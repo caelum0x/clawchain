@@ -1,0 +1,73 @@
+{
+  "name": "@keplr-wallet/background",
+  "version": "0.13.11",
+  "main": "build/index.js",
+  "author": "chainapsis",
+  "license": "Apache-2.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/chainapsis/keplr-wallet.git"
+  },
+  "scripts": {
+    "clean": "rm -rf node_modules; rm -rf build",
+    "build": "npx tsc",
+    "dev": "npx tsc -w",
+    "test": "npx jest --passWithNoTests",
+    "lint-test": "npx eslint \"src/**/*\" && npx prettier --check \"src/**/*\"",
+    "lint-fix": "npx eslint --fix \"src/**/*\" && npx prettier --write \"src/**/*\"",
+    "typecheck": "npx tsc -p tsconfig.check.json"
+  },
+  "devDependencies": {
+    "@types/aes-js": "^3.1.0",
+    "@types/secp256k1": "^4.0.1",
+    "@types/w3c-web-hid": "^1.0.2",
+    "@types/w3c-web-usb": "^1.0.5"
+  },
+  "dependencies": {
+    "@ethereumjs/common": "^2.6.5",
+    "@ethereumjs/tx": "^3.5.2",
+    "@ethersproject/address": "^5.7.0",
+    "@ethersproject/hash": "^5.7.0",
+    "@ethersproject/transactions": "^5.7.0",
+    "@ethersproject/wallet": "^5.7.0",
+    "@keplr-wallet/chain-validator": "0.13.11",
+    "@keplr-wallet/common": "0.13.11",
+    "@keplr-wallet/cosmos": "0.13.11",
+    "@keplr-wallet/crypto": "0.13.11",
+    "@keplr-wallet/ledger-cosmos": "0.13.11",
+    "@keplr-wallet/popup": "0.13.11",
+    "@keplr-wallet/proto-types": "0.13.11",
+    "@keplr-wallet/router": "0.13.11",
+    "@keplr-wallet/simple-fetch": "0.13.11",
+    "@keplr-wallet/types": "0.13.11",
+    "@keplr-wallet/unit": "0.13.11",
+    "@ledgerhq/hw-app-eth": "6.42.8",
+    "@ledgerhq/hw-app-starknet": "^3.0.1",
+    "@ledgerhq/hw-transport": "^6.31.4",
+    "@ledgerhq/hw-transport-webhid": "^6.29.4",
+    "@ledgerhq/hw-transport-webusb": "^6.29.4",
+    "@noble/hashes": "^1.4.0",
+    "aes-js": "^3.1.2",
+    "big-integer": "^1.6.48",
+    "bip39": "^3.0.2",
+    "bitcoin-address-validation": "^3.0.0",
+    "buffer": "^6.0.3",
+    "curve25519-js": "0.0.4",
+    "delay": "^4.4.0",
+    "joi": "^17.5.0",
+    "ledger-bitcoin": "^0.2.3",
+    "long": "^4.0.0",
+    "miscreant": "0.3.2",
+    "pbkdf2": "^3.1.2",
+    "utility-types": "^3.10.0"
+  },
+  "peerDependencies": {
+    "bitcoinjs-lib": "^6",
+    "mobx": "^6",
+    "mobx-utils": "^6",
+    "starknet": "^7"
+  }
+}

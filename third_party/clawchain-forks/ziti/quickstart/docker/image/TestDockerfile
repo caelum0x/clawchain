@@ -1,0 +1,27 @@
+FROM ubuntu:20.04
+
+RUN apt update && \
+    apt install jq curl vim psmisc -y
+
+RUN useradd -ms /bin/bash ziti && \
+    mkdir /persistent && chown ziti:ziti /persistent && \
+    mkdir /persistent/scripts && chown ziti:ziti /persistent/scripts
+
+USER ziti
+WORKDIR /persistent
+
+ENV ZITI_HOME=/persistent
+ENV ZITI_SHARED="${ZITI_HOME}/shared"
+ENV ENV_FILE="${ZITI_HOME}/ziti.env"
+ENV ZITI_NETWORK=ziti
+# Don't put these paths on shared volume in docker-compose deployment (https://github.com/openziti/ziti/issues/912)
+ENV ZITI_BIN_DIR=/var/openziti/ziti-bin
+ENV ZITI_SCRIPTS=/var/openziti/scripts
+
+COPY --chown=ziti ziti.ignore "${ZITI_BIN_DIR}"
+COPY --chown=ziti ziti-cli-functions.sh "${ZITI_SCRIPTS}/"
+COPY --chown=ziti dockerTestEntrypoint.sh "${ZITI_SCRIPTS}/"
+
+ENTRYPOINT /bin/bash -c '${ZITI_SCRIPTS}/dockerTestEntrypoint.sh'
+# && while :; do sleep 1; done'
+

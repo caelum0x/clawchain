@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [develop, main]
+  issue_comment:
+    types: [created, edited]
+  push:
+    branches: [develop, main]
+
+jobs:
+  typecheck:
+    name: TypeScript Typecheck
+    runs-on: ubuntu-latest
+
+    if: |
+      github.event.issue.pull_request &&
+      contains(github.event.comment.body, '/typecheck')
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Build CS packages
+        run: yarn ci build_cs
+
+      - name: Build Frost packages
+        run: yarn ci build_frost
+
+      - name: Build internal packages
+        run: yarn ci build_pkgs
+
+      - name: Build SDK packages
+        run: yarn ci build_sdk
+
+      - name: Run typecheck
+        run: yarn ci typecheck
+
+      - name: Run language check (lint)
+        run: yarn ci lang_check
+
+  rust-check:
+    name: Rust Check
+    runs-on: ubuntu-latest
+    if: ${{ always() }}
+    needs: [typecheck]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@nightly
+
+      - name: Run cargo check
+        run: cargo check --workspace

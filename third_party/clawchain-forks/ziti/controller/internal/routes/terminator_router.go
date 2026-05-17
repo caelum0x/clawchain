@@ -1,0 +1,109 @@
+/*
+	Copyright NetFoundry Inc.
+
+	Licensed under the Apache License, Version 2.0 (the "License");
+	you may not use this file except in compliance with the License.
+	You may obtain a copy of the License at
+
+	https://www.apache.org/licenses/LICENSE-2.0
+
+	Unless required by applicable law or agreed to in writing, software
+	distributed under the License is distributed on an "AS IS" BASIS,
+	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	See the License for the specific language governing permissions and
+	limitations under the License.
+*/
+
+package routes
+
+import (
+	"github.com/go-openapi/runtime/middleware"
+	"github.com/openziti/edge-api/rest_management_api_server/operations/terminator"
+	"github.com/openziti/ziti/v2/controller/env"
+	"github.com/openziti/ziti/v2/controller/fields"
+	"github.com/openziti/ziti/v2/controller/model"
+	"github.com/openziti/ziti/v2/controller/permissions"
+	"github.com/openziti/ziti/v2/controller/response"
+)
+
+func init() {
+	r := NewTerminatorRouter()
+	env.AddRouter(r)
+}
+
+type TerminatorRouter struct {
+	BasePath string
+}
+
+func NewTerminatorRouter() *TerminatorRouter {
+	return &TerminatorRouter{
+		BasePath: "/" + EntityNameTerminator,
+	}
+}
+
+func (r *TerminatorRouter) Register(ae *env.AppEnv) {
+	ae.ManagementApi.TerminatorDeleteTerminatorHandler = terminator.DeleteTerminatorHandlerFunc(func(params terminator.DeleteTerminatorParams, _ interface{}) middleware.Responder {
+		ae.InitPermissionsContext(params.HTTPRequest, permissions.Management, "terminator", permissions.Delete)
+		return ae.IsAllowed(r.Delete, params.HTTPRequest, params.ID, "", permissions.DefaultManagementAccess())
+	})
+
+	ae.ManagementApi.TerminatorDetailTerminatorHandler = terminator.DetailTerminatorHandlerFunc(func(params terminator.DetailTerminatorParams, _ interface{}) middleware.Responder {
+		ae.InitPermissionsContext(params.HTTPRequest, permissions.Management, "terminator", permissions.Read)
+		return ae.IsAllowed(r.Detail, params.HTTPRequest, params.ID, "", permissions.DefaultManagementAccess())
+	})
+
+	ae.ManagementApi.TerminatorListTerminatorsHandler = terminator.ListTerminatorsHandlerFunc(func(params terminator.ListTerminatorsParams, _ interface{}) middleware.Responder {
+		ae.InitPermissionsContext(params.HTTPRequest, permissions.Management, "terminator", permissions.Read)
+		return ae.IsAllowed(r.List, params.HTTPRequest, "", "", permissions.DefaultManagementAccess())
+	})
+
+	ae.ManagementApi.TerminatorUpdateTerminatorHandler = terminator.UpdateTerminatorHandlerFunc(func(params terminator.UpdateTerminatorParams, _ interface{}) middleware.Responder {
+		ae.InitPermissionsContext(params.HTTPRequest, permissions.Management, "terminator", permissions.Update)
+		return ae.IsAllowed(func(ae *env.AppEnv, rc *response.RequestContext) { r.Update(ae, rc, params) }, params.HTTPRequest, params.ID, "", permissions.DefaultManagementAccess())
+	})
+
+	ae.ManagementApi.TerminatorCreateTerminatorHandler = terminator.CreateTerminatorHandlerFunc(func(params terminator.CreateTerminatorParams, _ interface{}) middleware.Responder {
+		ae.InitPermissionsContext(params.HTTPRequest, permissions.Management, "terminator", permissions.Create)
+		return ae.IsAllowed(func(ae *env.AppEnv, rc *response.RequestContext) { r.Create(ae, rc, params) }, params.HTTPRequest, "", "", permissions.DefaultManagementAccess())
+	})
+
+	ae.ManagementApi.TerminatorPatchTerminatorHandler = terminator.PatchTerminatorHandlerFunc(func(params terminator.PatchTerminatorParams, _ interface{}) middleware.Responder {
+		ae.InitPermissionsContext(params.HTTPRequest, permissions.Management, "terminator", permissions.Update)
+		return ae.IsAllowed(func(ae *env.AppEnv, rc *response.RequestContext) { r.Patch(ae, rc, params) }, params.HTTPRequest, params.ID, "", permissions.DefaultManagementAccess())
+	})
+}
+
+func (r *TerminatorRouter) List(ae *env.AppEnv, rc *response.RequestContext) {
+	ListWithHandler[*model.Terminator](ae, rc, ae.Managers.Terminator, MapTerminatorToRestEntity)
+}
+
+func (r *TerminatorRouter) Detail(ae *env.AppEnv, rc *response.RequestContext) {
+	DetailWithHandler[*model.Terminator](ae, rc, ae.Managers.Terminator, MapTerminatorToRestEntity)
+}
+
+func (r *TerminatorRouter) Create(ae *env.AppEnv, rc *response.RequestContext, params terminator.CreateTerminatorParams) {
+	Create(rc, rc, TerminatorLinkFactory, func() (string, error) {
+		entity := MapCreateTerminatorToModel(params.Terminator)
+		err := ae.Managers.Terminator.Create(entity, rc.NewChangeContext())
+		if err != nil {
+			return "", err
+		}
+		return entity.Id, nil
+	})
+}
+
+func (r *TerminatorRouter) Delete(ae *env.AppEnv, rc *response.RequestContext) {
+	DeleteWithHandler(rc, ae.Managers.Terminator)
+}
+
+func (r *TerminatorRouter) Update(ae *env.AppEnv, rc *response.RequestContext, params terminator.UpdateTerminatorParams) {
+	Update(rc, func(id string) error {
+		return ae.Managers.Terminator.Update(MapUpdateTerminatorToModel(params.ID, params.Terminator), nil, rc.NewChangeContext())
+	})
+}
+
+func (r *TerminatorRouter) Patch(ae *env.AppEnv, rc *response.RequestContext, params terminator.PatchTerminatorParams) {
+	Patch(rc, func(id string, fields fields.UpdatedFields) error {
+		return ae.Managers.Terminator.Update(MapPatchTerminatorToModel(params.ID, params.Terminator), fields.FilterMaps("tags"), rc.NewChangeContext())
+	})
+}

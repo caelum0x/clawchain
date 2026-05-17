@@ -1,0 +1,36 @@
+name: Artifacts
+on:
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  artifacts:
+    name: Artifacts
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v3
+
+      - name: Install dependencies
+        uses: ./.github/actions/install-dependencies
+
+      - name: Build
+        run: bun run build
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: extension
+          path: dist/build
+
+      - name: Comment 
+        uses: tonyhallett/artifacts-url-comments@v1.1.0
+        if: ${{ github.event_name == 'pull_request' }}
+        env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+            prefix: "Here is the extension:"
+            suffix: "Have a nice day. 🫡"
+            format: name
+            addTo: pull

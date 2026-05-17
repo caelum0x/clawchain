@@ -1,0 +1,44 @@
+name: Prerelease
+on:
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  prerelease:
+    name: Prerelease
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v3
+
+      - name: Install dependencies
+        uses: ./.github/actions/install-dependencies
+
+      - name: Get commit SHA
+        id: sha
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Build
+        run: bun run build
+
+      - name: Set version
+        run: |
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+          npm version 0.0.0-nightly.${{ steps.sha.outputs.sha_short }}
+          git push --tags
+
+      - name: Zip
+        run: bun run zip
+
+      - name: Get NPM version
+        id: package-version
+        uses: martinbeentjes/npm-get-version-action@v1.3.1
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          body_path: ${{ github.workspace }}/.github/assets/setup.md
+          files: dist/extension.zip
+          tag_name: 'v${{ steps.package-version.outputs.current-version }}'

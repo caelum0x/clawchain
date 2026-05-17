@@ -1,0 +1,32 @@
+# Basic configuration for the Provider Daemon
+instance_id: "provider-daemon-01" # Unique ID for this daemon instance (should be configurable, e.g. hostname or a UUID)
+log_level: "info"                 # debug, info, warn, error
+request_timeout: "30s"            # General request timeout (e.g. for Provider Registry API calls)
+
+# NATS Configuration
+nats:
+  url: "nats://nats:4222"
+  connect_timeout: "5s"
+  reconnect_wait: "5s"
+  max_reconnects: -1
+  # Subject pattern the daemon subscribes for task dispatch.
+  task_dispatch_subject_pattern: "tasks.dispatch.%s.*"
+  # Subject pattern the daemon subscribes for task cancellation commands.
+  task_cancel_subject_pattern: "tasks.cancel.%s.*"
+  # Prefix for subjects where daemon publishes task status updates.
+  job_status_update_subject_prefix: "jobs.status"
+  ack_wait: "30s"
+  max_deliver: 5
+
+# Provider Registry Configuration (for heartbeats)
+provider_registry_service_name: "provider-registry" # Name of the provider registry service in Consul
+# Alternatively, a direct URL:
+# provider_registry_url: "http://localhost:8002"
+provider_heartbeat_interval: "30s"
+
+# Task Execution Configuration (Placeholders)
+# workspace_dir: "/tmp/dante_tasks" # Base directory for task files
+# docker_endpoint: "unix:///var/run/docker.sock" # For Docker-based execution
+
+# GPU Configuration (Placeholders)
+# managed_gpu_ids: ["0", "1"] # Specific GPU UUIDs or indices this daemon manages 

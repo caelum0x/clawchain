@@ -1,0 +1,59 @@
+{
+  "name": "@oko-wallet/oko-cosmos-kit",
+  "version": "0.1.2-alpha.7",
+  "type": "module",
+  "description": "cosmos-kit wallet connector for Claw Wallet",
+  "author": "oko-wallet",
+  "homepage": "https://github.com/hyperweb-io/cosmos-kit#readme",
+  "license": "SEE LICENSE IN LICENSE",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "!CHANGELOG.md",
+    "!LICENSE"
+  ],
+  "scripts": {
+    "clean": "del-cli dist",
+    "build": "tsx ./scripts/build.ts",
+    "lint": "eslint --ext .tsx,.ts .",
+    "format": "eslint --ext .tsx,.ts --fix ."
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "cosmos-kit",
+    "cosmos",
+    "oko",
+    "wallet",
+    "embed"
+  ],
+  "dependencies": {
+    "@cosmos-kit/core": "^2.16.7",
+    "@keplr-wallet/types": "0.12.297",
+    "@oko-wallet/oko-sdk-core": "^0.1.2-alpha.7",
+    "@oko-wallet/oko-sdk-cosmos": "^0.1.2-alpha.7"
+  },
+  "peerDependencies": {
+    "@cosmjs/amino": ">= 0.28",
+    "@cosmjs/proto-signing": ">= 0.28"
+  },
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^25.0.0",
+    "@rollup/plugin-node-resolve": "^15.0.0",
+    "@rollup/plugin-typescript": "^11.0.0",
+    "del-cli": "^6.0.0",
+    "rollup": "^4.0.0",
+    "tsc-alias": "^1.8.16",
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.3"
+  },
+  "gitHead": "b1c4753a3a1aa996a2f5c28297d71adbe2457945"
+}

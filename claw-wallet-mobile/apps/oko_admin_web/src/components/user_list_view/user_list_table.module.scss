@@ -1,0 +1,79 @@
+.tableWrapper {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.walletsTable {
+  width: 100%;
+  border-collapse: collapse;
+
+  tr:not(:last-child) td {
+    border-bottom: 1px solid var(--gray-200);
+  }
+
+  td {
+    padding: 8px 12px;
+    vertical-align: middle;
+
+    &:first-child {
+      padding-left: 0;
+    }
+
+    &:last-child {
+      padding-right: 0;
+    }
+  }
+}
+
+.curveCell {
+  border-right: 1px solid var(--gray-200);
+  white-space: nowrap;
+}
+
+.publicKeyCell {
+  border-right: 1px solid var(--gray-200);
+  word-break: break-all;
+}
+
+.ksNodesCell {
+  white-space: nowrap;
+}
+
+.curveLabel {
+  font-size: 14px;
+  color: var(--gray-700);
+}
+
+.publicKey {
+  font-size: 14px;
+  color: var(--gray-700);
+}
+
+.ksNodesContainer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+
+.nodeName {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 2px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+
+  &.nodeActive {
+    color: var(--success-500);
+    background-color: var(--success-50);
+  }
+
+  &.nodeInactive {
+    color: var(--error-500);
+    background-color: var(--error-50);
+  }
+}
+
+.emptyValue {
+  color: var(--gray-400);
+}

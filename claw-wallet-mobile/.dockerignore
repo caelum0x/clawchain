@@ -1,0 +1,10 @@
+node_modules
+**/node_modules
+.yarn/cache
+.vscode
+.gitignore
+Dockerfile
+docker-compose.yml
+*.log
+*.env
+.env.*

@@ -1,0 +1,72 @@
+{
+  "name": "@oko-wallet/ksn-interface",
+  "version": "0.1.2-alpha.6",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "clean": "del-cli dist",
+    "build": "yarn clean && tsc --build --force && tsc-alias"
+  },
+  "exports": {
+    "./curve_type": {
+      "import": "./dist/curve_type.js",
+      "types": "./dist/curve_type.d.ts"
+    },
+    "./key_share": {
+      "import": "./dist/key_share.js",
+      "types": "./dist/key_share.d.ts"
+    },
+    "./response": {
+      "import": "./dist/response.js",
+      "types": "./dist/response.d.ts"
+    },
+    "./status": {
+      "import": "./dist/status.js",
+      "types": "./dist/status.d.ts"
+    },
+    "./user": {
+      "import": "./dist/user.js",
+      "types": "./dist/user.d.ts"
+    },
+    "./wallet": {
+      "import": "./dist/wallet.js",
+      "types": "./dist/wallet.d.ts"
+    },
+    "./auth": {
+      "import": "./dist/auth.js",
+      "types": "./dist/auth.d.ts"
+    },
+    "./db_backup": {
+      "import": "./dist/db_backup.js",
+      "types": "./dist/db_backup.d.ts"
+    },
+    "./commit_reveal": {
+      "import": "./dist/commit_reveal.js",
+      "types": "./dist/commit_reveal.d.ts"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/chainapsis/oko.git",
+    "directory": "key_share_node/ksn_interface"
+  },
+  "dependencies": {
+    "@oko-wallet/bytes": "^0.1.2-alpha.6",
+    "@oko-wallet/oko-types": "^0.1.2-alpha.6"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.14",
+    "@types/node": "^24.10.1",
+    "del-cli": "^6.0.0",
+    "jest": "^30.1.3",
+    "ts-jest": "^29.4.5",
+    "tsc-alias": "^1.8.16",
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.3"
+  },
+  "gitHead": "b1c4753a3a1aa996a2f5c28297d71adbe2457945"
+}

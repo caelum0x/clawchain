@@ -1,0 +1,16 @@
+{
+  "name": "clawchain_marketplace",
+  "description": "Marketplace events from ClawChain",
+  "network": "clawchain",
+  "category": "marketplace",
+  "columns": [
+    { "name": "height", "type": "uint64", "description": "Block height" },
+    { "name": "tx_hash", "type": "string", "description": "Transaction hash" },
+    { "name": "action", "type": "string", "description": "Marketplace action (list_skill/purchase_skill/create_escrow/release_escrow)" },
+    { "name": "creator", "type": "string", "description": "Action initiator address" },
+    { "name": "skill_id", "type": "string", "description": "Skill identifier" },
+    { "name": "price", "type": "string", "description": "Price amount" },
+    { "name": "category", "type": "string", "description": "Skill category" },
+    { "name": "timestamp", "type": "string", "description": "ISO-8601 timestamp" }
+  ]
+}

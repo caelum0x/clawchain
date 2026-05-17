@@ -1,0 +1,18 @@
+{
+  "name": "clawchain_transactions",
+  "description": "Transaction-level data from ClawChain",
+  "network": "clawchain",
+  "category": "core",
+  "columns": [
+    { "name": "height", "type": "uint64", "description": "Block height" },
+    { "name": "tx_hash", "type": "string", "description": "Transaction hash" },
+    { "name": "msg_type", "type": "string", "description": "Message type URL" },
+    { "name": "sender", "type": "string", "description": "Sender address" },
+    { "name": "gas_used", "type": "uint64", "description": "Gas consumed" },
+    { "name": "gas_wanted", "type": "uint64", "description": "Gas requested" },
+    { "name": "fee_amount", "type": "string", "description": "Fee amount" },
+    { "name": "fee_denom", "type": "string", "description": "Fee denomination" },
+    { "name": "success", "type": "boolean", "description": "Transaction success" },
+    { "name": "memo", "type": "string", "description": "Transaction memo" }
+  ]
+}

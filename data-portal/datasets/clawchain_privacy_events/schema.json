@@ -1,0 +1,15 @@
+{
+  "name": "clawchain_privacy_events",
+  "description": "Privacy module events from ClawChain",
+  "network": "clawchain",
+  "category": "privacy",
+  "columns": [
+    { "name": "height", "type": "uint64", "description": "Block height" },
+    { "name": "tx_hash", "type": "string", "description": "Transaction hash" },
+    { "name": "action", "type": "string", "description": "Privacy action (shield/unshield/private_transfer)" },
+    { "name": "amount", "type": "string", "description": "Token amount" },
+    { "name": "nullifier_used", "type": "string", "description": "Nullifier hash consumed" },
+    { "name": "commitment_created", "type": "string", "description": "Commitment hash created" },
+    { "name": "timestamp", "type": "string", "description": "ISO-8601 timestamp" }
+  ]
+}

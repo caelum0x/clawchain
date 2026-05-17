@@ -1,0 +1,55 @@
+{
+  "name": "@oko-wallet/oko-pg-interface",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "knex": "knex",
+    "migrate": "tsx ../../node_modules/knex/bin/cli.js migrate:latest",
+    "seed": "tsx ../../node_modules/knex/bin/cli.js seed:run",
+    "migrate_down": "tsx ../../node_modules/knex/bin/cli.js migrate:down",
+    "migrate_up": "tsx ../../node_modules/knex/bin/cli.js migrate:up",
+    "schema_make": "tsx ../../node_modules/knex/bin/cli.js migrate:make -x ts"
+  },
+  "exports": {
+    "./admin_users": "./src/admin_users/index.ts",
+    "./api_keys": "./src/api_keys/index.ts",
+    "./ks_nodes": "./src/ks_nodes/index.ts",
+    "./customer_dashboard_users": "./src/customer_dashboard_users/index.ts",
+    "./attached": "./src/attached/index.ts",
+    "./customers": "./src/customers/index.ts",
+    "./email_verifications": "./src/email_verifications/index.ts",
+    "./email_sent_logs": "./src/email_sent_logs/index.ts",
+    "./oko_users": "./src/oko_users/index.ts",
+    "./oko_wallets": "./src/oko_wallets/index.ts",
+    "./tss": "./src/tss/index.ts",
+    "./tss_activate": "./src/tss_activate/index.ts",
+    "./key_share_node_meta": "./src/key_share_node_meta/index.ts",
+    "./server_keypairs": "./src/server_keypairs/index.ts",
+    "./referrals": "./src/referrals/index.ts",
+    "./commit_reveal": "./src/commit_reveal/index.ts",
+    "./user_customer_connections": "./src/user_customer_connections/index.ts",
+    "./knexfile": "./knexfile.ts"
+  },
+  "dependencies": {
+    "@oko-wallet/cait-sith-keplr-addon": "workspace:*",
+    "@oko-wallet/cait-sith-keplr-express": "workspace:*",
+    "@oko-wallet/crypto-js": "^0.1.2-alpha.1",
+    "@oko-wallet/dotenv": "0.0.2-alpha.26",
+    "@oko-wallet/oko-types": "^0.1.2-alpha.1",
+    "@oko-wallet/postgres-lib": "workspace:*",
+    "@oko-wallet/stdlib-js": "0.0.2-rc.41",
+    "jest": "^30.1.3",
+    "knex": "^3.1.0",
+    "pg": "^8.16.3",
+    "pgsql-parser": "^17.7.8",
+    "uuid": "^13.0.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.14",
+    "@types/node": "^24.10.1",
+    "ts-jest": "^29.4.5",
+    "tsconfig-paths": "^4.2.0",
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.3"
+  }
+}

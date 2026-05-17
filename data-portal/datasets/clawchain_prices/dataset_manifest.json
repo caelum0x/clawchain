@@ -1,0 +1,43 @@
+{
+    "name": "clawchain_prices",
+    "version": "1.0.0",
+    "description": "oracle price feeds on ClawChain",
+    "datatype": "prices",
+    "network": "clawchain",
+    "files": [],
+    "schema": {
+        "description": "oracle price feeds on ClawChain",
+        "tables": {
+            "prices": {
+                "description": "each row corresponds to a price observation from the oracle",
+                "columns": [
+                    {
+                        "description": "denomination pair (e.g. CLAW/USD)",
+                        "name": "denom_pair",
+                        "type": "TEXT"
+                    },
+                    {
+                        "description": "price as a decimal string",
+                        "name": "price",
+                        "type": "TEXT"
+                    },
+                    {
+                        "description": "ISO-8601 timestamp of the price observation",
+                        "name": "timestamp",
+                        "type": "TEXT"
+                    },
+                    {
+                        "description": "block height when the price was recorded",
+                        "name": "block_height",
+                        "type": "INTEGER"
+                    },
+                    {
+                        "description": "oracle source identifier",
+                        "name": "source",
+                        "type": "TEXT"
+                    }
+                ]
+            }
+        }
+    }
+}

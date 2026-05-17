@@ -1,0 +1,67 @@
+{
+  "name": "@oko-wallet/oko-sdk-cosmos",
+  "version": "0.1.2-alpha.7",
+  "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "clean": "del-cli dist",
+    "build": "tsx ./scripts/build.ts",
+    "test": "NODE_OPTIONS=--experimental-vm-modules jest"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "keywords": [
+    "keplr",
+    "oko",
+    "cosmos",
+    "blockchain",
+    "wallet",
+    "cosmjs"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/chainapsis/oko.git",
+    "directory": "sdk/oko_sdk_cosmos"
+  },
+  "dependencies": {
+    "@cosmjs/amino": "0.36.1",
+    "@cosmjs/proto-signing": "0.36.1",
+    "@keplr-wallet/proto-types": "^0.12.253",
+    "@keplr-wallet/types": "0.12.297",
+    "@noble/curves": "1.9.7",
+    "@noble/hashes": "^1.8.0",
+    "@oko-wallet/oko-sdk-core": "^0.1.2-alpha.7",
+    "@oko-wallet/stdlib-js": "^0.1.2-alpha.6",
+    "bech32": "^2.0.0",
+    "buffer": "^6.0.3",
+    "uuid": "^13.0.0"
+  },
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^25.0.0",
+    "@rollup/plugin-json": "^6.1.0",
+    "@rollup/plugin-node-resolve": "^15.0.0",
+    "@rollup/plugin-terser": "^0.4.4",
+    "@rollup/plugin-typescript": "^11.0.0",
+    "@types/jest": "^29.5.14",
+    "@types/node": "^24.10.1",
+    "chalk": "^5.5.0",
+    "del": "^8.0.1",
+    "del-cli": "^6.0.0",
+    "jest": "^30.1.3",
+    "rollup": "^4.0.0",
+    "ts-jest": "^29.4.5",
+    "tsc-alias": "^1.8.16",
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.3"
+  },
+  "gitHead": "b1c4753a3a1aa996a2f5c28297d71adbe2457945"
+}

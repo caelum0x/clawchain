@@ -1,0 +1,41 @@
+v: 3
+
+cluster:
+  dataDir: ./data/ctrl3
+
+identity:
+  cert: ./pki/ctrl3/certs/server.chain.pem
+  key: ./pki/ctrl3/keys/server.key
+  ca: ./pki/ctrl3/certs/ctrl3.chain.pem
+
+ctrl:
+  listener: tls:127.0.0.1:6464
+  options:
+    advertiseAddress: tls:localhost:6464
+
+edge:
+  api:
+    address: 127.0.0.1:1480
+  enrollment:
+    signingCert:
+      cert: ./pki/ctrl3/certs/ctrl3.cert
+      key: ./pki/ctrl3/keys/ctrl3.key
+    edgeIdentity:
+      duration: 5m
+    edgeRouter:
+      duration: 5m
+
+web:
+  - name: all-apis-localhost
+    bindPoints:
+      - interface: 127.0.0.1:1480
+        address: 127.0.0.1:1480
+    options:
+      minTLSVersion: TLS1.2
+      maxTLSVersion: TLS1.3
+    apis:
+      - binding: health-checks
+      - binding: fabric
+      - binding: edge-management
+      - binding: edge-client
+      - binding: edge-oidc

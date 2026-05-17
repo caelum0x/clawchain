@@ -1,0 +1,13 @@
+# Pull Request
+
+> Thank you for raising a Pull Request. Please follow the instruction.
+
+- [ ] I’ve read `CONTRIBUTING.md` and followed the guidelines.
+
+## Summary
+
+<!-- What changed, why it changed, and the impact on users/system. -->
+
+## Links (Issue References, etc, if there's any)
+
+<!-- List related issues or PRs (e.g., Closes #123; Related #456). -->

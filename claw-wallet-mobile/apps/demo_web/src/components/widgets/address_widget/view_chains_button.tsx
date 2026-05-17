@@ -1,0 +1,24 @@
+import type { FC } from "react";
+import { CosmosIcon } from "@oko-wallet/oko-common-ui/icons/cosmos_icon";
+import { EthereumBlueIcon } from "@oko-wallet/oko-common-ui/icons/ethereum_blue_icon";
+import { OsmosisIcon } from "@oko-wallet/oko-common-ui/icons/osmosis_icon";
+import { Button } from "@oko-wallet/oko-common-ui/button";
+
+import styles from "./view_chains_button.module.scss";
+
+export const ViewChainsButton: FC<ViewChainsButtonProps> = ({ onClick }) => {
+  return (
+    <Button onClick={onClick} variant="secondary" fullWidth>
+      <div className={styles.icons}>
+        <EthereumBlueIcon />
+        <CosmosIcon />
+        <OsmosisIcon />
+      </div>
+      View Supported Chains
+    </Button>
+  );
+};
+
+export interface ViewChainsButtonProps {
+  onClick?: () => void;
+}

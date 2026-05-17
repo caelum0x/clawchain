@@ -1,0 +1,192 @@
+/*
+	Copyright NetFoundry Inc.
+
+	Licensed under the Apache License, Version 2.0 (the "License");
+	you may not use this file except in compliance with the License.
+	You may obtain a copy of the License at
+
+	https://www.apache.org/licenses/LICENSE-2.0
+
+	Unless required by applicable law or agreed to in writing, software
+	distributed under the License is distributed on an "AS IS" BASIS,
+	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	See the License for the specific language governing permissions and
+	limitations under the License.
+*/
+
+package oidc_auth
+
+import (
+	"context"
+	"fmt"
+	"net/http"
+
+	"github.com/gorilla/mux"
+	"github.com/michaelquigley/pfxlog"
+	"github.com/openziti/ziti/v2/common"
+	"github.com/openziti/ziti/v2/controller/db"
+	"github.com/openziti/ziti/v2/controller/model"
+	"github.com/pkg/errors"
+	"github.com/zitadel/oidc/v3/pkg/op"
+	"golang.org/x/text/language"
+)
+
+const (
+	pathLoggedOut              = "/oidc/logged-out"
+	WellKnownOidcConfiguration = "/.well-known/openid-configuration"
+
+	SourceTypeOidc = "oidc_auth"
+
+	AuthMethodPassword = model.AuthMethodPassword
+	AuthMethodExtJwt   = model.AuthMethodExtJwt
+	AuthMethodCert     = db.MethodAuthenticatorCert
+
+	AuthMethodSecondaryTotp   = "totp"
+	AuthMethodSecondaryExtJwt = "ejs"
+)
+
+func createIssuerSpecificOidcProvider(ctx context.Context, issuer string, config Config) (http.Handler, error) {
+	issuerUrl := "https://" + issuer
+	provider, err := newOidcProvider(ctx, issuerUrl, config)
+	if err != nil {
+		return nil, fmt.Errorf("could not create OpenIdProvider: %w", err)
+	}
+
+	oidcHandler, err := newHttpRouter(provider, config)
+
+	if err != nil {
+		return nil, err
+	}
+
+	handler := http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		r := request.WithContext(context.WithValue(request.Context(), contextKeyHttpRequest, request))
+		r = request.WithContext(context.WithValue(r.Context(), contextKeyTokenState, &TokenState{}))
+
+		oidcHandler.ServeHTTP(writer, r)
+	})
+
+	return handler, nil
+}
+
+// NewNativeOnlyOP creates an OIDC Provider that allows native clients and only the AuthCode PKCE flow.
+func NewNativeOnlyOP(ctx context.Context, env model.Env, config Config) (http.Handler, error) {
+	rootSigner := env.GetRootTlsJwtSigner()
+	config.Storage = NewStorage(rootSigner, &config, env)
+
+	openzitiClient := NativeClient(common.ClaimClientIdOpenZiti, config.RedirectURIs, config.PostLogoutURIs)
+	openzitiClient.idTokenDuration = config.IdTokenDuration
+	openzitiClient.loginURL = newLoginResolver(config.Storage)
+	config.Storage.AddClient(openzitiClient)
+
+	//backwards compatibility client w/ early HA SDKs. Should be removed by the time HA is GA'ed.
+	nativeClient := NativeClient(common.ClaimLegacyNative, config.RedirectURIs, config.PostLogoutURIs)
+	nativeClient.idTokenDuration = config.IdTokenDuration
+	nativeClient.loginURL = newLoginResolver(config.Storage)
+	config.Storage.AddClient(nativeClient)
+
+	handlers := map[Issuer]http.Handler{}
+
+	for _, issuer := range config.Issuers {
+		oidcIssuer := issuer.HostPort() + "/oidc"
+
+		handler, err := createIssuerSpecificOidcProvider(ctx, oidcIssuer, config)
+		if err != nil {
+			return nil, err
+		}
+
+		thisIss := issuer
+		handlers[thisIss] = handler
+	}
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		for iss, handler := range handlers {
+			if err := iss.ValidFor(r.Host); err == nil {
+				handler.ServeHTTP(w, r)
+				return
+			}
+		}
+
+		http.NotFound(w, r)
+	}), nil
+
+}
+
+// newHttpRouter creates an OIDC HTTP router using the LegacyServer adapter. All OIDC
+// endpoint errors are routed through op.WriteError, which maps server_error to HTTP 500
+// and supports custom status codes via op.StatusError.
+func newHttpRouter(provider op.OpenIDProvider, config Config) (*mux.Router, error) {
+	if config.TokenSecret == "" {
+		return nil, errors.New("token secret must not be empty")
+	}
+
+	endpoints := *op.DefaultEndpoints
+	srv := newServer(provider, endpoints)
+	serverHandler := op.RegisterLegacyServer(srv, op.AuthorizeCallbackHandler(provider))
+
+	router := mux.NewRouter()
+
+	router.HandleFunc(pathLoggedOut, func(w http.ResponseWriter, req *http.Request) {
+		_, err := w.Write([]byte("signed out successfully"))
+		if err != nil {
+			pfxlog.Logger().Errorf("error serving logged out page: %v", err)
+		}
+	})
+
+	loginRouter := newLogin(config.Storage, srv.AuthCallbackURL(), op.NewIssuerInterceptor(provider.IssuerFromRequest))
+
+	router.Handle("/oidc/"+WellKnownOidcConfiguration, http.StripPrefix("/oidc", serverHandler))
+	router.Handle(WellKnownOidcConfiguration, serverHandler)
+
+	router.PathPrefix("/oidc/login").Handler(http.StripPrefix("/oidc/login", loginRouter.router))
+
+	router.PathPrefix("/oidc").Handler(http.StripPrefix("/oidc", serverHandler))
+
+	return router, nil
+}
+
+// newOidcProvider will create an OpenID Provider that allows refresh tokens, authentication via form post and basic auth, and support request object params
+func newOidcProvider(_ context.Context, issuer string, oidcConfig Config) (op.OpenIDProvider, error) {
+	config := &op.Config{
+		CryptoKey:                oidcConfig.Secret(),
+		DefaultLogoutRedirectURI: pathLoggedOut,
+		CodeMethodS256:           true,
+		AuthMethodPost:           true,
+		AuthMethodPrivateKeyJWT:  true,
+		GrantTypeRefreshToken:    true,
+		RequestObjectSupported:   true,
+		SupportedUILocales:       []language.Tag{language.English},
+	}
+
+	handler, err := op.NewProvider(config, oidcConfig.Storage, op.StaticIssuer(issuer))
+
+	if err != nil {
+		return nil, err
+	}
+	return handler, nil
+}
+
+// newLoginResolver returns func capable of determining default login URLs based on authId
+func newLoginResolver(storage Storage) func(string) string {
+	return func(authId string) string {
+		authRequest, err := storage.GetAuthRequest(authId)
+
+		if err != nil || authRequest == nil {
+			return passwordLoginUrl + authId
+		}
+
+		switch authRequest.RequestedMethod {
+		case AuthMethodPassword:
+			return passwordLoginUrl + authId
+		case AuthMethodExtJwt:
+			return extJwtLoginUrl + authId
+		case AuthMethodCert:
+			return certLoginUrl + authId
+		}
+
+		if len(authRequest.PeerCerts) > 0 {
+			return certLoginUrl + authId
+		}
+
+		return passwordLoginUrl + authId
+	}
+}

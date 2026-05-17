@@ -1,0 +1,22 @@
+.DS_Store
+
+# References (external/third-party code)
+references/
+node_modules/
+dist/
+*.tsbuildinfo
+.env
+dist-publish/
+dist-publish-sdk/
+packages/*/dist/
+.worktrees/
+ui/node_modules/
+ui/dist/
+test/
+built-in-plugins/
+plugin-registry/
+.worktrees/
+.log
+
+# OpenACP local workspace (contains secrets)
+.openacp

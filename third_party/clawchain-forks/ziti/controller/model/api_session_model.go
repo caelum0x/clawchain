@@ -1,0 +1,119 @@
+/*
+	Copyright NetFoundry Inc.
+
+	Licensed under the Apache License, Version 2.0 (the "License");
+	you may not use this file except in compliance with the License.
+	You may obtain a copy of the License at
+
+	https://www.apache.org/licenses/LICENSE-2.0
+
+	Unless required by applicable law or agreed to in writing, software
+	distributed under the License is distributed on an "AS IS" BASIS,
+	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	See the License for the specific language governing permissions and
+	limitations under the License.
+*/
+
+package model
+
+import (
+	"time"
+
+	"github.com/openziti/foundation/v2/errorz"
+	"github.com/openziti/foundation/v2/stringz"
+	"github.com/openziti/ziti/v2/controller/storage/boltz"
+	"github.com/openziti/ziti/v2/controller/db"
+	"github.com/openziti/ziti/v2/controller/models"
+	"go.etcd.io/bbolt"
+)
+
+type ApiSession struct {
+	models.BaseEntity
+	Token                   string
+	IdentityId              string
+	Identity                *Identity
+	IPAddress               string
+	ConfigTypes             map[string]struct{}
+	TotpComplete            bool
+	TotpRequired            bool
+	ExpiresAt               time.Time
+	ExpirationDuration      time.Duration
+	LastActivityAt          time.Time
+	AuthenticatorId         string
+	IsCertExtendable        bool
+	IsCertExtendRequested   bool
+	IsCertKeyRollRequested  bool
+	ImproperClientCertChain bool
+}
+
+func (entity *ApiSession) toBoltEntity(tx *bbolt.Tx, env Env) (*db.ApiSession, error) {
+	if !env.GetStores().Identity.IsEntityPresent(tx, entity.IdentityId) {
+		return nil, errorz.NewFieldError("identity not found", "IdentityId", entity.IdentityId)
+	}
+
+	boltEntity := &db.ApiSession{
+		BaseExtEntity:           *boltz.NewExtEntity(entity.Id, entity.Tags),
+		Token:                   entity.Token,
+		IdentityId:              entity.IdentityId,
+		ConfigTypes:             stringz.SetToSlice(entity.ConfigTypes),
+		IPAddress:               entity.IPAddress,
+		TotpComplete:            entity.TotpComplete,
+		TotpRequired:            entity.TotpRequired,
+		AuthenticatorId:         entity.AuthenticatorId,
+		LastActivityAt:          entity.LastActivityAt,
+		IsCertExtendable:        entity.IsCertExtendable,
+		ImproperClientCertChain: entity.ImproperClientCertChain,
+	}
+
+	return boltEntity, nil
+}
+
+func (entity *ApiSession) toBoltEntityForCreate(tx *bbolt.Tx, env Env) (*db.ApiSession, error) {
+	return entity.toBoltEntity(tx, env)
+}
+
+func (entity *ApiSession) toBoltEntityForUpdate(tx *bbolt.Tx, env Env, _ boltz.FieldChecker) (*db.ApiSession, error) {
+	return entity.toBoltEntity(tx, env)
+}
+
+func (entity *ApiSession) fillFrom(env Env, tx *bbolt.Tx, boltApiSession *db.ApiSession) error {
+	entity.FillCommon(boltApiSession)
+	entity.Token = boltApiSession.Token
+	entity.IdentityId = boltApiSession.IdentityId
+	entity.ConfigTypes = stringz.SliceToSet(boltApiSession.ConfigTypes)
+	entity.IPAddress = boltApiSession.IPAddress
+	entity.TotpRequired = boltApiSession.TotpRequired
+	entity.TotpComplete = boltApiSession.TotpComplete
+	entity.ExpiresAt = entity.UpdatedAt.Add(env.GetConfig().Edge.Api.SessionTimeout)
+	entity.ExpirationDuration = env.GetConfig().Edge.Api.SessionTimeout
+	entity.LastActivityAt = boltApiSession.LastActivityAt
+	entity.AuthenticatorId = boltApiSession.AuthenticatorId
+	entity.IsCertExtendable = boltApiSession.IsCertExtendable
+	entity.ImproperClientCertChain = boltApiSession.ImproperClientCertChain
+
+	boltIdentity, err := env.GetStores().Identity.LoadById(tx, boltApiSession.IdentityId)
+
+	if err != nil {
+		return err
+	}
+	modelIdentity := &Identity{}
+
+	if err := modelIdentity.fillFrom(env, tx, boltIdentity); err != nil {
+		return err
+	}
+	entity.Identity = modelIdentity
+
+	boltAuthenticator, _ := env.GetStores().Authenticator.LoadById(tx, boltApiSession.AuthenticatorId)
+
+	if boltAuthenticator != nil {
+		boltCertAuth := boltAuthenticator.ToCert()
+
+		if boltCertAuth != nil {
+			entity.IsCertExtendRequested = boltCertAuth.IsExtendRequested
+			entity.IsCertKeyRollRequested = boltCertAuth.IsKeyRollRequested
+		}
+
+	}
+
+	return nil
+}

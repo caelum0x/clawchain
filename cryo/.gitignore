@@ -1,0 +1,16 @@
+
+target
+/target
+*.csv
+*.csv_tmp
+*.parquet
+*.parquet_tmp
+*.json
+*.json_tmp
+*.env
+*._tmp
+TODO.md
+graveyard
+.idea
+flamegraph.svg
+test.sh

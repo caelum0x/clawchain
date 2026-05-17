@@ -1,0 +1,48 @@
+{
+    "name": "clawchain_transactions",
+    "version": "1.0.0",
+    "description": "transaction-level data from ClawChain",
+    "datatype": "transactions",
+    "network": "clawchain",
+    "files": [],
+    "schema": {
+        "description": "transaction-level data from ClawChain",
+        "tables": {
+            "transactions": {
+                "description": "each row corresponds to one transaction",
+                "columns": [
+                    {
+                        "description": "block height containing the transaction",
+                        "name": "height",
+                        "type": "INTEGER"
+                    },
+                    {
+                        "description": "transaction hash (hex)",
+                        "name": "hash",
+                        "type": "TEXT"
+                    },
+                    {
+                        "description": "result code (0 = success)",
+                        "name": "code",
+                        "type": "INTEGER"
+                    },
+                    {
+                        "description": "gas requested by the transaction",
+                        "name": "gas_wanted",
+                        "type": "INTEGER"
+                    },
+                    {
+                        "description": "gas actually consumed",
+                        "name": "gas_used",
+                        "type": "INTEGER"
+                    },
+                    {
+                        "description": "comma-separated message type URLs",
+                        "name": "messages",
+                        "type": "TEXT"
+                    }
+                ]
+            }
+        }
+    }
+}

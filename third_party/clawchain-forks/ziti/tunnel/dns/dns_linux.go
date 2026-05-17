@@ -1,0 +1,127 @@
+//go:build linux
+
+/*
+	Copyright NetFoundry Inc.
+
+	Licensed under the Apache License, Version 2.0 (the "License");
+	you may not use this file except in compliance with the License.
+	You may obtain a copy of the License at
+
+	https://www.apache.org/licenses/LICENSE-2.0
+
+	Unless required by applicable law or agreed to in writing, software
+	distributed under the License is distributed on an "AS IS" BASIS,
+	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	See the License for the specific language governing permissions and
+	limitations under the License.
+*/
+
+package dns
+
+import (
+	"fmt"
+	"net"
+	"net/url"
+	"os/exec"
+	"sync"
+	"time"
+
+	"github.com/miekg/dns"
+	"github.com/sirupsen/logrus"
+)
+
+// NewDnsServer starts a local DNS server on addr and configures zero or more
+// upstream DNS servers for recursive forwarding. Each upstream is a URL of
+// the form udp://host:port or tcp://host:port. When multiple upstreams are
+// provided, queries are fanned out in parallel; see resolver.queryUpstreams
+// for winner-selection semantics.
+func NewDnsServer(addr string, upstreams []string, unanswered unansweredDisposition) (Resolver, error) {
+	log.Infof("starting dns server...")
+	s := &dns.Server{
+		Addr: addr,
+		Net:  "udp",
+	}
+
+	names := make(map[string]net.IP)
+	r := &resolver{
+		server:     s,
+		names:      names,
+		ips:        make(map[string]string),
+		namesMtx:   sync.Mutex{},
+		domains:    make(map[string]*domainEntry),
+		domainsMtx: sync.Mutex{},
+		unanswered: unanswered,
+	}
+
+	for _, upstreamConfig := range upstreams {
+		if upstreamConfig == "" {
+			continue
+		}
+		upstreamURL, err := url.Parse(upstreamConfig)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse upstream DNS configuration '%s': %w", upstreamConfig, err)
+		}
+
+		if upstreamURL.Scheme != "udp" && upstreamURL.Scheme != "tcp" {
+			return nil, fmt.Errorf("unsupported upstream DNS scheme '%s'. Only 'udp://' and 'tcp://' are supported", upstreamURL.Scheme)
+		}
+		r.upstreams = append(r.upstreams, upstream{
+			server: upstreamURL.Host,
+			client: &dns.Client{
+				Net:     upstreamURL.Scheme,
+				Timeout: 5 * time.Second,
+			},
+		})
+		log.Infof("configured upstream DNS server: %s over %s", upstreamURL.Host, upstreamURL.Scheme)
+	}
+	s.Handler = r
+
+	errChan := make(chan error)
+	go func() {
+		errChan <- s.ListenAndServe()
+	}()
+
+	select {
+	case err := <-errChan:
+		if err != nil {
+			return nil, fmt.Errorf("dns server failed to start: %w", err)
+		} else {
+			return nil, fmt.Errorf("dns server stopped prematurely")
+		}
+	case <-time.After(2 * time.Second):
+		log.Infof("dns server running at %s", s.Addr)
+	}
+
+	const resolverConfigHelp = "ziti-tunnel runs an internal DNS server which must be first in the host's\n" +
+		"resolver configuration. On systems that use NetManager/dhclient, this can\n" +
+		"be achieved by adding the following to /etc/dhcp/dhclient.conf:\n" +
+		"\n" +
+		"    prepend domain-name-servers %s;\n\n"
+
+	err := r.testSystemResolver()
+	if err != nil {
+		log.Errorf("system resolver test failed: %s\n\n"+resolverConfigHelp, err, addr)
+	}
+
+	return r, nil
+}
+
+func flushDnsCaches() {
+	bin, err := exec.LookPath("systemd-resolve")
+	arg := "--flush-caches"
+	if err != nil {
+		bin, err = exec.LookPath("resolvectl")
+		if err != nil {
+			logrus.WithError(err).Warn("unable to find systemd-resolve or resolvectl in path, consider adding a dns flush to your restart process")
+			return
+		}
+		arg = "flush-caches"
+	}
+
+	cmd := exec.Command(bin, arg)
+	if err = cmd.Run(); err != nil {
+		logrus.WithError(err).Warn("unable to flush dns caches, consider adding a dns flush to your restart process")
+	} else {
+		logrus.Info("dns caches flushed")
+	}
+}

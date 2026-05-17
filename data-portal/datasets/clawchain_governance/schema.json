@@ -1,0 +1,16 @@
+{
+  "name": "clawchain_governance",
+  "description": "Governance proposal and voting data from ClawChain",
+  "network": "clawchain",
+  "category": "governance",
+  "columns": [
+    { "name": "proposal_id", "type": "uint64", "description": "Proposal ID" },
+    { "name": "title", "type": "string", "description": "Proposal title" },
+    { "name": "status", "type": "string", "description": "Proposal status" },
+    { "name": "voter", "type": "string", "description": "Voter address" },
+    { "name": "option", "type": "string", "description": "Vote option" },
+    { "name": "weight", "type": "string", "description": "Vote weight" },
+    { "name": "deposit_amount", "type": "string", "description": "Deposit amount" },
+    { "name": "timestamp", "type": "string", "description": "ISO-8601 timestamp" }
+  ]
+}

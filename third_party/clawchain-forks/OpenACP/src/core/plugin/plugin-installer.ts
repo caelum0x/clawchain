@@ -1,0 +1,72 @@
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
+import * as fs from 'node:fs/promises'
+import * as os from 'node:os'
+import * as path from 'node:path'
+import { pathToFileURL } from 'node:url'
+
+const execFileAsync = promisify(execFile)
+
+/**
+ * Import a package resolved from a specific directory (not the project root).
+ * Reads the package's package.json to find the ESM entry point, then imports by file path.
+ */
+export async function importFromDir(packageName: string, dir: string): Promise<any> {
+  const pkgDir = path.join(dir, 'node_modules', ...packageName.split('/'))
+  const pkgJsonPath = path.join(pkgDir, 'package.json')
+
+  let pkgJson: Record<string, any>
+  try {
+    pkgJson = JSON.parse(await fs.readFile(pkgJsonPath, 'utf-8'))
+  } catch (err) {
+    throw new Error(`Cannot read package.json for "${packageName}" at ${pkgJsonPath}: ${(err as Error).message}`)
+  }
+
+  // Resolve entry: exports["."].import > main > index.js
+  let entry: string
+  const exportsMain = pkgJson.exports?.['.']
+  if (typeof exportsMain === 'string') {
+    entry = exportsMain
+  } else if (exportsMain?.import) {
+    entry = exportsMain.import
+  } else {
+    entry = pkgJson.main ?? 'index.js'
+  }
+
+  const entryPath = path.join(pkgDir, entry)
+  try {
+    await fs.access(entryPath)
+  } catch {
+    throw new Error(`Entry point "${entry}" not found for "${packageName}" at ${entryPath}`)
+  }
+
+  return import(pathToFileURL(entryPath).href)
+}
+
+/** Valid npm package name: optional @scope/, alphanumeric/hyphens/dots, optional @version */
+const VALID_NPM_NAME = /^(@[a-z0-9][\w.-]*\/)?[a-z0-9][\w.-]*(@[\w.^~>=<|-]+)?$/i;
+
+/**
+ * Install an npm package to the plugins directory and return the loaded module.
+ * Tries to import first; if not installed, runs npm install asynchronously.
+ */
+export async function installNpmPlugin(packageName: string, pluginsDir?: string): Promise<any> {
+  if (!VALID_NPM_NAME.test(packageName)) {
+    throw new Error(`Invalid package name: "${packageName}". Must be a valid npm package name.`);
+  }
+
+  const dir = pluginsDir ?? path.join(os.homedir(), '.openacp', 'plugins')
+
+  // Try import from plugins dir first — already installed
+  try {
+    return await importFromDir(packageName, dir)
+  } catch {
+    // Not installed, proceed with install
+  }
+
+  await execFileAsync('npm', ['install', packageName, '--prefix', dir, '--save', '--ignore-scripts'], {
+    timeout: 60000,
+  })
+
+  return await importFromDir(packageName, dir)
+}

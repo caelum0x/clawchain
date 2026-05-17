@@ -1,0 +1,16 @@
+{
+  "name": "clawchain_blocks",
+  "description": "Block-level data from ClawChain",
+  "network": "clawchain",
+  "category": "core",
+  "columns": [
+    { "name": "height", "type": "uint64", "description": "Block height" },
+    { "name": "time", "type": "string", "description": "ISO-8601 timestamp" },
+    { "name": "hash", "type": "string", "description": "Block hash" },
+    { "name": "proposer", "type": "string", "description": "Proposer address" },
+    { "name": "num_txs", "type": "uint32", "description": "Transaction count" },
+    { "name": "gas_used", "type": "uint64", "description": "Gas used" },
+    { "name": "gas_wanted", "type": "uint64", "description": "Gas wanted" },
+    { "name": "chain_id", "type": "string", "description": "Chain ID" }
+  ]
+}

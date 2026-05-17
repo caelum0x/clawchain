@@ -1,0 +1,93 @@
+import { useEffect, useState } from "react";
+import type { Result } from "@oko-wallet/stdlib-js";
+import type { OAuthPayload } from "@oko-wallet/oko-sdk-core";
+import { RedirectUriSearchParamsKey } from "@oko-wallet/oko-sdk-core";
+
+import type { HandleCallbackError } from "./types";
+import { postLog } from "@oko-wallet-attached/requests/logging";
+import { errorToLog } from "@oko-wallet-attached/logging/error";
+import { sendOAuthPayloadToEmbeddedWindow } from "@oko-wallet-attached/components/oauth_callback/send_oauth_payload";
+
+export function useGoogleCallback() {
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fn() {
+      try {
+        const cbRes = await handleGoogleCallback();
+
+        if (cbRes.success) {
+          window.close();
+        }
+      } catch (err) {
+        postLog({
+          level: "error",
+          message: "Google callback error",
+          error: errorToLog(err),
+        });
+
+        setError(err instanceof Error ? err.message : "Unknown error");
+      }
+    }
+
+    fn().then();
+  }, []);
+
+  return { error };
+}
+
+export async function handleGoogleCallback(): Promise<
+  Result<void, HandleCallbackError>
+> {
+  if (!window.opener) {
+    return {
+      success: false,
+      err: {
+        type: "opener_window_not_exists",
+      },
+    };
+  }
+
+  const params = new URLSearchParams(window.location.hash.substring(1));
+  const accessToken = params.get("access_token");
+  const idToken = params.get("id_token");
+
+  const oauthState = getOAuthStateFromUrl();
+
+  const apiKey: string = oauthState.apiKey;
+  const targetOrigin: string = oauthState.targetOrigin;
+
+  if (accessToken && idToken && targetOrigin && apiKey) {
+    const payload: OAuthPayload = {
+      access_token: accessToken,
+      id_token: idToken,
+      api_key: apiKey,
+      target_origin: targetOrigin,
+      auth_type: oauthState.provider,
+    };
+
+    const sendRes = await sendOAuthPayloadToEmbeddedWindow(payload);
+
+    if (!sendRes.success) {
+      console.error("[attached] send oauth result fail, err: %o", sendRes.err);
+      return sendRes;
+    }
+  } else {
+    console.error("[attached] Params not sufficient");
+
+    return {
+      success: false,
+      err: { type: "params_not_sufficient" },
+    };
+  }
+
+  return { success: true, data: void 0 };
+}
+
+export function getOAuthStateFromUrl() {
+  const params = new URLSearchParams(window.location.hash.substring(1));
+  const oauthState = JSON.parse(
+    params.get(RedirectUriSearchParamsKey.STATE) || "{}",
+  );
+  return oauthState;
+}

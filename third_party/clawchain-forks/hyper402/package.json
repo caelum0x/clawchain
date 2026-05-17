@@ -1,0 +1,27 @@
+{
+  "name": "hyper402",
+  "version": "1.0.0",
+  "description": "x402 facilitator for HyperEVM - enabling API payments on any EVM chain",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "demo/server",
+    "demo/client"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "dev:facilitator": "npm run dev --workspace=packages/hyper402-facilitator",
+    "dev:server": "npm run dev --workspace=demo/server",
+    "dev:client": "npm run dev --workspace=demo/client"
+  },
+  "keywords": [
+    "x402",
+    "hyperevm",
+    "payments",
+    "facilitator",
+    "cdp"
+  ],
+  "author": "",
+  "license": "MIT"
+}
+

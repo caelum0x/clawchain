@@ -1,0 +1,10 @@
+{
+  "version": "0.13.11",
+  "npmClient": "yarn",
+  "command": {
+    "version": {
+      "forcePublish": true,
+      "exact": true
+    }
+  }
+}

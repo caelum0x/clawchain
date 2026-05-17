@@ -1,0 +1,7 @@
+/target
+.vscode
+.idea
+/*.sol
+/*.yul
+/tmp/
+.DS_Store

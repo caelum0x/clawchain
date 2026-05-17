@@ -1,0 +1,1 @@
+# Claw Wallet SDK Core

@@ -1,0 +1,52 @@
+services:
+  key_share_node_pg:
+    image: postgres:17.4
+    restart: unless-stopped
+    # Port mapping removed - only accessible from within Docker network
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+      TZ: "UTC"
+      PGTZ: "UTC"
+    volumes:
+      - ${PG_DATA_DIR}:/var/lib/postgresql/data
+
+  key_share_node:
+    build:
+      context: ../../
+      dockerfile: key_share_node/docker/key_share_node.Dockerfile
+    ports:
+      - ${SERVER_PORT}:${SERVER_PORT}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: "production"
+      PORT: ${SERVER_PORT}
+      # Only key_share_node is meant to access db
+      DB_HOST: "key_share_node_pg"
+      DB_PORT: "5432"
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      DB_SSL: "false"
+      # Path inside the container where the Docker secret is mounted
+      ENCRYPTION_SECRET_PATH: "/run/secrets/encryption_secret"
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      # Container path is fixed for consistency; you may change the host path in the volume mapping
+      DUMP_DIR: /home/node/key_share_node/dump
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      OKO_API_BASE_URL: ${OKO_API_BASE_URL}
+      KS_NODE_REPORT_PASSWORD: ${KS_NODE_REPORT_PASSWORD}
+
+    volumes:
+      - ${DUMP_DIR}:/home/node/key_share_node/dump
+      - ${LOG_DIR}:/home/node/key_share_node/key_share_node/server/log_data
+    secrets:
+      - encryption_secret
+    depends_on:
+      - key_share_node_pg
+    command: yarn start
+
+secrets:
+  encryption_secret:
+    file: ${ENCRYPTION_SECRET_FILE_PATH}

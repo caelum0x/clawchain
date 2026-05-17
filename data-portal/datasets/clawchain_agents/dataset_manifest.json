@@ -1,0 +1,48 @@
+{
+    "name": "clawchain_agents",
+    "version": "1.0.0",
+    "description": "registered agents on ClawChain",
+    "datatype": "agents",
+    "network": "clawchain",
+    "files": [],
+    "schema": {
+        "description": "registered agents on ClawChain",
+        "tables": {
+            "agents": {
+                "description": "each row corresponds to a registered agent",
+                "columns": [
+                    {
+                        "description": "bech32 agent address",
+                        "name": "address",
+                        "type": "TEXT"
+                    },
+                    {
+                        "description": "human-readable agent name",
+                        "name": "name",
+                        "type": "TEXT"
+                    },
+                    {
+                        "description": "current agent status (active / inactive / jailed)",
+                        "name": "status",
+                        "type": "TEXT"
+                    },
+                    {
+                        "description": "reputation score (0-100)",
+                        "name": "reputation",
+                        "type": "INTEGER"
+                    },
+                    {
+                        "description": "total number of tasks completed",
+                        "name": "tasks_completed",
+                        "type": "INTEGER"
+                    },
+                    {
+                        "description": "amount of uclaw staked by the agent",
+                        "name": "staked_amount",
+                        "type": "TEXT"
+                    }
+                ]
+            }
+        }
+    }
+}

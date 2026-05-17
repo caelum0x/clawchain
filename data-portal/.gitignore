@@ -1,0 +1,27 @@
+# specific files
+CHANGELOG.md
+ROADMAP.md
+TODO.md
+pytestdebug.log
+tuna.log
+.DS_STORE
+
+# filetypes
+*.egg-info
+*.pyc
+*.csv
+*.parquet
+
+# folders
+*/.hypothesis
+.coverage_html/*
+.hypothesis/
+.tox/*
+__pycache__/*
+build/*
+dist/*
+roadmap/*
+data/*
+extras_ignore/*
+*.ipynb
+*.ipynb_checkpoints

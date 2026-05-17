@@ -1,0 +1,1196 @@
+/*
+	(c) Copyright NetFoundry Inc.
+
+	Licensed under the Apache License, Version 2.0 (the "License");
+	you may not use this file except in compliance with the License.
+	You may obtain a copy of the License at
+
+	https://www.apache.org/licenses/LICENSE-2.0
+
+	Unless required by applicable law or agreed to in writing, software
+	distributed under the License is distributed on an "AS IS" BASIS,
+	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	See the License for the specific language governing permissions and
+	limitations under the License.
+*/
+
+package router
+
+import (
+	"bufio"
+	"context"
+	"encoding/json"
+	stderr "errors"
+	"fmt"
+	"io"
+	"io/fs"
+	"math/big"
+	"net"
+	"os"
+	"os/signal"
+	"path/filepath"
+	"plugin"
+	"runtime/debug"
+	"strings"
+	"sync/atomic"
+	"syscall"
+	"time"
+
+	gosundheit "github.com/AppsFlyer/go-sundheit"
+	"github.com/AppsFlyer/go-sundheit/checks"
+	"github.com/michaelquigley/pfxlog"
+	"github.com/openziti/agent"
+	"github.com/openziti/channel/v4"
+	"github.com/openziti/foundation/v2/debugz"
+	"github.com/openziti/foundation/v2/goroutines"
+	"github.com/openziti/foundation/v2/rate"
+	"github.com/openziti/foundation/v2/versions"
+	"github.com/openziti/identity"
+	"github.com/openziti/metrics"
+	"github.com/openziti/sdk-golang/xgress"
+	"github.com/openziti/transport/v2"
+	"github.com/openziti/xweb/v3"
+	"github.com/openziti/ziti/v2/common"
+	"github.com/openziti/ziti/v2/common/alert"
+	"github.com/openziti/ziti/v2/common/capabilities"
+	"github.com/openziti/ziti/v2/common/config"
+	"github.com/openziti/ziti/v2/common/ctrlchan"
+	"github.com/openziti/ziti/v2/common/health"
+	fabricMetrics "github.com/openziti/ziti/v2/common/metrics"
+	"github.com/openziti/ziti/v2/common/pb/ctrl_pb"
+	"github.com/openziti/ziti/v2/common/profiler"
+	"github.com/openziti/ziti/v2/common/version"
+	"github.com/openziti/ziti/v2/controller/command"
+	"github.com/openziti/ziti/v2/router/env"
+	"github.com/openziti/ziti/v2/router/forwarder"
+	"github.com/openziti/ziti/v2/router/handler_ctrl"
+	"github.com/openziti/ziti/v2/router/handler_link"
+	"github.com/openziti/ziti/v2/router/handler_xgress"
+	"github.com/openziti/ziti/v2/router/interfaces"
+	"github.com/openziti/ziti/v2/router/link"
+	routerMetrics "github.com/openziti/ziti/v2/router/metrics"
+	"github.com/openziti/ziti/v2/router/state"
+	"github.com/openziti/ziti/v2/router/xgress_edge"
+	"github.com/openziti/ziti/v2/router/xgress_edge_transport"
+	"github.com/openziti/ziti/v2/router/xgress_edge_tunnel"
+	"github.com/openziti/ziti/v2/router/xgress_proxy"
+	"github.com/openziti/ziti/v2/router/xgress_proxy_udp"
+	"github.com/openziti/ziti/v2/router/xgress_router"
+	"github.com/openziti/ziti/v2/router/xgress_transport"
+	"github.com/openziti/ziti/v2/router/xgress_transport_udp"
+	"github.com/openziti/ziti/v2/router/xlink"
+	"github.com/openziti/ziti/v2/router/xlink_transport"
+	"github.com/pkg/errors"
+	metrics2 "github.com/rcrowley/go-metrics"
+	"github.com/sirupsen/logrus"
+	"google.golang.org/protobuf/proto"
+	"gopkg.in/yaml.v3"
+)
+
+type Router struct {
+	config              *env.Config
+	ctrls               env.NetworkControllers
+	ctrlBindhandler     channel.BindHandler
+	faulter             *forwarder.Faulter
+	forwarder           *forwarder.Forwarder
+	xrctrls             []env.Xrctrl
+	xlinkFactories      map[string]xlink.Factory
+	xlinkListeners      []xlink.Listener
+	ctrlListeners       []io.Closer
+	xlinkDialers        []xlink.Dialer
+	xlinkRegistry       xlink.Registry
+	xgressListeners     []xgress_router.Listener
+	linkDialerPool      goroutines.Pool
+	rateLimiterPool     goroutines.Pool
+	ctrlRateLimiter     rate.AdaptiveRateLimitTracker
+	metricsRegistry     metrics.UsageRegistry
+	shutdownC           chan struct{}
+	shutdownDoneC       chan struct{}
+	isShutdown          atomic.Bool
+	metricsReporter     metrics.Handler
+	versionProvider     versions.VersionProvider
+	debugOperations     map[byte]func(c *bufio.ReadWriter) error
+	stateManager        state.Manager
+	certManager         *state.CertExpirationChecker
+	xwebs               []xweb.Instance
+	xwebFactoryRegistry xweb.Registry
+	agentBindHandlers   []channel.BindHandler
+	rdmRequired         atomic.Bool
+	indexWatchers       env.IndexWatchers
+	xgRegistry          *env.Registry
+	xgBindHandler       xgress.BindHandler
+	xgMetrics           *routerMetrics.XgressMetrics
+	healthChecker       gosundheit.Health
+	alertReporter       *alert.Reporter
+}
+
+func (self *Router) NotifyOfReconnect(ch ctrlchan.CtrlChannel) {
+	for _, x := range self.xrctrls {
+		go x.NotifyOfReconnect(ch.GetChannel())
+	}
+}
+
+func (self *Router) GetCtrlChannelBindHandler() channel.BindHandler {
+	return self.ctrlBindhandler
+}
+
+func (self *Router) GetRouterId() *identity.TokenId {
+	return self.config.Id
+}
+
+func (self *Router) GetNetworkControllers() env.NetworkControllers {
+	return self.ctrls
+}
+
+func (self *Router) GetDialerCfg() map[string]xgress.OptionsData {
+	return self.config.Dialers
+}
+
+func (self *Router) GetXlinkDialers() []xlink.Dialer {
+	return self.xlinkDialers
+}
+
+func (self *Router) GetXrctrls() []env.Xrctrl {
+	return self.xrctrls
+}
+
+func (self *Router) GetTraceHandler() *channel.TraceHandler {
+	return self.config.Trace.Handler
+}
+
+func (self *Router) GetXlinkRegistry() xlink.Registry {
+	return self.xlinkRegistry
+}
+
+func (self *Router) GetCloseNotify() <-chan struct{} {
+	return self.shutdownC
+}
+
+func (self *Router) GetMetricsRegistry() metrics.UsageRegistry {
+	return self.metricsRegistry
+}
+
+func (self *Router) GetLinkPayloadSenderQueueSize() int {
+	return self.config.Link.PayloadSenderQueueSize
+}
+
+func (self *Router) GetLinkAckSenderQueueSize() int {
+	return self.config.Link.AckSenderQueueSize
+}
+
+func (self *Router) GetXgressRegistry() *env.Registry {
+	return self.xgRegistry
+}
+
+func (self *Router) RenderJsonConfig() (string, error) {
+	jsonMap, err := config.ToJsonCompatibleMap(self.config.Src)
+
+	if err != nil {
+		return "", err
+	}
+	b, err := json.Marshal(jsonMap)
+	return string(b), err
+}
+
+func (self *Router) GetChannel(controllerId string) channel.Channel {
+	return self.ctrls.GetChannel(controllerId)
+}
+
+func (self *Router) DefaultRequestTimeout() time.Duration {
+	return self.config.Ctrl.DefaultRequestTimeout
+}
+
+func (self *Router) GetHeartbeatOptions() env.HeartbeatOptions {
+	return self.config.Ctrl.Heartbeats
+}
+
+func (self *Router) GetStateManager() state.Manager {
+	return self.stateManager
+}
+
+func (self *Router) GetRouterDataModel() *common.RouterDataModel {
+	return self.stateManager.RouterDataModel()
+}
+
+// WithRouterDataModel passes the current router data model into the provide function
+func (self *Router) WithRouterDataModel(f func(*common.RouterDataModel) error) error {
+	return self.stateManager.WithRouterDataModel(f)
+}
+
+func (self *Router) GetConnectEventsConfig() *env.ConnectEventsConfig {
+	return &self.config.ConnectEvents
+}
+
+func (self *Router) GetIndexWatchers() env.IndexWatchers {
+	return self.indexWatchers
+}
+
+func (self *Router) GetForwarder() env.Forwarder {
+	return self.forwarder
+}
+
+func (self *Router) GetXgressMetrics() env.XgressMetrics {
+	return self.xgMetrics
+}
+
+func (self *Router) GetXgressListeners() []xgress_router.Listener {
+	return self.xgressListeners
+}
+
+func (self *Router) GetChannelHeaders() (channel.Headers, error) {
+	routerVersion, err := self.versionProvider.EncoderDecoder().Encode(self.versionProvider.AsVersionInfo())
+
+	if err != nil {
+		return nil, fmt.Errorf("error with version header information value: %w", err)
+	}
+
+	headers := channel.Headers{
+		channel.HelloVersionHeader: routerVersion,
+	}
+
+	listeners := &ctrl_pb.Listeners{}
+	for _, listener := range self.xlinkListeners {
+		listeners.Listeners = append(listeners.Listeners, &ctrl_pb.Listener{
+			Address:      listener.GetAdvertisement(),
+			Protocol:     listener.GetLinkProtocol(),
+			CostTags:     listener.GetLinkCostTags(),
+			Groups:       listener.GetGroups(),
+			LocalBinding: listener.GetLocalBinding(),
+		})
+	}
+
+	if len(listeners.Listeners) > 0 {
+		buf, err := proto.Marshal(listeners)
+		if err != nil {
+			return nil, fmt.Errorf("unable to marshal Listeners (%w)", err)
+		}
+		headers[int32(ctrl_pb.ControlHeaders_ListenersHeader)] = buf
+	}
+
+	capabilityMask := &big.Int{}
+	capabilityMask.SetBit(capabilityMask, capabilities.RouterMultiChannel, 1)
+	headers[int32(ctrl_pb.ControlHeaders_CapabilitiesHeader)] = capabilityMask.Bytes()
+
+	ctrlListeners := &ctrl_pb.CtrlChanListeners{}
+	for _, listener := range self.config.Ctrl.Listeners {
+		addr := listener.Advertise
+		if addr == nil {
+			addr = listener.Bind
+		}
+		ctrlListeners.Listeners = append(ctrlListeners.Listeners, &ctrl_pb.CtrlChanListener{
+			Address: addr.String(),
+			Groups:  listener.Groups,
+		})
+	}
+
+	if len(ctrlListeners.Listeners) > 0 {
+		buf, err := proto.Marshal(ctrlListeners)
+		if err != nil {
+			return nil, fmt.Errorf("unable to marshal CtrlChanListeners (%w)", err)
+		}
+		headers[int32(ctrl_pb.ControlHeaders_CtrlChanListenersHeader)] = buf
+	}
+
+	return headers, nil
+}
+
+func createMetricsRegistry(cfg *env.Config, closeNotify <-chan struct{}) metrics.UsageRegistry {
+	metricsConfig := metrics.DefaultUsageRegistryConfig(cfg.Id.Token, closeNotify)
+	metricsConfig.EventQueueSize = cfg.Metrics.EventQueueSize
+	if cfg.Metrics.IntervalAgeThreshold != 0 {
+		metricsConfig.IntervalAgeThreshold = cfg.Metrics.IntervalAgeThreshold
+		logrus.Infof("set interval age threshold to '%v'", cfg.Metrics.IntervalAgeThreshold)
+	}
+	env.IntervalSize = cfg.Metrics.ReportInterval
+
+	return metrics.NewUsageRegistry(metricsConfig)
+}
+
+func Create(cfg *env.Config, versionProvider versions.VersionProvider) *Router {
+	// Notify lifecycle listeners that configuration has been loaded
+	GlobalLifecycleNotifier.NotifyListeners(LifecycleEventConfigLoaded, nil, cfg)
+
+	closeNotify := make(chan struct{})
+	metricsRegistry := createMetricsRegistry(cfg, closeNotify)
+
+	router := &Router{
+		xgRegistry:          env.NewRegistry(),
+		config:              cfg,
+		metricsRegistry:     metricsRegistry,
+		shutdownC:           closeNotify,
+		shutdownDoneC:       make(chan struct{}),
+		versionProvider:     versionProvider,
+		debugOperations:     map[byte]func(c *bufio.ReadWriter) error{},
+		xwebFactoryRegistry: xweb.NewRegistryMap(),
+		ctrlRateLimiter:     command.NewAdaptiveRateLimitTracker(cfg.Ctrl.RateLimit, metricsRegistry, closeNotify),
+		indexWatchers:       env.NewIndexWatchers(),
+		xgMetrics:           routerMetrics.NewXgressMetrics(metricsRegistry),
+	}
+
+	router.ctrls = env.NewNetworkControllers(router, &cfg.Ctrl.Heartbeats)
+	router.stateManager = state.NewManager(router)
+	router.certManager = state.NewCertExpirationChecker(router, true)
+	router.alertReporter = alert.NewAlertReporter(router.ctrls, cfg.Id.Token, 1000, 10)
+
+	router.xlinkRegistry = link.NewLinkRegistry(router)
+	router.faulter = forwarder.NewFaulter(router, cfg.Forwarder.FaultTxInterval)
+	router.forwarder = forwarder.NewForwarder(metricsRegistry, router.faulter, cfg.Forwarder, closeNotify)
+	router.forwarder.StartScanner(router.ctrls)
+
+	var err error
+	router.ctrlBindhandler, err = handler_ctrl.NewBindHandler(router, router.forwarder)
+	if err != nil {
+		panic(err)
+	}
+
+	router.xgBindHandler = handler_xgress.NewBindHandler(router, router.createDataPlaneAdapter(),
+		handler_xgress.NewCloseHandler(router.ctrls, router.forwarder),
+	)
+
+	if err = router.RegisterXrctrl(router.stateManager); err != nil {
+		panic(fmt.Errorf("error registering state manager in framework: %w", err))
+	}
+
+	return router
+}
+
+func (self *Router) GetAlerter() env.Alerter {
+	return self.alertReporter
+}
+
+func (self *Router) createDataPlaneAdapter() xgress.DataPlaneAdapter {
+	payloadIngester := xgress.NewPayloadIngesterWithConfig(64, self.shutdownC)
+	ackSender := xgress_router.NewAcker(self.forwarder, self.metricsRegistry, self.shutdownC)
+
+	return handler_xgress.NewXgressDataPlaneAdapter(handler_xgress.DataPlaneAdapterConfig{
+		Acker:           ackSender,
+		Forwarder:       self.forwarder,
+		PayloadIngester: payloadIngester,
+		Metrics:         xgress.NewMetrics(self.metricsRegistry),
+	})
+}
+
+func (self *Router) ListenForShutdownSignal(ctx context.Context) {
+	ch := make(chan os.Signal, 1)
+	signal.Notify(ch, os.Interrupt, syscall.SIGQUIT, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(ch)
+
+	pfxlog.Logger().Info("waiting for shutdown signal or context cancel")
+
+	select {
+	case s := <-ch:
+		pfxlog.Logger().Infof("received signal: %v", s)
+		if s == syscall.SIGQUIT {
+			fmt.Println("=== STACK DUMP BEGIN ===")
+			debugz.DumpStack()
+			fmt.Println("=== STACK DUMP END ===")
+		}
+	case <-ctx.Done():
+		pfxlog.Logger().Info("context cancelled, initiating shutdown")
+	}
+
+	log := pfxlog.Logger()
+	log.Info("shutting down ziti router")
+
+	if err := self.Shutdown(); err != nil {
+		log.WithError(err).Error("error encountered during shutdown")
+	} else {
+		log.Info("shutdown complete")
+	}
+}
+
+func (self *Router) RunCliAgent(agentAddr, appAlias string) {
+	options := agent.Options{
+		Addr:       agentAddr,
+		AppAlias:   appAlias,
+		AppId:      self.config.Id.Token,
+		AppType:    "router",
+		AppVersion: version.GetVersion(),
+	}
+
+	self.RegisterDefaultAgentOps(self.config.EnableDebugOps)
+
+	options.CustomOps = map[byte]func(conn net.Conn) error{
+		agent.CustomOp:      self.HandleAgentOp,
+		agent.CustomOpAsync: self.HandleAgentAsyncOp,
+	}
+
+	if err := agent.Listen(options); err != nil {
+		pfxlog.Logger().WithError(err).Error("unable to start CLI agent")
+	}
+}
+
+func (self *Router) RegisterXrctrl(x env.Xrctrl) error {
+	if err := self.config.Configure(x); err != nil {
+		return err
+	}
+	if x.Enabled() {
+		self.xrctrls = append(self.xrctrls, x)
+	}
+	return nil
+}
+
+func (self *Router) GetVersionInfo() versions.VersionProvider {
+	return self.versionProvider
+}
+
+func (self *Router) GetConfig() *env.Config {
+	return self.config
+}
+
+func (self *Router) Start() error {
+	GlobalLifecycleNotifier.NotifyListeners(LifecycleEventStart, self, self.config)
+
+	// Initialize directories and show configuration
+	if err := os.MkdirAll(filepath.Dir(self.config.Ctrl.EndpointsFile), 0700); err != nil {
+		logrus.WithField("dir", filepath.Dir(self.config.Ctrl.EndpointsFile)).WithError(err).Error("failed to initialize directory for endpoints file")
+		return err
+	}
+	self.showOptions()
+
+	// Initialize pools and profiling
+	if err := self.initGoroutinePools(); err != nil {
+		return err
+	}
+
+	self.startProfiling()
+
+	if healthChecker, err := self.initializeHealthChecks(); err != nil {
+		logrus.WithError(err).Fatalf("failed to create health checker")
+	} else {
+		self.healthChecker = healthChecker
+		if err = self.RegisterXWebHandlerFactory(health.NewHealthCheckApiFactory(healthChecker)); err != nil {
+			logrus.WithError(err).Fatalf("failed to create health checks api factory")
+		}
+	}
+
+	// Register components and plugins
+	if err := self.registerComponents(); err != nil {
+		return err
+	}
+
+	if err := self.registerPlugins(); err != nil {
+		return err
+	}
+
+	// Initialize xgress registry
+	self.xgRegistry.Initialize(self)
+
+	// Start network listeners and dialers
+	self.startXlinkDialers()
+	self.startXlinkListeners()
+	self.setDefaultDialerBindings()
+	self.startXgressListeners()
+
+	// Start web services
+	for _, web := range self.xwebs {
+		go web.Run()
+	}
+
+	// Start control plane (must be last)
+	if err := self.startControlPlane(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (self *Router) Shutdown() error {
+	var errs []error
+	if self.isShutdown.CompareAndSwap(false, true) {
+		if err := self.ctrls.Close(); err != nil {
+			errs = append(errs, err)
+		}
+
+		close(self.shutdownC)
+
+		for _, ctrlListener := range self.ctrlListeners {
+			if err := ctrlListener.Close(); err != nil {
+				errs = append(errs, err)
+			}
+		}
+
+		for _, xlinkListener := range self.xlinkListeners {
+			if err := xlinkListener.Close(); err != nil {
+				errs = append(errs, err)
+			}
+		}
+
+		self.xlinkRegistry.Shutdown()
+
+		for _, xgressListener := range self.xgressListeners {
+			if err := xgressListener.Close(); err != nil {
+				errs = append(errs, err)
+			}
+		}
+
+		for _, web := range self.xwebs {
+			go web.Shutdown()
+		}
+
+		self.config.Id.StopWatchingFiles()
+
+		if self.healthChecker != nil {
+			self.healthChecker.DeregisterAll()
+		}
+
+		close(self.shutdownDoneC)
+	}
+	if len(errs) == 0 {
+		return nil
+	}
+	if len(errs) == 1 {
+		return errs[0]
+	}
+	return stderr.Join(errs...)
+}
+
+func (self *Router) Run() error {
+	if err := self.Start(); err != nil {
+		return err
+	}
+
+	<-self.shutdownDoneC
+	return nil
+}
+
+func (self *Router) showOptions() {
+	if output, err := json.Marshal(self.config.Ctrl.Options); err == nil {
+		pfxlog.Logger().Infof("ctrl = %s", string(output))
+	} else {
+		logrus.Fatalf("unable to display options (%v)", err)
+	}
+
+	if output, err := json.Marshal(self.config.Metrics); err == nil {
+		pfxlog.Logger().Infof("metrics = %s", string(output))
+	} else {
+		logrus.Fatalf("unable to display options (%v)", err)
+	}
+}
+
+func (self *Router) startProfiling() {
+	if self.config.Profile.Memory.Path != "" {
+		go profiler.NewMemoryWithShutdown(self.config.Profile.Memory.Path, self.config.Profile.Memory.Interval, self.shutdownC).Run()
+	}
+	if self.config.Profile.CPU.Path != "" {
+		if cpu, err := profiler.NewCPUWithShutdown(self.config.Profile.CPU.Path, self.shutdownC); err == nil {
+			go cpu.Run()
+		} else {
+			logrus.Errorf("unexpected error launching cpu profiling (%v)", err)
+		}
+	}
+	go newRouterMonitor(self.forwarder, self.shutdownC).Monitor()
+}
+
+func (self *Router) initGoroutinePools() error {
+	if err := self.initLinkDialerPool(); err != nil {
+		return err
+	}
+
+	if err := self.initRateLimiterPool(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (self *Router) initLinkDialerPool() error {
+	linkDialerPoolConfig := goroutines.PoolConfig{
+		QueueSize:   uint32(self.config.Forwarder.LinkDial.QueueLength),
+		MinWorkers:  0,
+		MaxWorkers:  uint32(self.config.Forwarder.LinkDial.WorkerCount),
+		IdleTime:    30 * time.Second,
+		CloseNotify: self.shutdownC,
+		PanicHandler: func(err interface{}) {
+			pfxlog.Logger().WithField(logrus.ErrorKey, err).WithField("backtrace", string(debug.Stack())).Error("panic during link dial")
+		},
+		WorkerFunction: linkDialerWorker,
+	}
+
+	fabricMetrics.ConfigureGoroutinesPoolMetrics(&linkDialerPoolConfig, self.metricsRegistry, "pool.link.dialer")
+
+	linkDialerPool, err := goroutines.NewPool(linkDialerPoolConfig)
+	if err != nil {
+		return fmt.Errorf("error creating link dialer pool (%w)", err)
+	}
+	self.linkDialerPool = linkDialerPool
+
+	return nil
+}
+
+func linkDialerWorker(_ uint32, f func()) {
+	f()
+}
+
+func (self *Router) initRateLimiterPool() error {
+	rateLimiterPoolConfig := goroutines.PoolConfig{
+		QueueSize:   uint32(self.forwarder.Options.RateLimiter.QueueLength),
+		MinWorkers:  0,
+		MaxWorkers:  uint32(self.forwarder.Options.RateLimiter.WorkerCount),
+		IdleTime:    30 * time.Second,
+		CloseNotify: self.GetCloseNotify(),
+		PanicHandler: func(err interface{}) {
+			pfxlog.Logger().WithField(logrus.ErrorKey, err).WithField("backtrace", string(debug.Stack())).Error("panic during rate limited operation")
+		},
+		WorkerFunction: rateLimiterWorker,
+	}
+
+	fabricMetrics.ConfigureGoroutinesPoolMetrics(&rateLimiterPoolConfig, self.GetMetricsRegistry(), "pool.rate_limiter")
+
+	rateLimiterPool, err := goroutines.NewPool(rateLimiterPoolConfig)
+	if err != nil {
+		return errors.Wrap(err, "error creating rate limited pool")
+	}
+
+	self.rateLimiterPool = rateLimiterPool
+	return nil
+}
+
+func rateLimiterWorker(_ uint32, f func()) {
+	f()
+}
+
+func (self *Router) GetLinkDialerPool() goroutines.Pool {
+	return self.linkDialerPool
+}
+
+func (self *Router) GetRateLimiterPool() goroutines.Pool {
+	return self.rateLimiterPool
+}
+
+func (self *Router) GetCtrlRateLimiter() rate.AdaptiveRateLimitTracker {
+	return self.ctrlRateLimiter
+}
+
+func (self *Router) IsRouterDataModelRequired() bool {
+	return self.rdmRequired.Load()
+}
+
+func (self *Router) MarkRouterDataModelRequired() {
+	self.rdmRequired.Store(true)
+}
+
+func (self *Router) GetXgressBindHandler() xgress.BindHandler {
+	return self.xgBindHandler
+}
+
+func (self *Router) GetXLinkRegistry() xlink.Registry {
+	return self.xlinkRegistry
+}
+
+func (self *Router) NotifyCertsUpdated() {
+	self.certManager.CertsUpdated()
+}
+
+func (self *Router) registerComponents() error {
+	self.xlinkFactories = make(map[string]xlink.Factory)
+	acceptor := newXlinkAccepter(self.forwarder)
+	xlinkChAccepter := handler_link.NewBindHandlerFactory(
+		self.ctrls,
+		self.forwarder,
+		&self.config.Link.Heartbeats,
+		self.metricsRegistry,
+		self.xlinkRegistry,
+	)
+
+	linkTransportConfig := map[interface{}]interface{}{}
+	for k, v := range self.config.Transport {
+		linkTransportConfig[k] = v
+	}
+	linkTransportConfig[transport.KeyCachedProxyConfiguration] = self.config.Proxy
+
+	self.xlinkFactories["transport"] = xlink_transport.NewFactory(acceptor, xlinkChAccepter, linkTransportConfig, self)
+
+	self.xgRegistry.Register(xgress_proxy.BindingName, xgress_proxy.NewFactory(self.config.Id, self.ctrls, self.config.Transport))
+	self.xgRegistry.Register(xgress_proxy_udp.BindingName, xgress_proxy_udp.NewFactory(self.ctrls))
+	self.xgRegistry.Register(xgress_transport.BindingName, xgress_transport.NewFactory(self.config.Id, self.ctrls, self.config.Transport))
+	self.xgRegistry.Register(xgress_transport_udp.BindingName, xgress_transport_udp.NewFactory(self.config.Id, self.ctrls))
+
+	// Register edge-related xgress factories
+	xgressEdgeFactory := xgress_edge.NewFactory(self.config, self, self.stateManager)
+	self.xgRegistry.Register(common.EdgeBinding, xgressEdgeFactory)
+	if err := self.RegisterXrctrl(xgressEdgeFactory); err != nil {
+		return fmt.Errorf("error registering edge in framework (%w)", err)
+	}
+
+	xgressEdgeTransportFactory := xgress_edge_transport.NewFactory()
+	self.xgRegistry.Register(xgress_edge_transport.BindingName, xgressEdgeTransportFactory)
+
+	xgressEdgeTunnelFactory := xgress_edge_tunnel.NewFactory(self, self.stateManager)
+	self.xgRegistry.Register(common.TunnelBinding, xgressEdgeTunnelFactory)
+	if err := self.RegisterXrctrl(xgressEdgeTunnelFactory); err != nil {
+		return fmt.Errorf("error registering edge tunnel in framework (%w)", err)
+	}
+
+	xwo := xweb.InstanceOptions{
+		InstanceValidators: []xweb.InstanceValidator{func(config *xweb.InstanceConfig) error {
+			var errs []error
+			for i, serverConfig := range config.ServerConfigs {
+				for _, bp := range serverConfig.BindPoints {
+					if ve := serverConfig.Identity.ValidFor(strings.Split(bp.ServerAddress(), ":")[0]); ve != nil {
+						if config.Options.DefaultConfigSection != xweb.DefaultConfigSection {
+							errs = append(errs, fmt.Errorf("could not validate server at %s[%d]: %v", config.Options.DefaultConfigSection, i, ve))
+						} else {
+							// allow xweb bindings in routers to be misconfigured (health checks)
+							pfxlog.Logger().Warnf("unable to validate XWeb configuration. %s may be unstable: %v", serverConfig.Name, ve)
+						}
+					}
+				}
+			}
+			return stderr.Join(errs...)
+		}},
+		DefaultIdentity:        self.config.Id,
+		DefaultIdentitySection: xweb.DefaultIdentitySection,
+		DefaultConfigSection:   xweb.DefaultConfigSection,
+	}
+
+	if err := self.RegisterXweb(xweb.NewInstance(self.xwebFactoryRegistry, xwo)); err != nil {
+		return err
+	}
+
+	if v, ok := self.xlinkRegistry.(env.Xrctrl); ok {
+		if err := self.RegisterXrctrl(v); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (self *Router) registerPlugins() error {
+	for _, pluginPath := range self.config.Plugins {
+		goPlugin, err := plugin.Open(pluginPath)
+		if err != nil {
+			return errors.Wrapf(err, "router unable to load plugin at path %v", pluginPath)
+		}
+		initializeSymbol, err := goPlugin.Lookup("Initialize")
+		if err != nil {
+			return errors.Wrapf(err, "router plugin at %v does not contain Initialize symbol", pluginPath)
+		}
+		initialize, ok := initializeSymbol.(func(*Router) error)
+		if !ok {
+			return fmt.Errorf("router plugin at %v exports Initialize symbol, but it is not of type 'func(router *router.Router) error'", pluginPath)
+		}
+		if err := initialize(self); err != nil {
+			return errors.Wrapf(err, "error initializing router plugin at %v", pluginPath)
+		}
+	}
+	return nil
+}
+
+func (self *Router) startXlinkDialers() {
+	for _, lmap := range self.config.Link.Dialers {
+		binding := "transport"
+		if bindingVal, ok := lmap["binding"]; ok {
+			bindingName := fmt.Sprintf("%v", bindingVal)
+			if len(bindingName) > 0 {
+				binding = bindingName
+			}
+		}
+
+		if factory, found := self.xlinkFactories[binding]; found {
+			dialer, err := factory.CreateDialer(self.config.Id, lmap)
+			if err != nil {
+				logrus.Fatalf("error creating Xlink dialer (%v)", err)
+			}
+			self.xlinkDialers = append(self.xlinkDialers, dialer)
+			logrus.Infof("started Xlink dialer with binding [%s]", binding)
+		}
+	}
+}
+
+func (self *Router) startXlinkListeners() {
+	for _, lmap := range self.config.Link.Listeners {
+		binding := "transport"
+		if bindingVal, ok := lmap["binding"]; ok {
+			bindingName := fmt.Sprintf("%v", bindingVal)
+			if len(bindingName) > 0 {
+				binding = bindingName
+			}
+		}
+
+		if factory, found := self.xlinkFactories[binding]; found {
+			lmap[transport.KeyProtocol] = "ziti-link"
+			listener, err := factory.CreateListener(self.config.Id, lmap)
+			if err != nil {
+				logrus.Fatalf("error creating Xlink listener (%v)", err)
+			}
+			if err := listener.Listen(); err != nil {
+				logrus.Fatalf("error listening on Xlink (%v)", err)
+			}
+			self.xlinkListeners = append(self.xlinkListeners, listener)
+			logrus.Infof("started Xlink listener with binding [%s] advertising [%s]", binding, listener.GetAdvertisement())
+		}
+	}
+}
+
+func (self *Router) setDefaultDialerBindings() {
+	if len(self.xlinkDialers) == 1 && len(self.xlinkListeners) == 1 && self.xlinkDialers[0].GetBinding() == "" {
+		self.xlinkDialers[0].AdoptBinding(self.xlinkListeners[0])
+	}
+}
+
+func (self *Router) startXgressListeners() {
+	for _, binding := range self.config.Listeners {
+		factory, err := self.xgRegistry.Factory(binding.Name)
+		if err != nil {
+			logrus.Fatalf("error getting xgress factory [%s] (%v)", binding.Name, err)
+		}
+		listener, err := factory.CreateListener(binding.Options)
+		if err != nil {
+			logrus.Fatalf("error creating xgress listener [%s] (%v)", binding.Name, err)
+		}
+		self.xgressListeners = append(self.xgressListeners, listener)
+
+		var address string
+		if addressVal, found := binding.Options["address"]; found {
+			address = addressVal.(string)
+		}
+
+		if err = listener.Listen(address, self.GetXgressBindHandler()); err != nil {
+			logrus.Fatalf("error listening [%s] (%v)", binding.Name, err)
+		}
+		logrus.Infof("created xgress listener [%s] at [%s]", binding.Name, address)
+	}
+}
+
+func (self *Router) startControlPlane() error {
+	endpoints, controllers, err := self.getInitialCtrlEndpoints()
+	if err != nil {
+		return err
+	}
+
+	log := pfxlog.Logger()
+	log.Infof("router configured with %v controller endpoints, %d controller details", len(endpoints), len(controllers))
+
+	if err := self.startCtrlListeners(); err != nil {
+		return err
+	}
+
+	if len(controllers) > 0 {
+		self.ctrls.UpdateControllerDetails(controllers)
+	} else {
+		self.ctrls.ConnectToInitialEndpoints(endpoints)
+	}
+
+	self.metricsReporter = fabricMetrics.NewControllersReporter(self.ctrls)
+	self.metricsRegistry.StartReporting(self.metricsReporter, self.config.Metrics.ReportInterval, self.config.Metrics.MessageQueueSize)
+
+	if self.config.Ctrl.StartupTimeout > 0 {
+		time.AfterFunc(self.config.Ctrl.StartupTimeout, func() {
+			if !self.isShutdown.Load() && len(self.ctrls.GetAll()) == 0 {
+				if os.Getenv("STACKDUMP_ON_FAILED_STARTUP") == "true" {
+					debugz.DumpStack()
+				}
+				pfxlog.Logger().Fatal("unable to connect to any controllers before timeout")
+			}
+		})
+	}
+
+	for self.ctrls.AnyChannel() == nil && !self.isShutdown.Load() {
+		time.Sleep(1 * time.Second)
+	}
+
+	for _, x := range self.xrctrls {
+		if err := x.Run(self); err != nil {
+			return err
+		}
+	}
+
+	interfaces.StartInterfaceReporter(self.ctrls, self.GetCloseNotify(), self.config.IfaceDiscovery)
+
+	return nil
+}
+
+func (self *Router) startCtrlListeners() error {
+	if len(self.config.Ctrl.Listeners) == 0 {
+		return nil
+	}
+
+	log := pfxlog.Logger()
+
+	for _, listenerCfg := range self.config.Ctrl.Listeners {
+		log.Infof("starting ctrl channel listener on %s", listenerCfg.Bind.String())
+
+		ctrlAcceptor := &ctrlChannelAcceptor{
+			router:  self,
+			options: listenerCfg.Options,
+		}
+
+		listenerConfig := channel.ListenerConfig{
+			ConnectOptions:   listenerCfg.Options.ConnectOptions,
+			TransportConfig:  transport.Configuration{"protocol": "ziti-ctrl"},
+			PoolConfigurator: fabricMetrics.GoroutinesPoolMetricsConfigF(self.metricsRegistry, "pool.listener.ctrl"),
+			HeadersF:         self.ctrlHelloHeaders,
+		}
+
+		multiListener := channel.NewMultiListener(ctrlAcceptor.HandleGroupedUnderlay, ctrlAcceptor.AcceptUnderlay)
+
+		listener, err := channel.NewClassicListenerF(self.config.Id, listenerCfg.Bind, listenerConfig, multiListener.AcceptUnderlay)
+		if err != nil {
+			return fmt.Errorf("error starting ctrl channel listener on %s (%w)", listenerCfg.Bind.String(), err)
+		}
+
+		self.ctrlListeners = append(self.ctrlListeners, listener)
+	}
+
+	return nil
+}
+
+func (self *Router) ctrlHelloHeaders() map[int32][]byte {
+	headers, err := self.GetChannelHeaders()
+	if err != nil {
+		pfxlog.Logger().WithError(err).Error("error generating ctrl listener hello headers")
+		return map[int32][]byte{}
+	}
+	return headers
+}
+
+func (self *Router) initializeHealthChecks() (gosundheit.Health, error) {
+	checkConfig := self.config.HealthChecks
+	logrus.Infof("starting health check with ctrl ping initially after %v, then every %v, timing out after %v",
+		checkConfig.CtrlPingCheck.InitialDelay, checkConfig.CtrlPingCheck.Interval, checkConfig.CtrlPingCheck.Timeout)
+
+	h := gosundheit.New()
+	ctrlPinger := &controllerPinger{
+		router: self,
+	}
+	ctrlPingCheck, err := checks.NewPingCheck("controllerPing", ctrlPinger)
+	if err != nil {
+		return nil, err
+	}
+
+	err = h.RegisterCheck(ctrlPingCheck,
+		gosundheit.ExecutionPeriod(checkConfig.CtrlPingCheck.Interval),
+		gosundheit.ExecutionTimeout(checkConfig.CtrlPingCheck.Timeout),
+		gosundheit.InitiallyPassing(false),
+		gosundheit.InitialDelay(checkConfig.CtrlPingCheck.InitialDelay),
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	err = h.RegisterCheck(&linkHealthCheck{router: self, minLinks: checkConfig.LinkCheck.MinLinks},
+		gosundheit.ExecutionPeriod(checkConfig.LinkCheck.Interval),
+		gosundheit.ExecutionTimeout(5*time.Second),
+		gosundheit.InitiallyPassing(checkConfig.LinkCheck.MinLinks == 0),
+		gosundheit.InitialDelay(checkConfig.LinkCheck.InitialDelay),
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return h, nil
+}
+
+func (self *Router) RegisterXweb(x xweb.Instance) error {
+	if err := self.config.Configure(x); err != nil {
+		return err
+	}
+	if x.Enabled() {
+		self.xwebs = append(self.xwebs, x)
+	}
+	return nil
+}
+
+func (self *Router) RegisterXWebHandlerFactory(x xweb.ApiHandlerFactory) error {
+	return self.xwebFactoryRegistry.Add(x)
+}
+
+func (self *Router) getInitialCtrlEndpoints() ([]string, []*ctrl_pb.CtrlDetail, error) {
+	log := pfxlog.Logger()
+	if self.config.Ctrl.EndpointsFile == "" {
+		return nil, nil, errors.New("ctrl endpointsFile not configured")
+	}
+
+	endpointsFile := self.config.Ctrl.EndpointsFile
+
+	var endpoints []string
+	var controllers []*ctrl_pb.CtrlDetail
+
+	if _, err := os.Stat(endpointsFile); err != nil && errors.Is(err, fs.ErrNotExist) {
+		log.Infof("controller endpoints file [%v] doesn't exist. Using initial endpoints from config", endpointsFile)
+	} else {
+		log.Infof("loading controller endpoints from [%v]", endpointsFile)
+
+		b, err := os.ReadFile(endpointsFile)
+		if err != nil {
+			log.WithError(err).Error("unable to read endpoints file, falling back to initial endpoints from config")
+		} else {
+			endpointCfg := map[string]any{}
+
+			if err = yaml.Unmarshal(b, endpointCfg); err != nil {
+				log.WithError(err).Error("unable to unmarshall endpoints file, falling back to initial endpoints from config")
+			} else {
+				for k, v := range endpointCfg {
+					if strings.EqualFold("endpoints", k) {
+						keys := v.([]any)
+						for _, key := range keys {
+							endpoints = append(endpoints, key.(string))
+						}
+						break
+					}
+				}
+				if len(endpoints) == 0 {
+					log.Info("empty endpoint list in endpoints file, falling back to initial endpoints from config")
+				}
+
+				// Load controller details if present
+				if ctrlsVal, ok := endpointCfg["controllers"]; ok {
+					if ctrlsList, ok := ctrlsVal.([]any); ok {
+						for _, item := range ctrlsList {
+							if ctrlMap, ok := item.(map[string]any); ok {
+								detail := &ctrl_pb.CtrlDetail{}
+								if id, ok := ctrlMap["id"].(string); ok {
+									detail.Id = id
+								}
+								if epsList, ok := ctrlMap["endpoints"].([]any); ok {
+									for _, epItem := range epsList {
+										if epMap, ok := epItem.(map[string]any); ok {
+											ep := &ctrl_pb.CtrlEndpoint{}
+											if addr, ok := epMap["address"].(string); ok {
+												ep.Address = addr
+											}
+											if groups, ok := epMap["groups"].([]any); ok {
+												for _, g := range groups {
+													if gs, ok := g.(string); ok {
+														ep.Groups = append(ep.Groups, gs)
+													}
+												}
+											}
+											detail.Endpoints = append(detail.Endpoints, ep)
+										}
+									}
+								}
+								if detail.Id != "" {
+									controllers = append(controllers, detail)
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	if len(endpoints) == 0 {
+		log.Info("Using initial endpoints from config")
+		for _, ep := range self.config.Ctrl.InitialEndpoints {
+			endpoints = append(endpoints, ep.String())
+		}
+	}
+
+	return endpoints, controllers, nil
+}
+
+func (self *Router) UpdateCtrlEndpointDetails(controllers []*ctrl_pb.CtrlDetail) {
+	self.ctrls.UpdateControllerDetails(controllers)
+	if err := self.config.SaveControllerDetails(controllers); err != nil {
+		pfxlog.Logger().WithError(err).Error("unable to save updated controller details")
+	}
+}
+
+func (self *Router) UpdateLeader(leaderId string) {
+	self.ctrls.UpdateLeader(leaderId)
+}
+
+type connectionToggle interface {
+	Disconnect() error
+	Reconnect() error
+}
+
+type controllerPinger struct {
+	router *Router
+}
+
+func (self *controllerPinger) PingContext(context.Context) error {
+	ctrls := self.router.ctrls.GetAll()
+
+	if len(ctrls) == 0 {
+		return errors.New("no control channels established yet")
+	}
+
+	hasGoodConn := false
+
+	for _, ctrl := range ctrls {
+		if !ctrl.IsUnresponsive() {
+			hasGoodConn = true
+		}
+	}
+
+	if hasGoodConn {
+		return nil
+	}
+	return errors.New("control channels are slow")
+}
+
+type endpointConfig struct {
+	Endpoints []string `yaml:"endpoints"`
+}
+
+type linkConnDetail struct {
+	LocalAddr  string `json:"localAddr"`
+	RemoteAddr string `json:"remoteAddr"`
+}
+
+type linkDetail struct {
+	LinkId       string                    `json:"linkId"`
+	DestRouterId string                    `json:"destRouterId"`
+	Latency      *float64                  `json:"latency,omitempty"`
+	Addresses    map[string]linkConnDetail `json:"addresses"`
+}
+
+type linkHealthCheck struct {
+	router   *Router
+	minLinks int
+}
+
+func (self *linkHealthCheck) Name() string {
+	return "link.health"
+}
+
+func (self *linkHealthCheck) Execute(ctx context.Context) (details interface{}, err error) {
+	var links []*linkDetail
+
+	iter := self.router.xlinkRegistry.Iter()
+	done := false
+
+	for !done {
+		var currentLink xlink.Xlink
+		select {
+		case nextLink, ok := <-iter:
+			if !ok {
+				done = true
+			}
+			currentLink = nextLink
+		case <-ctx.Done():
+			done = true
+		}
+
+		if currentLink != nil {
+			detail := &linkDetail{
+				LinkId:       currentLink.Id(),
+				DestRouterId: currentLink.DestinationId(),
+				Addresses:    map[string]linkConnDetail{},
+			}
+			for _, addr := range currentLink.GetLinkConnState().Conns {
+				detail.Addresses[addr.Type] = linkConnDetail{
+					LocalAddr:  addr.LocalAddr,
+					RemoteAddr: addr.RemoteAddr,
+				}
+			}
+			latencyMetric := self.router.metricsRegistry.Histogram("link." + currentLink.Id() + ".latency")
+			if latencyMetric != nil {
+				latency := latencyMetric.(metrics2.Histogram).Mean()
+				detail.Latency = &latency
+			}
+			links = append(links, detail)
+		}
+	}
+	if len(links) < self.minLinks {
+		return links, errors.Errorf("link count %v less than configured minimum of %v", len(links), self.minLinks)
+	}
+	return links, nil
+}

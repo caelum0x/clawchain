@@ -1,0 +1,31 @@
+@use "../../styles/viewport.module.scss" as *;
+
+.wrapper {
+  width: 100%;
+  margin-top: 12px;
+
+  @media (min-width: $desktop_min_width) {
+    width: 360px;
+  }
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.showHideChains {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+}
+
+.assetList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}

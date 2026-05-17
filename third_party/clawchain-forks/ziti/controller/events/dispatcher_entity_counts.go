@@ -1,0 +1,172 @@
+/*
+	Copyright NetFoundry Inc.
+
+	Licensed under the Apache License, Version 2.0 (the "License");
+	you may not use this file except in compliance with the License.
+	You may obtain a copy of the License at
+
+	https://www.apache.org/licenses/LICENSE-2.0
+
+	Unless required by applicable law or agreed to in writing, software
+	distributed under the License is distributed on an "AS IS" BASIS,
+	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	See the License for the specific language governing permissions and
+	limitations under the License.
+*/
+
+package events
+
+import (
+	"reflect"
+	"strings"
+	"time"
+
+	"github.com/openziti/ziti/v2/controller/event"
+	"github.com/pkg/errors"
+)
+
+func (self *Dispatcher) AddEntityCountEventHandler(handler event.EntityCountEventHandler, interval time.Duration, onlyLeaderEvents bool) {
+	self.entityCountEventHandlers.Append(&entityCountState{
+		handler:          handler,
+		onlyLeaderEvents: onlyLeaderEvents,
+		interval:         interval,
+		nextRun:          time.Now(),
+	})
+}
+
+func (self *Dispatcher) RemoveEntityCountEventHandler(handler event.EntityCountEventHandler) {
+	self.entityCountEventHandlers.DeleteIf(func(val *entityCountState) bool {
+		if val.handler == handler {
+			return true
+		}
+		if w, ok := val.handler.(event.EntityCountEventHandlerWrapper); ok {
+			return w.IsWrapping(handler)
+		}
+		return false
+	})
+}
+
+func (self *Dispatcher) initEntityEvents() {
+	go self.generateEntityEvents()
+}
+
+func (self *Dispatcher) generateEntityEvents() {
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case t := <-ticker.C:
+			var evt *event.EntityCountEvent
+			leader := self.network.Dispatcher.IsLeaderOrLeaderless()
+			for _, state := range self.entityCountEventHandlers.Value() {
+				if !state.onlyLeaderEvents || leader {
+					if t.After(state.nextRun) {
+						if evt == nil {
+							evt = self.generateEntityCountEvent()
+						}
+						state.handler.AcceptEntityCountEvent(evt)
+						state.nextRun = state.nextRun.Add(state.interval)
+					}
+				}
+			}
+		case <-self.closeNotify:
+			return
+		}
+	}
+}
+
+func (self *Dispatcher) generateEntityCountEvent() *event.EntityCountEvent {
+	evt := &event.EntityCountEvent{
+		Namespace:  event.EntityCountEventNS,
+		EventSrcId: self.ctrlId,
+		Timestamp:  time.Now(),
+	}
+
+	data, err := self.stores.GetEntityCounts(self.network.GetDb())
+	if err != nil {
+		evt.Error = err.Error()
+	} else {
+		evt.Counts = data
+	}
+
+	return evt
+}
+
+func (self *Dispatcher) registerEntityCountEventHandler(eventType string, val interface{}, config map[string]interface{}) error {
+	handler, ok := val.(event.EntityCountEventHandler)
+
+	if !ok {
+		return errors.Errorf("type %T doesn't implement the events.EntityCountEventHandler interface", val)
+	}
+
+	if eventType != event.EntityCountEventNS {
+		handler = &entityCountEventOldNsAdapter{
+			namespace: eventType,
+			wrapped:   handler,
+		}
+	}
+
+	interval := time.Minute * 5
+
+	if val, ok := config["interval"]; ok {
+		if strVal, ok := val.(string); ok {
+			var err error
+			interval, err = time.ParseDuration(strVal)
+			if err != nil {
+				return errors.Wrapf(err, "invalid duration value for edge.entityCounts interval: '%v'", strVal)
+			}
+		} else {
+			return errors.Errorf("invalid type %v for edge.entityCounts interval configuration", reflect.TypeOf(val))
+		}
+	}
+
+	propagateAlways := false
+	if val, found := config["propagateAlways"]; found {
+		if b, ok := val.(bool); ok {
+			propagateAlways = b
+		} else if s, ok := val.(string); ok {
+			propagateAlways = strings.EqualFold(s, "true")
+		} else {
+			return errors.New("invalid value for propagateAlways, must be boolean or string")
+		}
+	}
+
+	self.AddEntityCountEventHandler(handler, interval, !propagateAlways)
+
+	return nil
+}
+
+func (self *Dispatcher) unregisterEntityCountEventHandler(val interface{}) {
+	if handler, ok := val.(event.EntityCountEventHandler); ok {
+		self.RemoveEntityCountEventHandler(handler)
+	}
+}
+
+type entityCountState struct {
+	handler          event.EntityCountEventHandler
+	onlyLeaderEvents bool
+	interval         time.Duration
+	nextRun          time.Time
+}
+
+type entityCountEventOldNsAdapter struct {
+	namespace string
+	wrapped   event.EntityCountEventHandler
+}
+
+func (self *entityCountEventOldNsAdapter) AcceptEntityCountEvent(evt *event.EntityCountEvent) {
+	nsEvent := *evt
+	nsEvent.Namespace = self.namespace
+	self.wrapped.AcceptEntityCountEvent(&nsEvent)
+}
+
+func (self *entityCountEventOldNsAdapter) IsWrapping(value event.EntityCountEventHandler) bool {
+	if self.wrapped == value {
+		return true
+	}
+	if w, ok := self.wrapped.(event.EntityCountEventHandlerWrapper); ok {
+		return w.IsWrapping(value)
+	}
+	return false
+}

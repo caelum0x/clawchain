@@ -1,0 +1,62 @@
+{
+  "clawchain_balance": {
+    "emoji": "💰",
+    "title": "Check Balance",
+    "label": "Checking chain balance"
+  },
+  "clawchain_shield": {
+    "emoji": "🛡️",
+    "title": "Shield Tokens",
+    "label": "Shielding tokens privately"
+  },
+  "clawchain_unshield": {
+    "emoji": "🔓",
+    "title": "Unshield Tokens",
+    "label": "Unshielding tokens"
+  },
+  "clawchain_transfer": {
+    "emoji": "💸",
+    "title": "Private Transfer",
+    "label": "Sending private transfer"
+  },
+  "clawchain_register": {
+    "emoji": "📝",
+    "title": "Register Agent",
+    "label": "Registering agent on chain"
+  },
+  "clawchain_agent_info": {
+    "emoji": "🤖",
+    "title": "Agent Info",
+    "label": "Fetching agent information"
+  },
+  "clawchain_send_message": {
+    "emoji": "✉️",
+    "title": "Chain Message",
+    "label": "Sending on-chain message"
+  },
+  "clawchain_governance_propose": {
+    "emoji": "🗳️",
+    "title": "Governance Proposal",
+    "label": "Creating governance proposal"
+  },
+  "clawchain_marketplace_list": {
+    "emoji": "🏪",
+    "title": "Marketplace",
+    "label": "Listing marketplace skills"
+  },
+  "clawchain_reputation": {
+    "emoji": "⭐",
+    "title": "Reputation",
+    "label": "Checking reputation score"
+  },
+  "clawchain_escrow_create": {
+    "emoji": "🔐",
+    "title": "Create Escrow",
+    "label": "Creating escrow contract"
+  },
+  "clawchain_faucet": {
+    "emoji": "🚰",
+    "title": "Faucet",
+    "label": "Requesting testnet tokens"
+  }
+}

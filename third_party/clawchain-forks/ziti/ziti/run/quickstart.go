@@ -1,0 +1,828 @@
+/*
+	Copyright NetFoundry Inc.
+
+	Licensed under the Apache License, Version 2.0 (the "License");
+	you may not use this file except in compliance with the License.
+	You may obtain a copy of the License at
+
+	https://www.apache.org/licenses/LICENSE-2.0
+
+	Unless required by applicable law or agreed to in writing, software
+	distributed under the License is distributed on an "AS IS" BASIS,
+	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	See the License for the specific language governing permissions and
+	limitations under the License.
+*/
+
+package run
+
+import (
+	"context"
+	"crypto/tls"
+	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"os"
+	"os/signal"
+	"os/user"
+	"path"
+	"regexp"
+	"strconv"
+	"strings"
+	"syscall"
+	"time"
+
+	"github.com/openziti/ziti/v2/ziti/cmd/edge"
+	"github.com/openziti/ziti/v2/ziti/enroll"
+
+	"github.com/google/uuid"
+	"github.com/michaelquigley/pfxlog"
+	"github.com/openziti/ziti/v2/controller/rest_client/cluster"
+	"github.com/openziti/ziti/v2/ziti/cmd/agentcli"
+	"github.com/openziti/ziti/v2/ziti/cmd/api"
+	"github.com/openziti/ziti/v2/ziti/cmd/common"
+	"github.com/openziti/ziti/v2/ziti/cmd/create"
+	"github.com/openziti/ziti/v2/ziti/cmd/helpers"
+	"github.com/openziti/ziti/v2/ziti/cmd/pki"
+	"github.com/openziti/ziti/v2/ziti/constants"
+	"github.com/openziti/ziti/v2/ziti/util"
+	"github.com/sirupsen/logrus"
+	"github.com/spf13/cobra"
+)
+
+type QuickstartOpts struct {
+	Username           string
+	Password           string
+	AlreadyInitialized bool
+	Home               string
+	ControllerAddress  string
+	ControllerPort     uint16
+	RouterAddress      string
+	RouterPort         uint16
+	out                io.Writer
+	errOut             io.Writer
+	cleanOnExit        bool
+	TrustDomain        string
+	InstanceID         string
+	ClusterMember      string
+	Routerless         bool
+	ConfigureAndExit   bool
+	ConfigFile         string
+
+	joinCommand bool
+	verbose     bool
+	nonVoter    bool
+}
+
+func addCommonQuickstartFlags(cmd *cobra.Command, options *QuickstartOpts) {
+	currentCtrlAddy := helpers.GetCtrlEdgeAdvertisedAddress()
+	currentCtrlPort := helpers.GetCtrlEdgeAdvertisedPort()
+	currentRouterAddy := helpers.GetRouterAdvertisedAddress()
+	currentRouterPort := helpers.GetZitiEdgeRouterPort()
+	defaultCtrlPort, _ := strconv.ParseInt(constants.DefaultCtrlEdgeAdvertisedPort, 10, 16)
+	defaultRouterPort, _ := strconv.ParseInt(constants.DefaultZitiEdgeRouterPort, 10, 16)
+
+	cmd.Flags().StringVarP(&options.Username, "username", "u", "", "admin username, default: admin")
+	cmd.Flags().StringVarP(&options.Password, "password", "p", "", "admin password, default: admin")
+
+	cmd.Flags().StringVar(&options.Home, "home", "", "permanent directory")
+
+	cmd.Flags().StringVar(&options.ControllerAddress, "ctrl-address", "", "sets the advertised address for the control plane and API. current: "+currentCtrlAddy)
+	cmd.Flags().Uint16Var(&options.ControllerPort, "ctrl-port", uint16(defaultCtrlPort), "sets the port to use for the control plane and API. current: "+currentCtrlPort)
+	cmd.Flags().StringVar(&options.RouterAddress, "router-address", "", "sets the advertised address for the integrated router. current: "+currentRouterAddy)
+	cmd.Flags().Uint16Var(&options.RouterPort, "router-port", uint16(defaultRouterPort), "sets the port to use for the integrated router. current: "+currentRouterPort)
+	cmd.Flags().BoolVar(&options.Routerless, "no-router", false, "specifies the quickstart should not start a router")
+
+	cmd.Flags().BoolVar(&options.verbose, "verbose", false, "Show additional output.")
+	cmd.Flags().BoolVar(&options.ConfigureAndExit, "configure-and-exit", false, "Configures everything and then exits gracefully")
+}
+
+func addQuickstartHaFlags(cmd *cobra.Command, options *QuickstartOpts) {
+	cmd.Flags().StringVar(&options.TrustDomain, "trust-domain", "", "the specified trust domain to be used in SPIFFE ids.")
+	cmd.Flags().StringVar(&options.InstanceID, "instance-id", "", "specifies a unique instance id for use in ha mode.")
+}
+
+// NewQuickStartCmd creates a command object for the "create" command
+func NewQuickStartCmd(out io.Writer, errOut io.Writer, context context.Context) *cobra.Command {
+	options := &QuickstartOpts{}
+	cmd := &cobra.Command{
+		Use:   "quickstart",
+		Short: "runs a Controller and Router in quickstart mode",
+		Long:  "runs a Controller and Router in quickstart mode with a temporary directory; suitable for testing and development",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			options.out = out
+			options.errOut = errOut
+			if options.TrustDomain == "" {
+				options.TrustDomain = "quickstart"
+			}
+			if options.InstanceID == "" {
+				options.InstanceID = "quickstart"
+			}
+			return options.run(context)
+		},
+	}
+	addCommonQuickstartFlags(cmd, options)
+	addQuickstartHaFlags(cmd, options)
+	cmd.AddCommand(NewQuickStartJoinClusterCmd(out, errOut, context))
+	return cmd
+}
+
+func NewQuickStartJoinClusterCmd(out io.Writer, errOut io.Writer, context context.Context) *cobra.Command {
+	options := &QuickstartOpts{}
+	cmd := &cobra.Command{
+		Use:   "join",
+		Short: "runs a Controller and Router in quickstart mode and joins an existing cluster",
+		Long:  "runs a Controller and Router in quickstart mode and joins an existing cluster with a temporary directory; suitable for testing and development",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			options.out = out
+			options.errOut = errOut
+			return options.join(context)
+		},
+	}
+	addCommonQuickstartFlags(cmd, options)
+	addQuickstartHaFlags(cmd, options)
+	cmd.Flags().StringVarP(&options.ClusterMember, "cluster-member", "m", "", "address of a cluster member. required. example tls:localhost:1280")
+	cmd.Flags().BoolVar(&options.nonVoter, "non-voting", false, "used with ha mode. specifies the member is a non-voting member")
+	cmd.Hidden = true
+	return cmd
+}
+
+func (o *QuickstartOpts) cleanupHome() {
+	if o.cleanOnExit && !o.ConfigureAndExit {
+		fmt.Println("Removing temp directory at: " + o.Home)
+		_ = os.RemoveAll(o.Home)
+	} else {
+		fmt.Println("Environment left intact at: " + o.Home)
+	}
+}
+
+func (o *QuickstartOpts) join(ctx context.Context) error {
+	if strings.TrimSpace(o.InstanceID) == "" {
+		return fmt.Errorf("--instance-id is required when joining a cluster")
+	}
+	if strings.TrimSpace(o.Home) == "" {
+		return fmt.Errorf("--home is required when joining a cluster; the root-ca is used to create the server's pki")
+	}
+	if o.ClusterMember == "" {
+		return fmt.Errorf("--cluster-member is required")
+	}
+	if strings.TrimSpace(o.TrustDomain) == "" {
+		return fmt.Errorf("--trust-domain is required when joining a cluster")
+	}
+
+	o.joinCommand = true
+	return o.run(ctx)
+}
+
+func (o *QuickstartOpts) run(ctx context.Context) error {
+	if o.verbose {
+		pfxlog.GlobalInit(logrus.DebugLevel, pfxlog.DefaultOptions().Color())
+	}
+
+	//set env vars
+	if o.Home == "" {
+		tmpDir, _ := os.MkdirTemp("", "quickstart")
+		o.Home = tmpDir
+		o.cleanOnExit = true
+		logrus.Infof("temporary --home '%s'", o.Home)
+	} else {
+		//normalize path
+		if strings.HasPrefix(o.Home, "~") {
+			usr, err := user.Current()
+			if err != nil {
+				return fmt.Errorf("could not find user's home directory")
+			}
+			home := usr.HomeDir
+			// Replace only the first instance of ~ in case it appears later in the path
+			o.Home = strings.Replace(o.Home, "~", home, 1)
+		}
+		logrus.Infof("permanent --home '%s' will not be removed on exit", o.Home)
+	}
+	if o.ControllerAddress != "" {
+		_ = os.Setenv(constants.CtrlAdvertisedAddressVarName, o.ControllerAddress)
+		_ = os.Setenv(constants.CtrlEdgeAdvertisedAddressVarName, o.ControllerAddress)
+	}
+	if o.ControllerPort > 0 {
+		_ = os.Setenv(constants.CtrlAdvertisedPortVarName, strconv.Itoa(int(o.ControllerPort)))
+		_ = os.Setenv(constants.CtrlEdgeAdvertisedPortVarName, strconv.Itoa(int(o.ControllerPort)))
+	}
+	if o.RouterAddress != "" {
+		_ = os.Setenv(constants.ZitiEdgeRouterAdvertisedAddressVarName, o.RouterAddress)
+	}
+	if o.RouterPort > 0 {
+		_ = os.Setenv(constants.ZitiEdgeRouterPortVarName, strconv.Itoa(int(o.RouterPort)))
+		_ = os.Setenv(constants.ZitiEdgeRouterListenerBindPortVarName, strconv.Itoa(int(o.RouterPort)))
+	}
+	if o.Username == "" {
+		o.Username = "admin"
+	}
+	if o.Password == "" {
+		o.Password = "admin"
+	}
+
+	if o.InstanceID == "" {
+		o.InstanceID = uuid.New().String()
+	}
+
+	o.ConfigFile = path.Join(o.instHome(), "ctrl.yaml")
+	routerName := "router-" + o.InstanceID
+
+	//ZITI_HOME=/tmp ziti create config controller | grep -v "#" | sed -E 's/^ *$//g' | sed '/^$/d'
+	_ = os.Setenv("ZITI_HOME", o.Home)
+	pkiLoc := path.Join(o.Home, "pki")
+	rootLoc := path.Join(pkiLoc, "root-ca")
+	pkiIntermediateName := o.scopedName("intermediate-ca")
+	pkiServerName := o.scopedNameOff("server")
+	pkiClientName := o.scopedNameOff("client")
+	intermediateLoc := path.Join(pkiLoc, pkiIntermediateName)
+	_ = os.Setenv("ZITI_PKI_CTRL_CA", path.Join(rootLoc, "certs", "root-ca.cert"))
+	_ = os.Setenv("ZITI_PKI_CTRL_KEY", path.Join(intermediateLoc, "keys", pkiServerName+".key"))
+	_ = os.Setenv("ZITI_PKI_CTRL_SERVER_CERT", path.Join(intermediateLoc, "certs", pkiServerName+".chain.pem"))
+	_ = os.Setenv("ZITI_PKI_CTRL_CERT", path.Join(intermediateLoc, "certs", pkiClientName+".chain.pem"))
+	_ = os.Setenv("ZITI_PKI_SIGNER_CERT", path.Join(intermediateLoc, "certs", pkiIntermediateName+".cert"))
+	_ = os.Setenv("ZITI_PKI_SIGNER_KEY", path.Join(intermediateLoc, "keys", pkiIntermediateName+".key"))
+
+	routerNameFromEnv := os.Getenv(constants.ZitiEdgeRouterNameVarName)
+	if routerNameFromEnv != "" {
+		routerName = routerNameFromEnv
+	}
+
+	dbDir := path.Join(o.instHome(), "db")
+	if _, err := os.Stat(dbDir); !os.IsNotExist(err) {
+		o.AlreadyInitialized = true
+	} else {
+		_ = os.MkdirAll(dbDir, 0o700)
+		logrus.Debugf("made directory '%s'", dbDir)
+
+		if err := o.CreateMinimalPki(); err != nil {
+			return err
+		}
+
+		_ = os.Setenv("ZITI_HOME", o.instHome())
+		ctrl := create.NewCmdCreateConfigController()
+		args := []string{
+			fmt.Sprintf("--output=%s", o.ConfigFile),
+		}
+		ctrl.SetArgs(args)
+		err = ctrl.Execute()
+		if err != nil {
+			return err
+		}
+	}
+
+	curCtx, cancel := context.WithCancel(ctx) //used to cancel controller and router when configure-and-exit is selected
+	fmt.Println("Starting controller...")
+	go func() {
+		runCtrl := NewRunControllerCmd()
+		runCtrl.SetArgs([]string{
+			o.ConfigFile,
+		})
+		runCtrl.SetContext(curCtx)
+		runCtrlErr := runCtrl.Execute()
+		if runCtrlErr != nil {
+			logrus.Errorf("controller exited with error: %v", runCtrlErr)
+		}
+	}()
+	fmt.Println("Controller running...")
+
+	o.ControllerAddress = helpers.GetCtrlEdgeAdvertisedAddress()
+
+	portStr := helpers.GetCtrlEdgeAdvertisedPort()
+	port, portErr := strconv.Atoi(portStr)
+	if portErr != nil {
+		cancel()
+		return fmt.Errorf("invalid controller port: %s", portStr)
+	}
+	o.ControllerPort = uint16(port)
+
+	c := make(chan error)
+	timeout := 30 * time.Second
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+	go waitForController(ctx, o.ControllerHostPort(), c)
+
+	select {
+	case <-c:
+		//completed normally
+		logrus.Info("Controller online. Continuing...")
+	case <-time.After(timeout):
+		o.cleanupHome()
+		cancel()
+		return fmt.Errorf("timed out waiting for controller: %s", o.ControllerHostPort())
+	}
+
+	p := common.NewOptionsProvider(o.out, o.errOut)
+	fmt.Println("waiting three seconds for controller to become ready...")
+
+	if !o.joinCommand {
+		maxRetries := 5
+		for attempt := 1; attempt <= maxRetries; attempt++ {
+			fmt.Printf("initializing controller at port: %d\n", o.ControllerPort)
+			agentInitCmd := agentcli.NewAgentClusterInit(p)
+			pid := os.Getpid()
+			args := []string{
+				o.Username,
+				o.Password,
+				o.Username,
+				fmt.Sprintf("--pid=%d", pid),
+				"--timeout=30s",
+			}
+			agentInitCmd.SetArgs(args)
+
+			agentInitErr := agentInitCmd.Execute()
+			if agentInitErr != nil {
+				if attempt < maxRetries {
+					fmt.Println("initialization failed. waiting two seconds and trying again")
+					time.Sleep(2 * time.Second) // Wait before retrying
+				} else {
+					fmt.Println("Max retries reached. Failing.")
+					cancel()
+					return agentInitErr
+				}
+			} else {
+				break
+			}
+		}
+	} else {
+		agentJoinCmd := agentcli.NewAgentClusterAdd(p)
+
+		args := []string{
+			o.ClusterMember,
+			fmt.Sprintf("--pid=%d", os.Getpid()),
+			fmt.Sprintf("--voter=%t", !o.nonVoter),
+			"--timeout=30s",
+		}
+		agentJoinCmd.SetArgs(args)
+
+		addChan := make(chan error, 1)
+		addTimeout := time.Second * 30
+		go func() {
+			o.waitForLeader()
+			addChan <- agentJoinCmd.Execute()
+		}()
+
+		select {
+		case agentJoinErr := <-addChan:
+			if agentJoinErr != nil {
+				o.cleanupHome()
+				cancel()
+				return fmt.Errorf("failed to join cluster: %w", agentJoinErr)
+			}
+			logrus.Info("Add command successful. continuing...")
+		case <-time.After(addTimeout):
+			o.cleanupHome()
+			cancel()
+			return fmt.Errorf("timed out adding to cluster")
+		}
+	}
+
+	erConfigFile := path.Join(o.instHome(), routerName+".yaml")
+	err := o.configureRouter(routerName, erConfigFile, o.ControllerHostPort())
+	if err != nil {
+		cancel()
+		return err
+	}
+	o.runRouter(erConfigFile)
+
+	ch := make(chan os.Signal, 1)
+	signal.Notify(ch, os.Interrupt, syscall.SIGQUIT, syscall.SIGINT, syscall.SIGTERM)
+
+	if !o.Routerless {
+		r := make(chan error)
+		timeout, _ = time.ParseDuration("30s")
+		logrus.Infof("waiting for router at: %s:%d", o.RouterAddress, o.RouterPort)
+		go o.WaitForRouter(timeout, r)
+		select {
+		case waitErr := <-r:
+			if waitErr != nil {
+				o.cleanupHome()
+				cancel()
+				return fmt.Errorf("router failed: %w", waitErr)
+			}
+		case <-time.After(timeout):
+			o.cleanupHome()
+			cancel()
+			return fmt.Errorf("timed out waiting for router on port: %d", o.RouterPort)
+		}
+	}
+
+	go func() {
+		time.Sleep(3 * time.Second) // output this after a bit...
+		nextInstId := incrementStringSuffix(o.InstanceID)
+		fmt.Println()
+		o.printDetails()
+		fmt.Println("=======================================================================================")
+		cont := "\\"
+		if os.Getenv("PSModulePath") != "" {
+			cont = "`"
+		}
+		fmt.Println("Quickly add another member to this cluster using: ")
+		fmt.Printf("  ziti edge quickstart join %s\n", cont)
+		fmt.Printf("    --ctrl-port %d %s\n", o.ControllerPort+1, cont)
+		fmt.Printf("    --router-port %d %s\n", o.RouterPort+1, cont)
+		fmt.Printf("    --home \"%s\" %s\n", o.Home, cont)
+		fmt.Printf("    --trust-domain=\"%s\" %s\n", o.TrustDomain, cont)
+		fmt.Printf("    --cluster-member tls:%s:%d %s\n", o.ControllerAddress, o.ControllerPort, cont)
+		fmt.Printf("    --instance-id \"%s\"\n", nextInstId)
+		fmt.Println("=======================================================================================")
+		fmt.Println()
+	}()
+
+	if !o.ConfigureAndExit {
+		select {
+		case <-ch:
+			fmt.Println("Signal to shutdown received")
+		case <-ctx.Done():
+			fmt.Println("Cancellation request received")
+		}
+	} else {
+		fmt.Println("configure-and-exit set to true, closing router and controller")
+	}
+
+	o.cleanupHome()
+	cancel()
+	return nil
+}
+
+func (o *QuickstartOpts) printDetails() {
+	fmt.Println("=======================================================================================")
+	fmt.Println("controller and router started.")
+	fmt.Println("    controller located at  : " + helpers.GetCtrlAdvertisedAddress() + ":" + strconv.Itoa(int(o.ControllerPort)))
+	fmt.Println("    router located at      : " + helpers.GetRouterAdvertisedAddress() + ":" + strconv.Itoa(int(o.RouterPort)))
+	fmt.Println("    config dir located at  : " + o.Home)
+	fmt.Println("    configured trust domain: " + o.TrustDomain)
+	fmt.Printf("    instance pid           : %d\n", os.Getpid())
+}
+
+func (o *QuickstartOpts) configureRouter(routerName string, configFile string, ctrlUrl string) error {
+	if o.Routerless {
+		return nil
+	}
+
+	erJwt := path.Join(o.Home, routerName+".jwt")
+
+	if !o.AlreadyInitialized {
+		loginCmd := edge.NewLoginCmd(o.out, o.errOut)
+		loginCmd.SetArgs([]string{
+			o.ControllerHostPort(),
+			fmt.Sprintf("--username=%s", o.Username),
+			fmt.Sprintf("--password=%s", o.Password),
+			"-y",
+		})
+		if o.joinCommand {
+			o.waitForLeader()
+		}
+		loginErr := loginCmd.Execute()
+		if loginErr != nil {
+			return loginErr
+		}
+
+		if err := o.configureOverlay(); err != nil {
+			return err
+		}
+
+		time.Sleep(1 * time.Second)
+
+		// ziti edge create edge-router ${ZITI_HOSTNAME}-edge-router -o ${ZITI_HOME}/${ZITI_HOSTNAME}-edge-router.jwt -t -a public
+		createErCmd := edge.NewCreateEdgeRouterCmd(o.out, o.errOut)
+		createErCmd.SetArgs([]string{
+			routerName,
+			fmt.Sprintf("--jwt-output-file=%s", erJwt),
+			"--tunneler-enabled",
+			fmt.Sprintf("--role-attributes=%s", "public"),
+		})
+
+		o.waitForLeader() //wait for a leader before doing anything
+		createErErr := createErCmd.Execute()
+
+		if createErErr != nil {
+			return createErErr
+		}
+	}
+
+	// Create router config YAML if it doesn't exist yet (may have been skipped on a prior crashed run)
+	if _, err := os.Stat(configFile); os.IsNotExist(err) {
+		// ziti create config router edge --routerName ${ZITI_HOSTNAME}-edge-router >${ZITI_HOME}/${ZITI_HOSTNAME}-edge-router.yaml
+		opts := &create.CreateConfigRouterOptions{}
+
+		data := &create.ConfigTemplateValues{}
+		data.PopulateConfigValues()
+		create.SetZitiRouterIdentity(&data.Router, routerName)
+		erCfg := create.NewCmdCreateConfigRouterEdge(opts, data)
+		erCfg.SetArgs([]string{
+			fmt.Sprintf("--routerName=%s", routerName),
+			fmt.Sprintf("--output=%s", configFile),
+		})
+
+		o.waitForLeader()
+		erCfgErr := erCfg.Execute()
+		if erCfgErr != nil {
+			return erCfgErr
+		}
+	}
+
+	// Enroll router if JWT file still exists (consumed on successful enrollment)
+	if _, err := os.Stat(erJwt); err == nil {
+		if o.AlreadyInitialized {
+			loginCmd := edge.NewLoginCmd(o.out, o.errOut)
+			loginCmd.SetArgs([]string{
+				o.ControllerHostPort(),
+				fmt.Sprintf("--username=%s", o.Username),
+				fmt.Sprintf("--password=%s", o.Password),
+				"-y",
+			})
+			loginErr := loginCmd.Execute()
+			if loginErr != nil {
+				return loginErr
+			}
+		}
+
+		// ziti router enroll ${ZITI_HOME}/${ZITI_HOSTNAME}-edge-router.yaml --jwt ${ZITI_HOME}/${ZITI_HOSTNAME}-edge-router.jwt
+		erEnroll := enroll.NewEnrollEdgeRouterCmd()
+		erEnroll.SetArgs([]string{
+			configFile,
+			fmt.Sprintf("--jwt=%s", erJwt),
+		})
+
+		o.waitForLeader() //needed?
+		erEnrollErr := erEnroll.Execute()
+		if erEnrollErr != nil {
+			return erEnrollErr
+		}
+
+		// Remove the JWT file now that enrollment succeeded, so subsequent
+		// restarts don't attempt to re-enroll.
+		if removeErr := os.Remove(erJwt); removeErr != nil {
+			logrus.Warnf("failed to remove router JWT after enrollment: %v", removeErr)
+		}
+	}
+
+	return nil
+}
+
+func (o *QuickstartOpts) runRouter(configFile string) {
+	if o.Routerless {
+		return
+	}
+
+	go func() {
+		// ziti router run ${ZITI_HOME}/${ZITI_HOSTNAME}-edge-router.yaml &> ${ZITI_HOME}/${ZITI_HOSTNAME}-edge-router.log &
+		erRunCmd := NewRunRouterCmd()
+		erRunCmd.SetArgs([]string{
+			configFile,
+		})
+
+		o.waitForLeader() //needed?
+		erRunCmdErr := erRunCmd.Execute()
+		if erRunCmdErr != nil {
+			logrus.Errorf("router exited with error: %v", erRunCmdErr)
+		}
+	}()
+}
+
+func (o *QuickstartOpts) CreateMinimalPki() error {
+	where := path.Join(o.Home, "pki")
+	fmt.Println("emitting a minimal PKI")
+
+	sid := fmt.Sprintf("spiffe://%s/controller/%s", o.TrustDomain, o.InstanceID)
+
+	//ziti pki create ca --pki-root="$pkiDir" --ca-file="root-ca" --ca-name="root-ca" --spiffe-id="whatever"
+	if o.joinCommand {
+		// indicates we are joining a cluster. don't emit a root-ca, expect it'll be there or error
+	} else {
+		rootCaPath := path.Join(where, "root-ca", "certs", "root-ca.cert")
+		rootCa, statErr := os.Stat(rootCaPath)
+		if statErr != nil {
+			if !os.IsNotExist(statErr) {
+				logrus.Warnf("could not check for root-ca: %v", statErr)
+			}
+		}
+		if rootCa == nil {
+			ca := pki.NewCmdPKICreateCA(o.out, o.errOut)
+			rootCaArgs := []string{
+				fmt.Sprintf("--pki-root=%s", where),
+				fmt.Sprintf("--ca-file=%s", "root-ca"),
+				fmt.Sprintf("--ca-name=%s", "root-ca"),
+				fmt.Sprintf("--trust-domain=%s", o.TrustDomain),
+			}
+
+			ca.SetArgs(rootCaArgs)
+			pkiErr := ca.Execute()
+			if pkiErr != nil {
+				return pkiErr
+			}
+
+		} else {
+			logrus.Infof("%s exists and will be reused", rootCaPath)
+		}
+	}
+
+	//ziti pki create intermediate --pki-root "$pkiDir" --ca-name "root-ca" --intermediate-name "intermediate-ca" --intermediate-file "intermediate-ca" --max-path-len "1" --spiffe-id="whatever"
+	intermediate := pki.NewCmdPKICreateIntermediate(o.out, o.errOut)
+	intermediate.SetArgs([]string{
+		fmt.Sprintf("--pki-root=%s", where),
+		fmt.Sprintf("--ca-name=%s", "root-ca"),
+		fmt.Sprintf("--intermediate-name=%s", o.scopedName("intermediate-ca")),
+		fmt.Sprintf("--intermediate-file=%s", o.scopedName("intermediate-ca")),
+		"--max-path-len=1",
+	})
+	intErr := intermediate.Execute()
+	if intErr != nil {
+		return intErr
+	}
+
+	//ziti pki create server --pki-root="${ZITI_HOME}/pki" --ca-name "intermediate-ca" --server-name "server" --server-file "server" --dns "localhost,${ZITI_HOSTNAME}" --spiffe-id="whatever"
+	svr := pki.NewCmdPKICreateServer(o.out, o.errOut)
+	var ips = "127.0.0.1,::1"
+	ipOverride := os.Getenv("ZITI_CTRL_EDGE_IP_OVERRIDE")
+	if ipOverride != "" {
+		ips = ips + "," + ipOverride
+	}
+	args := []string{
+		fmt.Sprintf("--pki-root=%s", where),
+		fmt.Sprintf("--ca-name=%s", o.scopedName("intermediate-ca")),
+		fmt.Sprintf("--server-name=%s", o.InstanceID),
+		fmt.Sprintf("--server-file=%s", o.scopedNameOff("server")),
+		fmt.Sprintf("--dns=%s,%s", "localhost", helpers.GetCtrlAdvertisedAddress()),
+		fmt.Sprintf("--ip=%s", ips),
+		fmt.Sprintf("--spiffe-id=%s", sid),
+	}
+
+	svr.SetArgs(args)
+	svrErr := svr.Execute()
+	if svrErr != nil {
+		return svrErr
+	}
+
+	//ziti pki create client --pki-root="${ZITI_HOME}/pki" --ca-name "intermediate-ca" --client-name "client" --client-file "client" --key-file "server" --spiffe-id="whatever"
+	client := pki.NewCmdPKICreateClient(o.out, o.errOut)
+	client.SetArgs([]string{
+		fmt.Sprintf("--pki-root=%s", where),
+		fmt.Sprintf("--ca-name=%s", o.scopedName("intermediate-ca")),
+		fmt.Sprintf("--client-name=%s", o.InstanceID),
+		fmt.Sprintf("--client-file=%s", o.scopedNameOff("client")),
+		fmt.Sprintf("--key-file=%s", o.scopedNameOff("server")),
+		fmt.Sprintf("--spiffe-id=%s", sid),
+	})
+	clientErr := client.Execute()
+	if clientErr != nil {
+		return clientErr
+	}
+	return nil
+}
+
+func waitForController(ctx context.Context, ctrlUrl string, done chan error) {
+	if !strings.HasPrefix(ctrlUrl, "https://") {
+		ctrlUrl = "https://" + ctrlUrl
+	}
+	tr := &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}
+	client := &http.Client{Transport: tr}
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			done <- ctx.Err()
+			return
+		case <-ticker.C:
+			fmt.Printf("waiting for controller: %s\n", ctrlUrl)
+		default:
+			r, e := client.Get(ctrlUrl)
+			if e == nil && r != nil && r.StatusCode == 200 {
+				done <- nil
+				return
+			}
+			time.Sleep(50 * time.Millisecond)
+		}
+	}
+}
+
+func (o *QuickstartOpts) WaitForRouter(timeout time.Duration, done chan error) {
+	for {
+		select {
+		case <-time.After(timeout):
+			done <- fmt.Errorf("router not available after %s at %s:%d", timeout, o.RouterAddress, o.RouterPort)
+			return
+		default:
+			addr := net.JoinHostPort(o.RouterAddress, strconv.Itoa(int(o.RouterPort)))
+			conn, err := net.DialTimeout("tcp", addr, 2*time.Second)
+			if err == nil {
+				_ = conn.Close()
+				fmt.Printf("Router is available on %s:%d\n", o.RouterAddress, o.RouterPort)
+				done <- nil
+				return
+			}
+			time.Sleep(25 * time.Millisecond)
+		}
+	}
+}
+
+func (o *QuickstartOpts) scopedNameOff(name string) string {
+	return name
+}
+func (o *QuickstartOpts) scopedName(name string) string {
+	if o.InstanceID != "" {
+		return name + "-" + o.InstanceID
+	} else {
+		return name
+	}
+}
+
+func (o *QuickstartOpts) instHome() string {
+	return path.Join(o.Home, o.InstanceID)
+}
+
+func (o *QuickstartOpts) configureOverlay() error {
+	if o.joinCommand {
+		return nil
+	}
+
+	// Allow all identities to use any edge router with the "public" attribute
+	// ziti edge create edge-router-policy all-endpoints-public-routers --edge-router-roles "#public" --identity-roles "#all"
+	erpCmd := edge.NewCreateEdgeRouterPolicyCmd(o.out, o.errOut)
+	erpCmd.SetArgs([]string{
+		"all-endpoints-public-routers",
+		fmt.Sprintf("--edge-router-roles=%s", "#public"),
+		fmt.Sprintf("--identity-roles=%s", "#all"),
+	})
+	erpCmdErr := erpCmd.Execute()
+	if erpCmdErr != nil {
+		return erpCmdErr
+	}
+
+	// # Allow all edge-routers to access all services
+	// ziti edge create service-edge-router-policy all-routers-all-services --edge-router-roles "#all" --service-roles "#all"
+	serpCmd := edge.NewCreateServiceEdgeRouterPolicyCmd(o.out, o.errOut)
+	serpCmd.SetArgs([]string{
+		"all-routers-all-services",
+		fmt.Sprintf("--edge-router-roles=%s", "#all"),
+		fmt.Sprintf("--service-roles=%s", "#all"),
+	})
+	o.waitForLeader()
+	serpCmdErr := serpCmd.Execute()
+	if serpCmdErr != nil {
+		return serpCmdErr
+	}
+	return nil
+}
+
+type raftListMembersAction struct {
+	api.Options
+}
+
+func (o *QuickstartOpts) waitForLeader() bool {
+	for {
+		p := common.NewOptionsProvider(o.out, o.errOut)
+		action := &raftListMembersAction{
+			Options: api.Options{CommonOptions: p()},
+		}
+
+		client, err := util.NewFabricManagementClient(action)
+		if err != nil {
+			return false
+		}
+		members, err := client.Cluster.ClusterListMembers(&cluster.ClusterListMembersParams{
+			Context: context.Background(),
+		}, nil)
+
+		if err != nil {
+			return false
+		}
+		for _, m := range members.Payload.Data {
+			if m.Leader != nil && *m.Leader {
+				time.Sleep(500 * time.Millisecond) // this just gives time for the leader to 'settle' -- shouldn't be necessary
+				return true
+			}
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+}
+
+func incrementStringSuffix(input string) string {
+	// Regular expression to capture the numeric suffix
+	re := regexp.MustCompile(`(\d+)$`)
+	match := re.FindStringSubmatch(input)
+
+	if len(match) == 0 {
+		return uuid.New().String()
+	}
+
+	numStr := match[1]
+	numLength := len(numStr)
+	num, _ := strconv.Atoi(numStr)
+	num++
+
+	incremented := fmt.Sprintf("%0*d", numLength, num)
+
+	return strings.TrimSuffix(input, numStr) + incremented
+}
+
+func (o *QuickstartOpts) ControllerHostPort() string {
+	return net.JoinHostPort(o.ControllerAddress, strconv.Itoa(int(o.ControllerPort)))
+}
+func (o *QuickstartOpts) RouterHostPort() string {
+	return net.JoinHostPort(o.RouterAddress, strconv.Itoa(int(o.RouterPort)))
+}

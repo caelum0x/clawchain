@@ -1,0 +1,18 @@
+[package]
+name = "clawdex-arb"
+version = "0.2.0"
+edition = "2021"
+description = "ClawDEX arbitrage strategy for ClawChain — pool discovery, two-leg & three-leg arb detection, and CosmWasm swap execution"
+
+[dependencies]
+artemis-core = { path = "../../artemis-core" }
+async-trait = "0.1"
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.12", features = ["json"] }
+tracing = "0.1"
+anyhow = "1"
+base64 = "0.22"
+thiserror = "1"
+chrono = { version = "0.4", features = ["serde"] }

@@ -1,0 +1,68 @@
+[package]
+name = "solar-cli"
+description = "Solar compiler CLI definitions, utils, and driver"
+homepage = "https://github.com/paradigmxyz/solar/tree/main/crates/cli"
+
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+solar-config = { workspace = true, features = ["clap"] }
+solar-interface = { workspace = true, features = ["json"] }
+solar-sema.workspace = true
+
+alloy-primitives.workspace = true
+cfg-if.workspace = true
+clap = { workspace = true, features = ["derive"] }
+
+tracing.workspace = true
+tracing-subscriber = { workspace = true, optional = true, features = [
+    "registry",
+    "env-filter",
+] }
+
+tracing-chrome = { version = "0.7", optional = true }
+tracing-tracy = { version = "0.11", optional = true, features = ["demangle"] }
+tracing-samply = { version = "0.1.5", optional = true }
+
+mimalloc = { version = "0.1", optional = true }
+
+[target.'cfg(unix)'.dependencies]
+libc.workspace = true
+
+tikv-jemallocator = { version = "0.6", optional = true }
+
+[features]
+default = ["mimalloc", "tracing"]
+# Nightly-only features for faster/smaller builds.
+nightly = [
+    "solar-config/nightly",
+    "solar-interface/nightly",
+    "solar-sema/nightly",
+]
+# Faster but less portable algorithm implementations, such as Keccak-256.
+asm = ["alloy-primitives/asm-keccak", "solar-config/asm"]
+# Faster but possibly less portable allocators.
+jemalloc = ["dep:tikv-jemallocator", "solar-config/jemalloc"]
+mimalloc = ["dep:mimalloc", "solar-config/mimalloc"]
+
+# Debugging and profiling.
+tracing = ["dep:tracing-subscriber", "solar-config/tracing"]
+tracing-off = ["tracing/release_max_level_off", "solar-config/tracing-off"]
+tracing-chrome = [
+    "tracing",
+    "dep:tracing-chrome",
+    "solar-config/tracing-chrome",
+]
+tracy = ["tracing", "dep:tracing-tracy", "solar-config/tracy"]
+tracy-allocator = ["tracing", "tracy", "solar-config/tracy-allocator"]
+tracing-samply = ["tracing", "dep:tracing-samply", "solar-config/tracing-samply"]

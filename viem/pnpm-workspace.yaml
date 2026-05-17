@@ -1,0 +1,40 @@
+packages:
+  - examples/*
+  - environments/*
+  - site
+  - src
+  - test
+
+auditConfig:
+  ignoreGhsas:
+    - GHSA-ffrw-9mx8-89p8
+    - GHSA-mh29-5h37-fv8m
+    - GHSA-7r86-cg39-jmmj
+    - GHSA-23c5-xmqv-rm74 
+
+catalog:
+  '@types/react': ^19
+  '@types/react-dom': ^19
+  react: ^19.0.0
+  react-dom: ^19.0.0
+  typescript: 5.9.3
+
+minimumReleaseAge: 1440
+
+minimumReleaseAgeExclude:
+  - '@modelcontextprotocol/sdk'
+  - '@vitest/*'
+  - abitype
+  - fastify
+  - glob
+  - hono
+  - lodash
+  - lodash-es
+  - ox
+  - prool
+  - qs
+  - tar
+  - vitest
+  - vocs
+  - webpack
+

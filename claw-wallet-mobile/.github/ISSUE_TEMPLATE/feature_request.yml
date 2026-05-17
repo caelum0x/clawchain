@@ -1,0 +1,31 @@
+name: "Feature request"
+description: "Suggest an idea to improve the project."
+title: "[Feature]: "
+labels: ["enhancement"]
+assignees: []
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / motivation
+      description: What problem does this feature solve? Why is it needed?
+      placeholder: When I try to ..., I can't ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the feature, behavior, and examples.
+      placeholder: Add a setting to ...
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched for existing feature requests.
+          required: true

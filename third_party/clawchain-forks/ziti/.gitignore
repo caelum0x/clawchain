@@ -1,0 +1,42 @@
+.DS_Store
+release/
+/db/
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.rpm
+*.deb
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tools
+*.out
+
+# Dependency directories (remove the comment below to include it)
+# vendor/
+
+# ai agents
+.claude
+
+# goland
+.idea
+github_deploy_key
+.vscode/
+Pipfile
+ziti.ignore
+linux-build
+*.log
+/build/
+go.work
+go.work.sum
+.github/workflows/localtest.yml
+doc/ha/pki
+doc/ha/data
+simple-transfer-*/
+etc/endpoints
+etc/endpoints.yml
+.fablab-instance

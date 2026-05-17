@@ -1,0 +1,31 @@
+export {
+  authTypeSchema,
+  curveTypeSchema,
+  publicKeySchema,
+  shareSchema,
+  RegisterKeyShareBodySchema,
+  GetKeyShareRequestBodySchema,
+  GetKeyShareResponseSchema,
+  CheckKeyShareRequestBodySchema,
+  CheckKeyShareResponseSchema,
+  ReshareKeyShareBodySchema,
+  KeyShareEmptySuccessResponseSchema,
+  GetKeyShareSuccessResponseSchema,
+  CheckKeyShareSuccessResponseSchema,
+} from "./key_share_v1";
+
+export {
+  walletsRequestBodySchema,
+  GetKeyShareV2RequestBodySchema,
+  GetKeyShareV2ResponseSchema,
+  GetKeyShareV2SuccessResponseSchema,
+  CheckKeyShareV2RequestBodySchema,
+  CheckKeyShareV2ResponseSchema,
+  CheckKeyShareV2SuccessResponseSchema,
+  RegisterKeyShareV2RequestBodySchema,
+  RegisterKeyShareV2SuccessResponseSchema,
+  RegisterEd25519V2RequestBodySchema,
+  RegisterEd25519V2SuccessResponseSchema,
+  ReshareKeyShareV2RequestBodySchema,
+  ReshareKeyShareV2SuccessResponseSchema,
+} from "./key_share_v2";

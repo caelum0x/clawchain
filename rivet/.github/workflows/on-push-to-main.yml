@@ -1,0 +1,19 @@
+name: Main
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify
+    uses: ./.github/workflows/verify.yml
+    secrets: inherit
+
+  prerelease:
+    name: Prerelease
+    uses: ./.github/workflows/prerelease.yml
+    secrets: inherit

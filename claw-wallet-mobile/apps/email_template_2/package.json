@@ -1,0 +1,35 @@
+{
+  "name": "@oko-wallet/email-template-2",
+  "version": "0.0.2-alpha.3",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "create_env": "tsx ./src/bin/create_env.ts",
+    "dev": "tsx ./src/bin/launch.ts",
+    "build": "next build",
+    "start": "NODE_ENV=production tsx src/bin/launch.ts",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@floating-ui/dom": "^1.7.4",
+    "@floating-ui/react": "^0.27.16",
+    "@oko-wallet/dotenv": "^0.0.2-alpha.29",
+    "@oko-wallet/oko-common-ui": "workspace:*",
+    "@oko-wallet/stdlib-js": "^0.0.2-rc.44",
+    "@tanstack/react-query": "^5.90.12",
+    "@tanstack/react-table": "^8.21.3",
+    "next": "^16.1.1",
+    "react": "^19.2.1",
+    "react-dom": "^19.2.1",
+    "react-hook-form": "^7.65.0",
+    "zustand": "^5.0.6"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "sass": "^1.94.2",
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.3"
+  }
+}

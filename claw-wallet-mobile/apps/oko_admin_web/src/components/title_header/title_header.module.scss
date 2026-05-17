@@ -1,0 +1,43 @@
+.wrapper {
+  display: flex;
+  align-items: center;
+  align-self: stretch;
+  margin-top: 44px;
+}
+
+.titleSection {
+  flex: 1 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.title {
+  font-size: 28px;
+  font-style: normal;
+  line-height: 140%;
+  letter-spacing: -0.42px;
+}
+
+.countInfo {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  color: var(--text-brand-secondary);
+  font-size: 16px;
+  font-style: normal;
+  font-weight: 500;
+  line-height: 140%;
+}
+
+.divider {
+  color: var(--fg-tertiary);
+}
+
+.verifiedCount {
+  color: var(--fg-secondary);
+}
+
+.txGenCount {
+  color: var(--fg-secondary);
+}

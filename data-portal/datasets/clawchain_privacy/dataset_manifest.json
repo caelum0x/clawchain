@@ -1,0 +1,48 @@
+{
+    "name": "clawchain_privacy",
+    "version": "1.0.0",
+    "description": "privacy pool statistics from ClawChain",
+    "datatype": "privacy",
+    "network": "clawchain",
+    "files": [],
+    "schema": {
+        "description": "privacy pool statistics from ClawChain",
+        "tables": {
+            "privacy": {
+                "description": "each row corresponds to a snapshot of the shielded pool state",
+                "columns": [
+                    {
+                        "description": "total number of commitments in the Merkle tree",
+                        "name": "commitment_count",
+                        "type": "INTEGER"
+                    },
+                    {
+                        "description": "total number of spent nullifiers",
+                        "name": "nullifier_count",
+                        "type": "INTEGER"
+                    },
+                    {
+                        "description": "current Merkle tree root hash",
+                        "name": "merkle_root",
+                        "type": "TEXT"
+                    },
+                    {
+                        "description": "depth of the Merkle tree",
+                        "name": "tree_depth",
+                        "type": "INTEGER"
+                    },
+                    {
+                        "description": "total amount currently shielded (uclaw)",
+                        "name": "shielded_amount",
+                        "type": "TEXT"
+                    },
+                    {
+                        "description": "block height at which the snapshot was taken",
+                        "name": "snapshot_height",
+                        "type": "INTEGER"
+                    }
+                ]
+            }
+        }
+    }
+}

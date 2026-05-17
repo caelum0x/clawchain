@@ -1,0 +1,184 @@
+[workspace]
+members = ["benches/", "crates/*", "examples/", "tools/*"]
+default-members = ["crates/*"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.8"
+edition = "2024"
+rust-version = "1.88" # MSRV
+authors = ["DaniPopes <57450786+DaniPopes@users.noreply.github.com>"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/paradigmxyz/solar"
+keywords = ["ethereum", "solidity", "solc", "crypto", "compiler"]
+categories = ["compilers", "cryptography", "cryptography::cryptocurrencies"]
+
+[workspace.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[workspace.lints.clippy]
+dbg-macro = "warn"
+manual-string-new = "warn"
+uninlined-format-args = "warn"
+use-self = "warn"
+redundant-clone = "warn"
+# Files in `examples/` are present as doctests but run in `cargo test` normally too.
+test-attr-in-doctest = "allow"
+
+[workspace.lints.rust]
+rust-2018-idioms = "warn"
+unreachable-pub = "warn"
+unused-must-use = "warn"
+redundant-lifetimes = "warn"
+unnameable-types = "warn"
+unused-crate-dependencies = "warn"
+
+[workspace.lints.rustdoc]
+all = "warn"
+
+# Speed up compilation time for dev builds by reducing emitted debug info.
+# NOTE: Debuggers may provide less useful information with this setting.
+# Uncomment this section if you're using a debugger.
+[profile.dev]
+# https://davidlattimore.github.io/posts/2024/02/04/speeding-up-the-rust-edit-build-run-cycle.html
+debug = "line-tables-only"
+split-debuginfo = "unpacked"
+
+[profile.dev.package]
+solar-tester.opt-level = 3
+console.opt-level = 3
+indicatif.opt-level = 3
+regex-automata.opt-level = 3
+regex-syntax.opt-level = 3
+regex.opt-level = 3
+ui_test.opt-level = 3
+unicode-width.opt-level = 3
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+debug = "none"
+strip = "debuginfo" # "symbols" for less binary size but no backtraces
+panic = "abort"
+codegen-units = 16
+
+# Optimize non-perf-critical dependencies for size.
+[profile.release.package]
+annotate-snippets.opt-level = "s"
+clap.opt-level = "s"
+clap_builder.opt-level = "s"
+num-bigint.opt-level = "s"
+regex.opt-level = "s"
+regex-automata.opt-level = "s"
+regex-syntax.opt-level = "s"
+serde_json.opt-level = "s"
+tracing-subscriber.opt-level = "s"
+
+# Use the `--profile profiling` flag to show symbols in release mode.
+# e.g. `cargo build --profile profiling`
+[profile.profiling]
+inherits = "release"
+debug = "full"
+strip = false
+
+[profile.bench]
+inherits = "profiling"
+
+# The profile that `dist` will build with.
+[profile.dist]
+inherits = "release"
+codegen-units = 1
+
+# `dist` with debug assertions.
+[profile.dist-dbg]
+inherits = "dist"
+debug = "full"
+strip = false
+debug-assertions = true
+
+[workspace.dependencies]
+# compiler crates
+solar = { version = "=0.1.8", path = "crates/solar", package = "solar-compiler", default-features = false }
+solar-ast = { version = "=0.1.8", path = "crates/ast", default-features = false }
+solar-cli = { version = "=0.1.8", path = "crates/cli", default-features = false }
+solar-config = { version = "=0.1.8", path = "crates/config", default-features = false }
+solar-data-structures = { version = "=0.1.8", path = "crates/data-structures", default-features = false }
+solar-interface = { version = "=0.1.8", path = "crates/interface", default-features = false }
+solar-macros = { version = "=0.1.8", path = "crates/macros", default-features = false }
+solar-parse = { version = "=0.1.8", path = "crates/parse", default-features = false }
+solar-sema = { version = "=0.1.8", path = "crates/sema", default-features = false }
+
+# internal crates
+solar-tester = { path = "tools/tester" }
+
+# Ethereum
+alloy-primitives = "1.3"
+alloy-json-abi = "1.3"
+ruint = { version = "1.16", features = ["num-integer"] }
+
+num-bigint = "0.4"
+num-rational = "0.4"
+num-traits = "0.2"
+
+# CLI
+clap = "4.4"
+
+# diagnostics
+anstream = "0.6.18"
+anstyle = "1.0"
+annotate-snippets = { version = "0.12", features = ["simd"] }
+colorchoice = "1.0"
+
+# serde
+serde = "1.0"
+serde_json = "1.0"
+
+# macros
+proc-macro2 = "1.0"
+quote = "1.0"
+syn = "2.0"
+
+derive_more = { version = "2.0", features = ["full"] }
+strum = "0.27"
+thiserror = ">=1"
+
+# parallel
+parking_lot = "0.12"
+rayon = "1.8"
+
+# tracing
+tracing-subscriber = "0.3"
+tracing = "0.1"
+
+# testing
+criterion = { package = "codspeed-criterion-compat", version = "4", default-features = false, features = [
+    "cargo_bench_support",
+] }
+regex = "1.10"
+snapbox = { version = "0.6", features = ["json"] }
+tempfile = "3.9"
+
+# misc
+bitflags = "2.4"
+bumpalo = "3.14"
+cfg-if = "1.0"
+either = "1"
+index_vec = "0.1.3"
+indexmap = "2.2"
+itertools = ">=0.10, <=0.14"
+itoa = "1.0"
+inturn = "0.1.0"
+libc = "0.2"
+memchr = "2.7"
+once_map = { version = "0.4.20", default-features = false, features = ["std"] }
+paste = "1.0"
+rustc-hash = "2.0"
+scoped-tls = "1.0"
+semver = "1.0"
+smallvec = { version = "1", features = ["const_generics", "union"] }
+thread_local = "1.1"
+unicode-width = "0.2"
+vergen = { package = "vergen-gitcl", version = "10.0.0-beta.5" }
+
+[patch.crates-io]
