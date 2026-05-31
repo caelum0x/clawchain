@@ -61,3 +61,4 @@ contracts/dex/e2e/docker/*/.*/data/
 contracts/dex/e2e/docker/*/.*/config/node_key.json
 contracts/dex/e2e/docker/*/.*/config/priv_validator_key.json
 .gstack/
+.testnet-multinode
