@@ -17,6 +17,10 @@ third_party/proto/
 testnet/public/
 artifacts/*.bin
 artifacts/*.key
+artifacts/devnet/
+artifacts/ibc-test/
+artifacts/code-ids.json
+artifacts/contract-addresses.json
 
 # Build outputs
 build/
@@ -56,6 +60,7 @@ deploy/k8s/secrets.yaml
 
 # Local chain data
 .local-node/
+.devnet-node/
 testnet/data/
 contracts/dex/e2e/docker/*/.*/data/
 contracts/dex/e2e/docker/*/.*/config/node_key.json

@@ -1,0 +1,72 @@
+##
+## Devnet override for the full Docker stack in docker-compose.yml.
+##
+## Usage:
+##   docker compose -f docker-compose.yml -f docker-compose.devnet-stack.yml up -d
+##   docker compose -f docker-compose.yml -f docker-compose.devnet-stack.yml down --volumes --remove-orphans
+##
+
+services:
+  clawchain:
+    environment:
+      - CHAIN_ID=clawchain-devnet
+      - MONIKER=clawchain-devnet-docker
+      - DEVNET_FAST=true
+      - FAUCET_MNEMONIC=abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon art
+
+  clawd:
+    environment:
+      - BLOCKCHAIN_RPC_URL=http://clawchain:26657
+      - BLOCKCHAIN_REST_URL=http://clawchain:1317
+      - BLOCKCHAIN_CHAIN_ID=clawchain-devnet
+      - BLOCKCHAIN_AUTONOMOUS_LOOP_ENABLED=true
+      - BLOCKCHAIN_AUTO_ACCEPT_TASKS=true
+
+  claw-faucet:
+    environment:
+      - CHAIN_REST=http://clawchain:1317
+      - CHAIN_RPC=http://clawchain:26657
+      - CHAIN_ID=clawchain-devnet
+      - FAUCET_MNEMONIC=abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon art
+      - FAUCET_AMOUNT=10000000
+
+  claw-inference-sidecar:
+    environment:
+      - CHAIN_REST=http://clawchain:1317
+      - CHAIN_RPC=http://clawchain:26657
+      - CHAIN_ID=clawchain-devnet
+      - PROVIDER_ADDRESS=${PROVIDER_ADDRESS:-}
+      - PROVIDER_KEY_HEX=${PROVIDER_KEY_HEX:-}
+      - METRICS_ADDR=:9091
+
+  web:
+    environment:
+      - VITE_API_URL=http://localhost:1317
+      - VITE_RPC_URL=http://localhost:26657
+      - VITE_REST_URL=http://localhost:1317
+      - VITE_FAUCET_URL=http://localhost:8889
+
+  claw-explorer:
+    ports:
+      - "8080:8080"
+    environment:
+      - VITE_CHAIN_API=http://localhost:1317
+      - VITE_CHAIN_RPC=http://localhost:26657
+      - VITE_CHAIN_ID=clawchain-devnet
+
+  dex-app:
+    ports:
+      - "3001:3000"
+    environment:
+      - NEXT_PUBLIC_CHAIN_ID=clawchain-devnet
+      - NEXT_PUBLIC_LCD=http://localhost:1317
+
+  landing:
+    ports:
+      - "8090:8090"
+
+  claw-txhistoryd:
+    environment:
+      - CLAW_LCD_MAINNET=http://clawchain:1317
+      - CLAW_LCD_TESTNET=http://clawchain:1317
+      - CLAW_LCD_DEVNET=http://clawchain:1317

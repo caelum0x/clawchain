@@ -25,6 +25,9 @@
 #                       `os` for any node holding real value.
 #   KEYRING_PASSWORD  - Passphrase for the keyring; REQUIRED when
 #                       KEYRING_BACKEND is not `test`.
+#   FAUCET_MNEMONIC   - Optional faucet mnemonic to recover and fund at genesis.
+#   DEVNET_FAST       - Set to true for fast local devnet gov/staking params and
+#                       insecure privacy proving/verifying keys.
 #
 set -euo pipefail
 
@@ -34,6 +37,8 @@ MONIKER="${MONIKER:-clawchain-docker}"
 DENOM="uclaw"
 KEYRING_BACKEND="${KEYRING_BACKEND:-test}"
 KEYRING_PASSWORD="${KEYRING_PASSWORD:-}"
+FAUCET_MNEMONIC="${FAUCET_MNEMONIC:-}"
+DEVNET_FAST="${DEVNET_FAST:-false}"
 
 # A non-`test` backend stores keys encrypted and therefore needs a passphrase.
 # Fail closed if one wasn't provided rather than silently falling back.
@@ -75,7 +80,12 @@ if [ ! -f "${HOME_DIR}/.initialized" ]; then
     # Fund validator and faucet
     kr genesis add-genesis-account validator "100000000000${DENOM}" \
         --keyring-backend "${KEYRING_BACKEND}" --home "${HOME_DIR}" > /dev/null 2>&1
-    kr keys add faucet --keyring-backend "${KEYRING_BACKEND}" --home "${HOME_DIR}" > /dev/null 2>&1
+    if [ -n "${FAUCET_MNEMONIC}" ] && [ "${KEYRING_BACKEND}" = "test" ]; then
+        echo "${FAUCET_MNEMONIC}" | clawchaind keys add faucet --recover \
+            --keyring-backend "${KEYRING_BACKEND}" --home "${HOME_DIR}" > /dev/null 2>&1
+    else
+        kr keys add faucet --keyring-backend "${KEYRING_BACKEND}" --home "${HOME_DIR}" > /dev/null 2>&1
+    fi
     kr genesis add-genesis-account faucet "1000000000000${DENOM}" \
         --keyring-backend "${KEYRING_BACKEND}" --home "${HOME_DIR}" > /dev/null 2>&1
 
@@ -91,6 +101,24 @@ if [ ! -f "${HOME_DIR}/.initialized" ]; then
     sed -i '/^\[grpc\]/,/^\[/{s|^enable = false|enable = true|}' "${APP_TOML}"
     sed -i 's|enabled-unsafe-cors = false|enabled-unsafe-cors = true|g' "${APP_TOML}"
     sed -i 's|address = "tcp://localhost:1317"|address = "tcp://0.0.0.0:1317"|g' "${APP_TOML}"
+
+    if [ "${DEVNET_FAST}" = "true" ]; then
+        GENESIS_JSON="${HOME_DIR}/config/genesis.json"
+        jq '
+          .app_state.gov.params.voting_period = "30s" |
+          .app_state.gov.params.expedited_voting_period = "20s" |
+          .app_state.gov.params.max_deposit_period = "30s" |
+          .app_state.staking.params.unbonding_time = "60s" |
+          .app_state.slashing.params.signed_blocks_window = "1000" |
+          .app_state.slashing.params.min_signed_per_window = "0.050000000000000000" |
+          if .app_state.wasm? then
+            .app_state.wasm.params.code_upload_access.permission = "Everybody" |
+            .app_state.wasm.params.instantiate_default_permission = "Everybody"
+          else . end
+        ' "${GENESIS_JSON}" > "${GENESIS_JSON}.tmp" && mv "${GENESIS_JSON}.tmp" "${GENESIS_JSON}"
+        sed -i 's|^minimum-gas-prices *=.*|minimum-gas-prices = "0.025uclaw"|' "${APP_TOML}"
+        clawchaind privacy gen-dev-keys "${HOME_DIR}/keys" >/dev/null 2>&1 || true
+    fi
 
     # Configure config.toml
     CONFIG_TOML="${HOME_DIR}/config/config.toml"

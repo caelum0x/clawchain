@@ -1,5 +1,28 @@
 # Task Plan
 
+## Devnet Optional Completion 2026-05-31
+
+- [x] Inspect current devnet, IBC, Docker, faucet, explorer, and web hooks.
+- [x] Add seeded devnet demo state command and make it idempotent enough for repeated local use.
+- [x] Add optional 2-chain IBC devnet command path around the existing IBC drivers.
+- [x] Expand Docker devnet support toward full-stack parity where the existing services support it.
+- [x] Update devnet plan/docs so optional work is no longer stale.
+- [x] Verify live behavior where practical, run syntax/config checks, and commit.
+
+### Review
+
+- Added `scripts/devnet-seed-demo.sh` to seed funded demo accounts, a tokenfactory denom, a demo agent, a marketplace skill, privacy shield state, oracle commit-reveal state, and `artifacts/devnet/demo-state.json`.
+- Added `scripts/devnet-seed-dex.sh` and repaired `scripts/deploy-dex.sh` for current Astroport contracts: native coin registry upload/instantiate, factory `coin_registry_address`, post-pair oracle instantiate, fixed-gas devnet deploy, and stdout-safe function returns.
+- Added `scripts/devnet-ibc.sh` as the optional two-chain IBC devnet entry point around the existing IBC driver, and made `scripts/ibc-two-chain-test.sh` accept `BINARY`/`CLAWCHAIN_BIN`.
+- Added `docker-compose.devnet-stack.yml` to override the root full stack with `clawchain-devnet`, devnet-fast chain params, faucet mnemonic recovery, and browser-local web/explorer/DEX endpoints.
+- Updated `scripts/docker-entrypoint.sh` so Docker devnet can fund a supplied faucet mnemonic and generate fast devnet/privacy settings at genesis.
+- Added Makefile targets `devnet-seed-demo`, `devnet-ibc`, `devnet-stack-up`, and `devnet-stack-down`.
+- Ignored generated local `artifacts/devnet/` and `artifacts/ibc-test/` outputs because they are environment-specific and may contain local validator key material.
+- Verified seeded demo state on a running devnet: 9 passed / 0 failed.
+- Verified DEX fixture on a running devnet: code upload, coin registry, factory, router, CLAW/ATOM pair, and oracle deployment completed.
+- Verified optional two-chain IBC devnet: 6 passed / 0 failed in manual relayer mode.
+- Verified shell syntax, Makefile dry-runs, devnet stack compose config, and whitespace checks.
+
 ## Devnet Docker/CI Completion 2026-05-31
 
 - [x] Inspect Docker compose, CI, Makefile, and existing devnet scripts for integration points.

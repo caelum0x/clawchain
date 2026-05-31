@@ -34,14 +34,15 @@ GAS_PRICES="${GAS_PRICES:-0.0001uclaw}"
 KEYRING_BACKEND="${KEYRING_BACKEND:-test}"
 BINARY="${BINARY:-clawchaind}"
 HOME_DIR="${HOME_DIR:-$HOME/.clawchain}"
-GAS="auto"
-GAS_ADJUSTMENT="1.4"
+GAS="${GAS:-auto}"
+GAS_ADJUSTMENT="${GAS_ADJUSTMENT:-1.4}"
 
 # Optimizer Docker image
 OPTIMIZER_IMAGE="cosmwasm/optimizer:0.16.0"
 
 # Contracts to deploy (order matters: pair types before factory, factory before router/oracle)
 CONTRACTS_CORE=(
+  "coin_registry:astroport_native_coin_registry:contracts/periphery/native_coin_registry"
   "factory:astroport_factory:contracts/factory"
   "pair:astroport_pair:contracts/pair"
   "pair_concentrated:astroport_pair_concentrated:contracts/pair_concentrated"
@@ -93,12 +94,12 @@ CYAN='\033[0;36m'
 BOLD='\033[1m'
 NC='\033[0m'
 
-info()    { echo -e "${CYAN}[INFO]${NC}  $*"; }
-ok()      { echo -e "${GREEN}[ OK ]${NC}  $*"; }
-warn()    { echo -e "${YELLOW}[WARN]${NC}  $*"; }
+info()    { echo -e "${CYAN}[INFO]${NC}  $*" >&2; }
+ok()      { echo -e "${GREEN}[ OK ]${NC}  $*" >&2; }
+warn()    { echo -e "${YELLOW}[WARN]${NC}  $*" >&2; }
 fail()    { echo -e "${RED}[FAIL]${NC}  $*" >&2; exit 1; }
-step()    { echo -e "\n${BOLD}${CYAN}==>${NC} ${BOLD}$*${NC}"; }
-dry_info(){ echo -e "${YELLOW}[DRY]${NC}  $*"; }
+step()    { echo -e "\n${BOLD}${CYAN}==>${NC} ${BOLD}$*${NC}" >&2; }
+dry_info(){ echo -e "${YELLOW}[DRY]${NC}  $*" >&2; }
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Cleanup trap
@@ -249,6 +250,9 @@ instantiate_contract() {
   info "Instantiating $label (code_id: $code_id)..."
 
   local tx_result
+  local err_file
+  err_file=$(mktemp)
+  TEMP_FILES+=("$err_file")
   tx_result=$("$CHAIN_BIN" tx wasm instantiate "$code_id" "$init_msg" \
     --from "$KEY_NAME" \
     --home "$HOME_DIR" \
@@ -262,13 +266,15 @@ instantiate_contract() {
     --admin "$admin" \
     --broadcast-mode sync \
     --output json \
-    -y 2>/dev/null)
+    -y 2>"$err_file" || true)
 
   local txhash
   txhash=$(echo "$tx_result" | python3 -c "import json,sys; print(json.load(sys.stdin).get('txhash',''))" 2>/dev/null)
 
   if [ -z "$txhash" ]; then
-    fail "Failed to instantiate $label — no txhash"
+    local raw
+    raw=$(echo "$tx_result" | python3 -c "import json,sys; print(json.load(sys.stdin).get('raw_log',''))" 2>/dev/null || true)
+    fail "Failed to instantiate $label — no txhash. Raw: ${raw:-$(cat "$err_file")}"
   fi
 
   info "  tx: $txhash — waiting for inclusion..."
@@ -485,11 +491,12 @@ if [ -f "$CODE_IDS_FILE" ] && [ "$FORCE" = false ]; then
   info "Found existing $CODE_IDS_FILE — skipping uploads (use --force to override)"
   # Load existing code IDs
   FACTORY_CODE_ID=$(python3 -c "import json; print(json.load(open('$CODE_IDS_FILE'))['factory'])" 2>/dev/null)
+  COIN_REGISTRY_CODE_ID=$(python3 -c "import json; print(json.load(open('$CODE_IDS_FILE')).get('coin_registry', 0))" 2>/dev/null)
   PAIR_CODE_ID=$(python3 -c "import json; print(json.load(open('$CODE_IDS_FILE'))['pair'])" 2>/dev/null)
   PAIR_CONCENTRATED_CODE_ID=$(python3 -c "import json; print(json.load(open('$CODE_IDS_FILE'))['pair_concentrated'])" 2>/dev/null)
   ROUTER_CODE_ID=$(python3 -c "import json; print(json.load(open('$CODE_IDS_FILE'))['router'])" 2>/dev/null)
   ORACLE_CODE_ID=$(python3 -c "import json; print(json.load(open('$CODE_IDS_FILE'))['oracle'])" 2>/dev/null)
-  ok "Loaded code IDs from cache: factory=$FACTORY_CODE_ID pair=$PAIR_CODE_ID pair_concentrated=$PAIR_CONCENTRATED_CODE_ID router=$ROUTER_CODE_ID oracle=$ORACLE_CODE_ID"
+  ok "Loaded code IDs from cache: coin_registry=$COIN_REGISTRY_CODE_ID factory=$FACTORY_CODE_ID pair=$PAIR_CODE_ID pair_concentrated=$PAIR_CONCENTRATED_CODE_ID router=$ROUTER_CODE_ID oracle=$ORACLE_CODE_ID"
 else
   if [ "$DRY_RUN" = true ]; then
     dry_info "Would upload the following contracts:"
@@ -506,6 +513,11 @@ else
     ROUTER_CODE_ID="<router_code_id>"
     ORACLE_CODE_ID="<oracle_code_id>"
   else
+    # Upload native coin registry
+    COIN_REGISTRY_WASM=$(find_wasm "astroport_native_coin_registry") || fail "Native coin registry WASM not found"
+    COIN_REGISTRY_CODE_ID=$(store_contract "$COIN_REGISTRY_WASM" "coin_registry")
+    COIN_REGISTRY_CODE_ID=$(echo "$COIN_REGISTRY_CODE_ID" | tail -1)
+
     # Upload factory
     FACTORY_WASM=$(find_wasm "astroport_factory") || fail "Factory WASM not found — did the build succeed?"
     FACTORY_CODE_ID=$(store_contract "$FACTORY_WASM" "factory")
@@ -535,6 +547,7 @@ else
     # Save code IDs
     cat > "$CODE_IDS_FILE" <<CIDEOF
 {
+  "coin_registry": ${COIN_REGISTRY_CODE_ID},
   "factory": ${FACTORY_CODE_ID},
   "pair": ${PAIR_CODE_ID},
   "pair_concentrated": ${PAIR_CONCENTRATED_CODE_ID},
@@ -558,10 +571,29 @@ step "Phase 3: Instantiate contracts"
 
 ADDR_FILE="$ARTIFACTS_DIR/contract-addresses.json"
 
+# ── 3a. Native coin registry ──
+
+COIN_REGISTRY_INIT_MSG=$(cat <<CREOF
+{
+  "owner": "${FACTORY_ADMIN}"
+}
+CREOF
+)
+
+if [ "$DRY_RUN" = true ]; then
+  dry_info "Would instantiate native coin registry with code_id=${COIN_REGISTRY_CODE_ID}"
+  COIN_REGISTRY_ADDR="<coin_registry_address>"
+else
+  COIN_REGISTRY_ADDR=$(instantiate_contract "$COIN_REGISTRY_CODE_ID" "claw-dex-coin-registry" "$COIN_REGISTRY_INIT_MSG")
+  COIN_REGISTRY_ADDR=$(echo "$COIN_REGISTRY_ADDR" | tail -1)
+  execute_contract "$COIN_REGISTRY_ADDR" '{"add":{"native_coins":[["uclaw",6],["ibc/27394FB092D2ECCD56123C74F36E4C1F926001CEADA9CA97EA622B25F41E5EB2",6]]}}' "register DEX native coins" >/dev/null
+fi
+
 # ── 3a. Factory ──
 
 FACTORY_INIT_MSG=$(cat <<FEOF
 {
+  "coin_registry_address": "${COIN_REGISTRY_ADDR}",
   "pair_configs": [
     {
       "code_id": ${PAIR_CODE_ID},
@@ -625,42 +657,7 @@ else
   ROUTER_ADDR=$(echo "$ROUTER_ADDR" | tail -1)
 fi
 
-# ── 3c. Oracle ──
-
-ORACLE_INIT_MSG=$(cat <<OEOF
-{
-  "factory_contract": "${FACTORY_ADDR}",
-  "period": 86400
-}
-OEOF
-)
-
-if [ "$DRY_RUN" = true ]; then
-  dry_info "Would instantiate oracle with code_id=${ORACLE_CODE_ID}"
-  dry_info "  factory_addr: ${FACTORY_ADDR}"
-  dry_info "  period: 86400"
-  ORACLE_ADDR="<oracle_address>"
-else
-  ORACLE_ADDR=$(instantiate_contract "$ORACLE_CODE_ID" "claw-dex-oracle" "$ORACLE_INIT_MSG")
-  ORACLE_ADDR=$(echo "$ORACLE_ADDR" | tail -1)
-fi
-
-# Save contract addresses
-if [ "$DRY_RUN" = false ]; then
-  cat > "$ADDR_FILE" <<ADDREOF
-{
-  "factory": "${FACTORY_ADDR}",
-  "router": "${ROUTER_ADDR}",
-  "oracle": "${ORACLE_ADDR}",
-  "chain_id": "${CHAIN_ID}",
-  "deployer": "${FACTORY_ADMIN}",
-  "deployed_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-}
-ADDREOF
-  ok "Contract addresses saved to $ADDR_FILE"
-else
-  dry_info "Would save contract addresses to $ADDR_FILE"
-fi
+ORACLE_ADDR=""
 
 echo ""
 
@@ -713,20 +710,50 @@ print('')
 
   if [ -n "$PAIR_ADDR" ]; then
     ok "CLAW/ATOM pair created at: $PAIR_ADDR"
-
-    # Update contract-addresses.json with pair address
-    python3 -c "
-import json
-with open('$ADDR_FILE', 'r') as f:
-    data = json.load(f)
-data['claw_atom_pair'] = '$PAIR_ADDR'
-with open('$ADDR_FILE', 'w') as f:
-    json.dump(data, f, indent=2)
-" 2>/dev/null
-    ok "Updated $ADDR_FILE with pair address"
   else
     warn "Pair created but could not extract pair contract address from events"
   fi
+fi
+
+# ── 4b. Oracle ──
+# The oracle validates that the target pair exists, so instantiate it after the
+# factory creates the initial pair.
+ORACLE_INIT_MSG=$(cat <<OEOF
+{
+  "factory_contract": "${FACTORY_ADDR}",
+  "asset_infos": [
+    {"native_token": {"denom": "uclaw"}},
+    {"native_token": {"denom": "ibc/27394FB092D2ECCD56123C74F36E4C1F926001CEADA9CA97EA622B25F41E5EB2"}}
+  ]
+}
+OEOF
+)
+
+if [ "$DRY_RUN" = true ]; then
+  dry_info "Would instantiate oracle with code_id=${ORACLE_CODE_ID}"
+  ORACLE_ADDR="<oracle_address>"
+else
+  ORACLE_ADDR=$(instantiate_contract "$ORACLE_CODE_ID" "claw-dex-oracle" "$ORACLE_INIT_MSG")
+  ORACLE_ADDR=$(echo "$ORACLE_ADDR" | tail -1)
+fi
+
+# Save contract addresses
+if [ "$DRY_RUN" = false ]; then
+  cat > "$ADDR_FILE" <<ADDREOF
+{
+  "coin_registry": "${COIN_REGISTRY_ADDR}",
+  "factory": "${FACTORY_ADDR}",
+  "router": "${ROUTER_ADDR}",
+  "oracle": "${ORACLE_ADDR}",
+  "claw_atom_pair": "${PAIR_ADDR}",
+  "chain_id": "${CHAIN_ID}",
+  "deployer": "${FACTORY_ADMIN}",
+  "deployed_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+}
+ADDREOF
+  ok "Contract addresses saved to $ADDR_FILE"
+else
+  dry_info "Would save contract addresses to $ADDR_FILE"
 fi
 
 echo ""
