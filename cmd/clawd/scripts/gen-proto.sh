@@ -43,6 +43,11 @@ MODULE_DIRS=(
   "proto/clawchain/agent/v1"
   "proto/clawchain/marketplace/v1"
   "proto/clawchain/oracle/v1beta1"
+  "proto/clawchain/modelregistry/v1"
+  "proto/clawchain/reputation/v1"
+  "proto/clawchain/messaging/v1"
+  "proto/clawchain/governance/v1"
+  "proto/clawchain/clawchain/v1"
 )
 
 rm -rf "$OUT"

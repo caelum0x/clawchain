@@ -93,6 +93,16 @@ describe("clawchain registry", () => {
     expect(urls).not.toContain("/clawchain.agent.v1.MsgRegisterAgentResponse");
   });
 
+  it("registers modelregistry, reputation, messaging, governance, clawchain type urls", () => {
+    const urls = clawchainCustomTypes.map(([url]) => url);
+    expect(urls).toContain("/clawchain.modelregistry.v1.MsgRegisterModel");
+    expect(urls).toContain("/clawchain.reputation.v1.MsgRateAgent");
+    expect(urls).toContain("/clawchain.messaging.v1.MsgSendMessage");
+    expect(urls).toContain("/clawchain.governance.v1.MsgSubmitProposal");
+    expect(urls).toContain("/clawchain.governance.v1.MsgVote");
+    expect(urls).toContain("/clawchain.clawchain.v1.MsgUpdateParams");
+  });
+
   it("round-trips a cross-module message (MsgListSkill) through the registry", () => {
     const registry = createClawchainRegistry();
     const value = {

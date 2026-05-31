@@ -14,6 +14,11 @@ import * as privacyTx from "../generated/proto/clawchain/privacy/v1/tx.js";
 import * as agentTx from "../generated/proto/clawchain/agent/v1/tx.js";
 import * as marketplaceTx from "../generated/proto/clawchain/marketplace/v1/tx.js";
 import * as oracleTx from "../generated/proto/clawchain/oracle/v1beta1/tx.js";
+import * as modelregistryTx from "../generated/proto/clawchain/modelregistry/v1/tx.js";
+import * as reputationTx from "../generated/proto/clawchain/reputation/v1/tx.js";
+import * as messagingTx from "../generated/proto/clawchain/messaging/v1/tx.js";
+import * as governanceTx from "../generated/proto/clawchain/governance/v1/tx.js";
+import * as clawchainTx from "../generated/proto/clawchain/clawchain/v1/tx.js";
 
 /**
  * ts-proto v2 emits codecs backed by `@bufbuild/protobuf` wire types. These are
@@ -59,16 +64,41 @@ export const clawchainMarketplaceTypes: ReadonlyArray<[string, GeneratedType]> =
 export const clawchainOracleTypes: ReadonlyArray<[string, GeneratedType]> =
   moduleTypes("clawchain.oracle.v1beta1", oracleTx);
 
+/** Model-registry module (`x/modelregistry`) message codecs. */
+export const clawchainModelRegistryTypes: ReadonlyArray<[string, GeneratedType]> =
+  moduleTypes("clawchain.modelregistry.v1", modelregistryTx);
+
+/** Reputation module (`x/reputation`) message codecs. */
+export const clawchainReputationTypes: ReadonlyArray<[string, GeneratedType]> =
+  moduleTypes("clawchain.reputation.v1", reputationTx);
+
+/** Messaging module (`x/messaging`) message codecs. */
+export const clawchainMessagingTypes: ReadonlyArray<[string, GeneratedType]> =
+  moduleTypes("clawchain.messaging.v1", messagingTx);
+
+/** Governance module (`x/governance`) message codecs. */
+export const clawchainGovernanceTypes: ReadonlyArray<[string, GeneratedType]> =
+  moduleTypes("clawchain.governance.v1", governanceTx);
+
+/** Core clawchain module (`x/clawchain`) message codecs. */
+export const clawchainCoreTypes: ReadonlyArray<[string, GeneratedType]> =
+  moduleTypes("clawchain.clawchain.v1", clawchainTx);
+
 /**
- * All clawchain custom-module message codecs, ready to register.
- * Additional modules (modelregistry, reputation, messaging, …) are appended here as
- * their generated codecs are wired in.
+ * All clawchain custom-module message codecs, ready to register. Covers every
+ * custom module's `Msg` service (privacy, agent, marketplace, oracle,
+ * modelregistry, reputation, messaging, governance, clawchain).
  */
 export const clawchainCustomTypes: ReadonlyArray<[string, GeneratedType]> = [
   ...clawchainPrivacyTypes,
   ...clawchainAgentTypes,
   ...clawchainMarketplaceTypes,
   ...clawchainOracleTypes,
+  ...clawchainModelRegistryTypes,
+  ...clawchainReputationTypes,
+  ...clawchainMessagingTypes,
+  ...clawchainGovernanceTypes,
+  ...clawchainCoreTypes,
 ];
 
 /**
