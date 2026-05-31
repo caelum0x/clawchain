@@ -74,7 +74,9 @@ export async function runPrivacyShield(opts: PrivacyShieldOptions): Promise<void
     value: {
       creator: account.address,
       amount: String(amount),
-      coins: `${amount}${denom}`,
+      // `coins` is a denom marker, not a coin string: the keeper requires it to be
+      // empty or exactly the pool denom (the quantity is carried by `amount`).
+      coins: denom,
       blinding: blinding,
     },
   };
