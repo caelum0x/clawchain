@@ -150,16 +150,31 @@ func TestShieldForAccount_MultipleShields(t *testing.T) {
 	require.Equal(t, idx1+1, idx2, "leaf indices should increment sequentially")
 }
 
-func TestShieldForAccount_CustomDenom(t *testing.T) {
+func TestShieldForAccount_NativeDenom(t *testing.T) {
 	f := initFixtureWithBank(t)
 
-	sender := sdk.AccAddress([]byte("shield_custom_______"))
+	sender := sdk.AccAddress([]byte("shield_native_______"))
 
+	// Auto-shielding the native pool denom must succeed.
 	commitmentHex, _, err := f.keeper.ShieldForAccount(
-		sdk.UnwrapSDKContext(f.ctx), sender, 750, "uclaw",
+		sdk.UnwrapSDKContext(f.ctx), sender, 750, types.PoolDenom(),
 	)
 	require.NoError(t, err)
 	require.NotEmpty(t, commitmentHex)
+}
+
+func TestShieldForAccount_ForeignDenomRejected(t *testing.T) {
+	f := initFixtureWithBank(t)
+
+	sender := sdk.AccAddress([]byte("shield_foreign______"))
+
+	// The pool is single-denom; auto-shielding a foreign IBC voucher must be
+	// rejected so it cannot be withdrawn as the native denom. PoolDenom()
+	// resolves to "stake" in unit tests, so "uclaw" is foreign here.
+	_, _, err := f.keeper.ShieldForAccount(
+		sdk.UnwrapSDKContext(f.ctx), sender, 750, "uclaw",
+	)
+	require.ErrorIs(t, err, types.ErrUnsupportedDenom)
 }
 
 func TestGetBankKeeper_NilInFixture(t *testing.T) {
@@ -304,7 +319,7 @@ func TestStateMachine_ValidateRootAndAppendCommitment(t *testing.T) {
 	require.NotEmpty(t, commitHex)
 	require.NotEmpty(t, rootHex)
 
-	normalizedRoot, err := f.keeper.ValidateKnownRoot(f.ctx, " " + rootHex + " ")
+	normalizedRoot, err := f.keeper.ValidateKnownRoot(f.ctx, " "+rootHex+" ")
 	require.NoError(t, err)
 	require.Equal(t, rootHex, normalizedRoot)
 

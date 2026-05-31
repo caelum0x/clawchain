@@ -24,8 +24,18 @@ func (k Keeper) ShieldForAccount(ctx sdk.Context, senderAddr sdk.AccAddress, amo
 		return "", 0, errorsmod.Wrap(types.ErrInvalidAmount, "amount must be greater than zero")
 	}
 
+	// The shielded pool is single-denom (the chain's native bond denom).
+	// Auto-shielding a foreign IBC voucher would let it be withdrawn as the
+	// native denom via Unshield, draining the pool — so only the native denom
+	// may be auto-shielded. The IBC middleware treats this error as a soft
+	// failure and lets the underlying transfer proceed unshielded.
+	poolDenom := types.PoolDenom()
 	if denom == "" {
-		denom = "stake"
+		denom = poolDenom
+	}
+	if denom != poolDenom {
+		return "", 0, errorsmod.Wrapf(types.ErrUnsupportedDenom,
+			"pool denom is %q, got %q", poolDenom, denom)
 	}
 	coins := sdk.NewCoins(sdk.NewCoin(denom, math.NewIntFromUint64(amount)))
 

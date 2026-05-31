@@ -1,5 +1,9 @@
 package types
 
+import (
+	sdk "github.com/cosmos/cosmos-sdk/types"
+)
+
 const (
 	// DefaultMaxPrivacyTxPerBlock is the default maximum number of privacy
 	// transactions allowed per block. This prevents DoS attacks via
@@ -56,4 +60,17 @@ func GetAutoShieldThreshold() uint64 {
 // GetAutoShieldMode returns the auto-shield mode.
 func GetAutoShieldMode() string {
 	return DefaultAutoShieldMode
+}
+
+// PoolDenom returns the single denomination the shielded pool operates on.
+//
+// The shielded pool is intentionally single-denom: Shield deposits and
+// Unshield withdrawals MUST move the same asset, otherwise a depositor of one
+// denom could withdraw a different (more valuable) denom and drain the pool.
+// The pool is bound to the chain's native bond denom, which is the single
+// source of truth set in app config ("uclaw" in production; the SDK default
+// "stake" in isolated unit tests). Never hardcode the denom at call sites —
+// always go through this helper so all entry/exit points stay consistent.
+func PoolDenom() string {
+	return sdk.DefaultBondDenom
 }

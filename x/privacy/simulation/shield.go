@@ -25,7 +25,7 @@ func SimulateMsgShield(
 		msg := &types.MsgShield{
 			Creator: simAccount.Address.String(),
 			Amount:  uint64(r.Intn(10) + 1),
-			Coins:   "stake",
+			Coins:   types.PoolDenom(),
 		}
 
 		_, err := msgSrv.Shield(sdk.WrapSDKContext(ctx), msg)

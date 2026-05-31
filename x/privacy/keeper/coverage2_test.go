@@ -327,7 +327,7 @@ func TestShield_MissingBlinding(t *testing.T) {
 	creator := sdk.AccAddress([]byte("shield_blind________")).String()
 	_, err := ms.Shield(f.ctx, &types.MsgShield{
 		Creator:  creator,
-		Amount:   100,
+		Amount:   1000,
 		Blinding: nil,
 	})
 	require.Error(t, err)
@@ -340,7 +340,7 @@ func TestShield_WrongBlindingLength(t *testing.T) {
 	creator := sdk.AccAddress([]byte("shield_blen_________")).String()
 	_, err := ms.Shield(f.ctx, &types.MsgShield{
 		Creator:  creator,
-		Amount:   100,
+		Amount:   1000,
 		Blinding: []byte{0x01, 0x02},
 	})
 	require.Error(t, err)
@@ -351,9 +351,10 @@ func TestShield_SuccessDefaultDenom(t *testing.T) {
 	f := initFixtureWithBank(t)
 	ms := keeper.NewMsgServerImpl(f.keeper)
 	creator := sdk.AccAddress([]byte("shield_ok___________")).String()
+	// Empty Coins is treated as the native pool denom and must succeed.
 	resp, err := ms.Shield(f.ctx, &types.MsgShield{
 		Creator:  creator,
-		Amount:   500,
+		Amount:   1000,
 		Coins:    "",
 		Blinding: fixedBlinding32(42),
 	})
@@ -361,18 +362,36 @@ func TestShield_SuccessDefaultDenom(t *testing.T) {
 	require.NotNil(t, resp)
 }
 
-func TestShield_SuccessCustomDenom(t *testing.T) {
+func TestShield_NativeDenomSucceeds(t *testing.T) {
 	f := initFixtureWithBank(t)
 	ms := keeper.NewMsgServerImpl(f.keeper)
-	creator := sdk.AccAddress([]byte("shield_cust_________")).String()
+	creator := sdk.AccAddress([]byte("shield_native_______")).String()
+	// Explicitly passing the native pool denom must succeed.
 	resp, err := ms.Shield(f.ctx, &types.MsgShield{
+		Creator:  creator,
+		Amount:   1000,
+		Coins:    types.PoolDenom(),
+		Blinding: fixedBlinding32(99),
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+}
+
+func TestShield_ForeignDenomRejected(t *testing.T) {
+	f := initFixtureWithBank(t)
+	ms := keeper.NewMsgServerImpl(f.keeper)
+	creator := sdk.AccAddress([]byte("shield_foreign______")).String()
+	// The shielded pool is single-denom. Shielding any denom other than the
+	// native pool denom must be rejected, otherwise a depositor could later
+	// Unshield the (native) pool denom and drain it. PoolDenom() resolves to
+	// "stake" in unit tests, so "uclaw" here is a foreign denom.
+	_, err := ms.Shield(f.ctx, &types.MsgShield{
 		Creator:  creator,
 		Amount:   1000,
 		Coins:    "uclaw",
 		Blinding: fixedBlinding32(99),
 	})
-	require.NoError(t, err)
-	require.NotNil(t, resp)
+	require.ErrorIs(t, err, types.ErrUnsupportedDenom)
 }
 
 // ---------------------------------------------------------------------------

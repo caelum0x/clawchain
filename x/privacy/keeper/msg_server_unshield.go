@@ -121,8 +121,10 @@ func (k msgServer) Unshield(ctx context.Context, msg *types.MsgUnshield) (*types
 		return nil, err
 	}
 
-	// Send coins from the module account to the recipient.
-	coins := sdk.NewCoins(sdk.NewCoin("stake", math.NewIntFromUint64(msg.Amount)))
+	// Send coins from the module account to the recipient. The pool is
+	// single-denom (the chain's native bond denom), so withdrawals always pay
+	// out the same asset that was shielded — never a hardcoded denom.
+	coins := sdk.NewCoins(sdk.NewCoin(types.PoolDenom(), math.NewIntFromUint64(msg.Amount)))
 	if err := k.bankKeeper.SendCoinsFromModuleToAccount(ctx, types.ModuleName, recipientAddr, coins); err != nil {
 		return nil, errorsmod.Wrap(types.ErrInsufficientFunds, err.Error())
 	}
