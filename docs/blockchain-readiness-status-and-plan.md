@@ -216,3 +216,33 @@ incomplete for the ZK-privacy and oracle commit-reveal flows, which are
 inherently multi-step and need the clawd/SDK client. The remaining Phase 1 proofs
 (privacy round-trip, oracle reveal, CosmWasm, DEX, IBC) should be driven through
 clawd/SDK, and are a multi-session effort.
+
+## Follow-up #1 kickoff: clawd/SDK client layer (2026-05-31)
+
+Scoping the clawd/SDK-driven Phase 1 surfaced a **critical client-layer gap**,
+same theme as the chain-core findings (green tests over non-working code):
+
+- **clawd cannot submit ANY custom-module transaction.** Every command
+  (`privacy`, `oracle`, `agent`, `governance`, `messaging`, `escrow`, …) calls
+  `SigningStargateClient.connectWithSigner(rpcUrl, wallet, { gasPrice })` with
+  **no custom registry**. cosmjs's default registry only knows standard cosmos
+  msgs, so any `/clawchain.*.Msg*` (e.g. `MsgShield`, `MsgRegisterAgent`) throws
+  "Unregistered type url" at encode time. The 581 clawd tests pass because they
+  **mock** the signing client (`connectWithSigner: vi.fn(...)` in bootstrap.test).
+- **No generated TS proto types exist** for the custom modules to register.
+- **clawd build is also red** on pre-existing `gpu-provider-setup.test.ts` type
+  errors (unrelated to this, but blocks `npm run build`).
+
+**Scoped work for this follow-up:**
+1. Generate TS proto types for all `x/*` custom modules (`make proto-gen-ts` /
+   the buf TS template), or hand-write the cosmjs `GeneratedType` encoders.
+2. Build a shared cosmjs `Registry` (default types + all custom msg types) and
+   wire it into a single `connectSigningClient` helper used by every command.
+3. Fix the clawd build (the gpu-provider test typing).
+4. Then run the real flows live: privacy shield→transfer→unshield, oracle
+   prevote→vote, IBC transfer, CosmWasm deploy/exec, DEX swap.
+5. Add a non-mocked integration test that actually encodes one custom msg per
+   module (so this class of bug can't hide behind mocks again).
+
+This is a self-contained multi-step effort — the right size for a focused
+follow-up PR, separate from the merged chain-core work.
