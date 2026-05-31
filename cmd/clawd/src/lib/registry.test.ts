@@ -87,8 +87,10 @@ describe("clawchain registry", () => {
     expect(urls).toContain("/clawchain.agent.v1.MsgDelegateTask");
     expect(urls).toContain("/clawchain.marketplace.v1.MsgListSkill");
     expect(urls).toContain("/clawchain.marketplace.v1.MsgPurchaseSkill");
-    expect(urls).toContain("/clawchain.oracle.v1beta1.MsgAggregateExchangeRateVote");
-    expect(urls).toContain("/clawchain.oracle.v1beta1.MsgDelegateFeedConsent");
+    // Oracle registers under the terra.* package the chain actually resolves
+    // (the .pb.go is generated from terra/oracle/v1beta1/tx.proto).
+    expect(urls).toContain("/terra.oracle.v1beta1.MsgAggregateExchangeRateVote");
+    expect(urls).toContain("/terra.oracle.v1beta1.MsgDelegateFeedConsent");
     // Response types must NOT be registered.
     expect(urls).not.toContain("/clawchain.agent.v1.MsgRegisterAgentResponse");
   });

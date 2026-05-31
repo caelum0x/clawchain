@@ -60,9 +60,18 @@ export const clawchainAgentTypes: ReadonlyArray<[string, GeneratedType]> =
 export const clawchainMarketplaceTypes: ReadonlyArray<[string, GeneratedType]> =
   moduleTypes("clawchain.marketplace.v1", marketplaceTx);
 
-/** Oracle module (`x/oracle`) message codecs. */
+/**
+ * Oracle module (`x/oracle`) message codecs.
+ *
+ * NOTE: the on-chain Go types register under `terra.oracle.v1beta1.*` (the `.pb.go`
+ * is generated from `terra/oracle/v1beta1/tx.proto`), even though the proto SOURCE
+ * file in this repo declares `package clawchain.oracle.v1beta1`. The protobuf wire
+ * format is package-independent, so the generated codecs are correct — but the
+ * registry MUST map them to the `terra.oracle.v1beta1` type urls the chain resolves,
+ * or tx parsing fails with "unable to resolve type URL". (Tracked as Gap B.)
+ */
 export const clawchainOracleTypes: ReadonlyArray<[string, GeneratedType]> =
-  moduleTypes("clawchain.oracle.v1beta1", oracleTx);
+  moduleTypes("terra.oracle.v1beta1", oracleTx);
 
 /** Model-registry module (`x/modelregistry`) message codecs. */
 export const clawchainModelRegistryTypes: ReadonlyArray<[string, GeneratedType]> =
