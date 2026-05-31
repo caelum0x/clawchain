@@ -179,3 +179,14 @@ crate (`cosmrs = { version = "0.22", features = ["cosmwasm", "bip32"] }`):
 - `@clawchain/sdk` (`sdk/`), `cmd/clawd/src/lib/registry.ts` (9-module cosmjs registry)
 - `viem/`, `wagmi/`, `alloy/`, `keplr-wallet/`, `keplr-chain-registry/`
 - Devnet plan (the test substrate for adapters).
+
+
+**V3 write path landed + live-verified (2026-06-01):** `clawchain-alloy` now signs
+(SIGN_MODE_DIRECT, secp256k1, claw prefix) and broadcasts Cosmos txs — `send` (bank MsgSend)
+and `execute_contract` (CosmWasm MsgExecuteContract) — via cosmrs 0.22, with build/sign in
+pure offline-tested functions (32 unit + 1 doctest). Broadcast uses the 0x-hex tx form
+(`/broadcast_tx_sync?tx=0x..`); an initial quoted-base64 form caused on-chain `tx parse
+error` and was fixed. Verified live against the 4-validator testnet via
+`clawchain-alloy/examples/live_send.rs`: read chainId/height/balance + signed bank send
+committed code 0 (height 470). Both TS (viem/wagmi) and Rust adapters now have working
+read + write paths against a real chain.
