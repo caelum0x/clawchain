@@ -8,6 +8,8 @@ release/
 *.log
 *.ign
 clawchain/
+# but DO track clawd's generated TS proto codecs, whose path contains clawchain/
+!cmd/clawd/src/generated/proto/clawchain/
 .tmp/
 bin/
 proto/_deps/

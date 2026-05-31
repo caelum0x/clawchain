@@ -2,8 +2,9 @@
  * `clawd privacy` subcommands — shield, unshield, tree stats, nullifier check.
  */
 
-import { GasPrice, SigningStargateClient } from "@cosmjs/stargate";
+import { GasPrice } from "@cosmjs/stargate";
 import { DirectSecp256k1HdWallet } from "@cosmjs/proto-signing";
+import { connectClawchainSigningClient } from "../lib/signing.js";
 import { loadClawdConfig } from "../lib/config.js";
 import { loadMnemonic, mnemonicFileExists } from "../lib/mnemonic.js";
 import { formatClaw, shortAddr } from "../lib/format.js";
@@ -39,7 +40,7 @@ async function ensureSigner() {
     throw new Error("Failed to derive wallet account.");
   }
 
-  const signingClient = await SigningStargateClient.connectWithSigner(rpcUrl, wallet, {
+  const signingClient = await connectClawchainSigningClient(rpcUrl, wallet, {
     gasPrice: GasPrice.fromString(gasPrice),
   });
 
@@ -72,7 +73,7 @@ export async function runPrivacyShield(opts: PrivacyShieldOptions): Promise<void
     typeUrl: "/clawchain.privacy.v1.MsgShield",
     value: {
       creator: account.address,
-      amount: BigInt(amount),
+      amount: String(amount),
       coins: `${amount}${denom}`,
       blinding: blinding,
     },
@@ -146,7 +147,7 @@ export async function runPrivacyUnshield(opts: PrivacyUnshieldOptions): Promise<
       commitment: opts.commitment,
       nullifier: opts.nullifier,
       proof: opts.proof,
-      amount: BigInt(amount),
+      amount: String(amount),
       recipient: recipient,
       root: opts.root,
     },

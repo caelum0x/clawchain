@@ -1,0 +1,83 @@
+/**
+ * Real (un-mocked) encode/decode tests for the clawchain custom-module registry.
+ *
+ * These tests deliberately exercise the actual ts-proto codecs and a real cosmjs
+ * `Registry` — NOT a mocked signing client. They are the guard against the
+ * "looks-done-but-isn't" failure where every command mocked `connectWithSigner`,
+ * so nothing ever proved a `/clawchain.*` message could be encoded at all.
+ */
+
+import { Registry } from "@cosmjs/proto-signing";
+import { describe, expect, it } from "vitest";
+
+import { MsgShield } from "../generated/proto/clawchain/privacy/v1/tx.js";
+import { clawchainCustomTypes, createClawchainRegistry } from "./registry.js";
+
+describe("clawchain registry", () => {
+  it("registers a codec for every custom type url (round-trips MsgShield)", () => {
+    const registry = createClawchainRegistry();
+
+    const blinding = new Uint8Array(32).fill(7);
+    const value = {
+      creator: "claw1r5v5srda7xfth3hn2s26txvrcrntldju3ufu0h",
+      amount: "1000",
+      coins: "1000uclaw",
+      blinding,
+    };
+
+    // Encode through the Registry exactly as signAndBroadcast would.
+    const bytes = registry.encode({
+      typeUrl: "/clawchain.privacy.v1.MsgShield",
+      value,
+    });
+    expect(bytes.length).toBeGreaterThan(0);
+
+    // Decode back and assert a faithful round-trip.
+    const decoded = registry.decode({
+      typeUrl: "/clawchain.privacy.v1.MsgShield",
+      value: bytes,
+    });
+    expect(decoded.creator).toBe(value.creator);
+    expect(decoded.amount).toBe(value.amount);
+    expect(decoded.coins).toBe(value.coins);
+    expect(Array.from(decoded.blinding as Uint8Array)).toEqual(Array.from(blinding));
+  });
+
+  it("exposes the direct ts-proto codec consistently with the registry", () => {
+    const value = MsgShield.fromPartial({
+      creator: "claw1example",
+      amount: "42",
+      coins: "42uclaw",
+      blinding: new Uint8Array([1, 2, 3]),
+    });
+    const direct = MsgShield.encode(value).finish();
+
+    const viaRegistry = createClawchainRegistry().encode({
+      typeUrl: "/clawchain.privacy.v1.MsgShield",
+      value,
+    });
+
+    expect(Array.from(viaRegistry)).toEqual(Array.from(direct));
+  });
+
+  it("the DEFAULT cosmjs registry CANNOT encode a clawchain message (regression guard)", () => {
+    // This is the bug the fix addresses: without registering custom types, the
+    // default registry throws on any /clawchain.* type url.
+    const bareRegistry = new Registry();
+    expect(() =>
+      bareRegistry.encode({
+        typeUrl: "/clawchain.privacy.v1.MsgShield",
+        value: { creator: "claw1x", amount: "1", coins: "1uclaw", blinding: new Uint8Array() },
+      }),
+    ).toThrow();
+  });
+
+  it("registers all expected privacy message type urls", () => {
+    const urls = clawchainCustomTypes.map(([url]) => url);
+    expect(urls).toContain("/clawchain.privacy.v1.MsgShield");
+    expect(urls).toContain("/clawchain.privacy.v1.MsgUnshield");
+    expect(urls).toContain("/clawchain.privacy.v1.MsgPrivateTransfer");
+    expect(urls).toContain("/clawchain.privacy.v1.MsgRegisterViewKey");
+    expect(urls).toContain("/clawchain.privacy.v1.MsgBatchPrivateTransfer");
+  });
+});

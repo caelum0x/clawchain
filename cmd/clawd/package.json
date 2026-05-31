@@ -13,6 +13,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@bufbuild/protobuf": "^2.12.0",
     "@cosmjs/amino": "^0.33.0",
     "@cosmjs/crypto": "^0.33.0",
     "@cosmjs/encoding": "^0.33.0",
@@ -21,9 +22,10 @@
     "commander": "^14.0.3"
   },
   "devDependencies": {
-    "typescript": "^5.4.0",
     "@types/node": "^22.0.0",
+    "ts-proto": "^2.11.8",
     "tsx": "^4.21.0",
+    "typescript": "^5.4.0",
     "vitest": "^3.0.0"
   },
   "engines": {

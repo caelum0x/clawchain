@@ -28,8 +28,10 @@ vi.mock("../../lib/mnemonic.js", () => ({
   mnemonicFileExists: vi.fn(() => false),
 }));
 
-// Mock execSync — will be configured per-test
-const execSyncMock = vi.fn((_cmd: string) => {
+// Mock execSync — will be configured per-test.
+// Explicit `: string` return type prevents TS from inferring `never` (the body only
+// throws), which would otherwise reject every per-test `mockImplementation` returning a string.
+const execSyncMock = vi.fn((_cmd: string): string => {
   throw new Error("command not found");
 });
 
