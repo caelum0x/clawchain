@@ -63,15 +63,15 @@ export const clawchainMarketplaceTypes: ReadonlyArray<[string, GeneratedType]> =
 /**
  * Oracle module (`x/oracle`) message codecs.
  *
- * NOTE: the on-chain Go types register under `terra.oracle.v1beta1.*` (the `.pb.go`
- * is generated from `terra/oracle/v1beta1/tx.proto`), even though the proto SOURCE
- * file in this repo declares `package clawchain.oracle.v1beta1`. The protobuf wire
- * format is package-independent, so the generated codecs are correct — but the
- * registry MUST map them to the `terra.oracle.v1beta1` type urls the chain resolves,
- * or tx parsing fails with "unable to resolve type URL". (Tracked as Gap B.)
+ * The oracle Go types were originally generated from a stale `terra/oracle/v1beta1`
+ * proto and registered under `terra.oracle.v1beta1.*`. Gap B regenerated `x/oracle`
+ * from the repo's actual source proto (`proto/clawchain/oracle/v1beta1/tx.proto`,
+ * which declares `package clawchain.oracle.v1beta1` and carries the
+ * `cosmos.msg.v1.service` annotation), so the chain now resolves these msgs under
+ * `clawchain.oracle.v1beta1.*` — matching every other custom module.
  */
 export const clawchainOracleTypes: ReadonlyArray<[string, GeneratedType]> =
-  moduleTypes("terra.oracle.v1beta1", oracleTx);
+  moduleTypes("clawchain.oracle.v1beta1", oracleTx);
 
 /** Model-registry module (`x/modelregistry`) message codecs. */
 export const clawchainModelRegistryTypes: ReadonlyArray<[string, GeneratedType]> =

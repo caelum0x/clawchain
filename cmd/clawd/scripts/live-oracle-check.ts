@@ -44,7 +44,7 @@ async function main(): Promise<void> {
   // Ensure the feeder is authorized for the validator (operator self-feed is fine too).
   const delegate = await client.signAndBroadcast(
     feeder,
-    [{ typeUrl: "/terra.oracle.v1beta1.MsgDelegateFeedConsent", value: { operator: VALOPER, delegate: feeder } }],
+    [{ typeUrl: "/clawchain.oracle.v1beta1.MsgDelegateFeedConsent", value: { operator: VALOPER, delegate: feeder } }],
     2.0,
   );
   console.log(`set-feeder: code=${delegate.code} (height ${delegate.height})`);
@@ -53,7 +53,7 @@ async function main(): Promise<void> {
   console.log(`prevote hash=${hash} (salt=${SALT} rates=${RATES})`);
   const pre = await client.signAndBroadcast(
     feeder,
-    [{ typeUrl: "/terra.oracle.v1beta1.MsgAggregateExchangeRatePrevote", value: { hash, feeder, validator: VALOPER } }],
+    [{ typeUrl: "/clawchain.oracle.v1beta1.MsgAggregateExchangeRatePrevote", value: { hash, feeder, validator: VALOPER } }],
     2.0,
   );
   if (pre.code !== 0) {
@@ -77,7 +77,7 @@ async function main(): Promise<void> {
     feeder,
     [
       {
-        typeUrl: "/terra.oracle.v1beta1.MsgAggregateExchangeRateVote",
+        typeUrl: "/clawchain.oracle.v1beta1.MsgAggregateExchangeRateVote",
         value: { salt: SALT, exchangeRates: RATES, feeder, validator: VALOPER },
       },
     ],

@@ -843,7 +843,7 @@ export async function runOracleDelegateFeed(opts: OracleDelegateFeedOptions): Pr
   console.log(`Delegating feed consent from ${opts.validator} to ${opts.feeder}...`);
 
   const msg = {
-    typeUrl: "/terra.oracle.v1beta1.MsgDelegateFeedConsent",
+    typeUrl: "/clawchain.oracle.v1beta1.MsgDelegateFeedConsent",
     value: {
       operator: opts.validator,
       delegate: opts.feeder,
