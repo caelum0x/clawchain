@@ -193,3 +193,26 @@ These are all additive; none reopen the boot fixes. After they land, the chain h
 no known functional gaps in local operation, leaving the external security audit
 and the multi-validator genesis ceremony as the remaining mainnet launch gates
 (tracked in [mainnet/README.md](../mainnet/README.md)).
+
+## Phase 1 live-exercise findings (2026-05-31)
+
+Exercising the not-yet-run modules on the live node (the "verify live, not via
+tests" discipline) surfaced these:
+
+- **oracle `set-feeder`**: ✅ works on-chain (code 0). Feeder delegation lands.
+- **oracle `aggregate-prevote`/`aggregate-vote`**: commit-reveal flow (hash of
+  salt+rates, then reveal in the next vote period). Needs the multi-step client
+  driver — not a single CLI call. Not yet proven end-to-end.
+- **privacy `shield`**: the bare `clawchaind tx privacy shield [amount] [coins]`
+  CLI does NOT supply the required 32-byte client blinding factor (msg correctly
+  rejects with code 1107 "blinding factor is required"). The blinding must also be
+  *persisted* by the client to later unshield. **Finding:** privacy shield/unshield
+  are only usable via the richer clawd/SDK client (which manages commitments and
+  proofs), not the raw chain CLI. Either add a `--blinding` flag (printing the
+  value for the user to save) or document clawd as the required client.
+
+**Takeaway:** the bare `clawchaind` CLI is sufficient for simple modules but
+incomplete for the ZK-privacy and oracle commit-reveal flows, which are
+inherently multi-step and need the clawd/SDK client. The remaining Phase 1 proofs
+(privacy round-trip, oracle reveal, CosmWasm, DEX, IBC) should be driven through
+clawd/SDK, and are a multi-session effort.
