@@ -191,22 +191,56 @@ function runAutomatedChecks(items: ChecklistItem[]): void {
         break;
       }
       case 8: {
-        // Genesis validated: check mainnet/genesis.json exists and is valid JSON
+        // Genesis validated: the mainnet genesis must be a real multi-validator
+        // launch genesis, NOT a single-validator dev stub. A check that only
+        // verifies "valid JSON" would rubber-stamp a stub, so we inspect the
+        // actual validator set, account allocations, and genesis_time.
         const genesisPath = path.join(projectRoot, "mainnet", "genesis.json");
         if (!fs.existsSync(genesisPath)) {
           item.status = "fail";
           item.evidence = "mainnet/genesis.json not found";
+          break;
+        }
+        let genesis: Record<string, unknown>;
+        try {
+          genesis = JSON.parse(fs.readFileSync(genesisPath, "utf-8"));
+        } catch {
+          item.status = "fail";
+          item.evidence = "mainnet/genesis.json exists but is not valid JSON";
+          break;
+        }
+
+        const chainId = (genesis.chain_id as string) ?? "unknown";
+        const appState = (genesis.app_state ?? {}) as Record<string, any>;
+        const genTxs: unknown[] = appState?.genutil?.gen_txs ?? [];
+        const balances: Array<{ address?: string }> = appState?.bank?.balances ?? [];
+
+        // A production launch genesis needs a decentralized validator set.
+        const MIN_GENESIS_VALIDATORS = 4;
+        // Placeholder/non-bech32 addresses (e.g. claw1foundation0000...) indicate
+        // a templated stub whose allocations were never assigned to real keys.
+        const placeholderAccounts = balances.filter((b) =>
+          typeof b.address === "string" && /^claw1(foundation|team|rewards|privacy|airdrop|faucet)0+$/.test(b.address)
+        );
+
+        const problems: string[] = [];
+        if (genTxs.length < MIN_GENESIS_VALIDATORS) {
+          problems.push(`only ${genTxs.length} genesis validator(s); need >= ${MIN_GENESIS_VALIDATORS} (single-validator stub is not launchable)`);
+        }
+        if (placeholderAccounts.length > 0) {
+          problems.push(`${placeholderAccounts.length} placeholder allocation address(es) not bound to real keys`);
+        }
+        const genesisTime = genesis.genesis_time ? Date.parse(genesis.genesis_time as string) : NaN;
+        if (!Number.isNaN(genesisTime) && genesisTime < Date.now()) {
+          problems.push(`genesis_time ${genesis.genesis_time} is in the past`);
+        }
+
+        if (problems.length > 0) {
+          item.status = "fail";
+          item.evidence = `mainnet/genesis.json (chain_id: ${chainId}) is not launch-ready: ${problems.join("; ")}`;
         } else {
-          try {
-            const raw = fs.readFileSync(genesisPath, "utf-8");
-            const genesis = JSON.parse(raw);
-            const chainId = genesis.chain_id ?? "unknown";
-            item.status = "pass";
-            item.evidence = `mainnet/genesis.json valid (chain_id: ${chainId})`;
-          } catch {
-            item.status = "fail";
-            item.evidence = "mainnet/genesis.json exists but is not valid JSON";
-          }
+          item.status = "pass";
+          item.evidence = `mainnet/genesis.json valid: ${genTxs.length} validators, ${balances.length} accounts, chain_id ${chainId}`;
         }
         break;
       }
