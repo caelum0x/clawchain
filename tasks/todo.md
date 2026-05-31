@@ -1,5 +1,22 @@
 # Task Plan
 
+## Local-Only Public Testnet Readiness 2026-05-31
+
+- [x] Inspect current public testnet scripts/configs to identify what can be completed without VPS or external validators.
+- [x] Add a local external-validator genesis ceremony simulation.
+- [x] Add a public testnet readiness gate that separates local pass/fail checks from VPS/DNS/people blockers.
+- [x] Update `docs/plans/2026-05-31-testnet-launch.md` so completed rehearsal jobs are not listed as active work.
+- [x] Run syntax/config/gate verification and commit the changes.
+
+### Review
+
+- Existing public artifact generation, public env validation, manifest validation, Docker compose stack, nginx static config template, explorer testnet chain config, monitoring configs, and local multinode smoke/upgrade scripts are present.
+- Remaining non-local blockers are VPS/host provisioning, public DNS/TLS, external validator/integrator participation, public explorer/faucet/monitoring deployment, public soak, and public upgrade rehearsal.
+- Added `scripts/testnet/simulate-genesis-ceremony.sh`, which creates 4 isolated validator homes, generates gentxs, and verifies the coordinator collection flow.
+- Added `scripts/testnet/public-readiness-gate.sh`, which reports local pass/fail checks separately from blocked public-infrastructure work.
+- Rewrote `docs/plans/2026-05-31-testnet-launch.md` so the active checklist contains only remaining public launch tasks.
+- Verification passed: shell syntax checks, direct ceremony simulation, public readiness gate (13 passed / 0 failed / 8 blocked), and `git diff --check`.
+
 ## Multi-Validator Testnet Upgrade Rehearsal 2026-05-31
 
 - [x] Confirm the full-module multinode smoke is already committed and the worktree is clean.
