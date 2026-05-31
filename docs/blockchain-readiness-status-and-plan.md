@@ -292,8 +292,11 @@ Steps 1–3 + 5 done; step 4 done for privacy/agent/marketplace (live):
    4–5). **DEX:** full Astroport AMM flow proven live with the LOCAL builds
    (coin-registry → factory → create_pair → provide_liquidity → swap, all code 0;
    swap 5000 uclaw → 4747 tf-denom; `scripts/dex-local-swap.sh`). Prebuilt
-   `artifacts/` need the `neutron` cap the chain lacks. **IBC:** needs the
-   two-chain + relayer harness; not run on the single node.
+   `artifacts/` need the `neutron` cap the chain lacks. **IBC:** `scripts/ibc-two-chain-test.sh`
+   fixed (genesis expedited-voting-period + BSD-sed portability) and now boots two
+   chains producing blocks; true cross-chain relay still needs a real relayer
+   binary (the PATH `hermes` is an unrelated "Hermes Agent" CLI) — install
+   `hermes` 1.x / `rly` to exercise the ICS-20 round-trip.
 5. **Non-mocked encode tests (done):** `src/lib/registry.test.ts` round-trips
    real msgs through an actual `Registry`, asserts the bare registry throws
    (regression guard), and excludes Response types. 636 clawd tests pass.
@@ -302,8 +305,8 @@ Two client-payload bugs that only live testing could surface (both fixed):
 `MsgShield.amount` is uint64→string (client passed BigInt); `MsgShield.coins` is
 a denom marker (`""`/`uclaw`), not a coin string (client packed `"1000uclaw"`).
 
-**Next:** an IBC transfer via the two-chain + relayer harness (the only major flow
-not yet driven on the single node); and regenerating the oracle descriptor to fix
-the proto-source vs `.pb.go` package mismatch (`clawchain.oracle.v1beta1` vs
-`terra.oracle.v1beta1`) and add the missing `cosmos.msg.v1.service` annotation
-(Gap B).
+**Next:** install a real IBC relayer (`hermes` 1.x / `rly`) and run the ICS-20
+round-trip end-to-end (two-chain boot is already proven); and regenerate the
+oracle descriptor to fix the proto-source vs `.pb.go` package mismatch
+(`clawchain.oracle.v1beta1` vs `terra.oracle.v1beta1`) and add the missing
+`cosmos.msg.v1.service` annotation (Gap B).

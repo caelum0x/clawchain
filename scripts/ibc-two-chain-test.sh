@@ -200,7 +200,9 @@ init_chain() {
     local genesis="${home_dir}/config/genesis.json"
     if command -v jq &>/dev/null; then
         jq '.app_state.staking.params.unbonding_time = "60s"' "${genesis}" > "${genesis}.tmp" && mv "${genesis}.tmp" "${genesis}"
-        jq '.app_state.gov.params.voting_period = "30s"' "${genesis}" > "${genesis}.tmp" && mv "${genesis}.tmp" "${genesis}"
+        # expedited_voting_period must be strictly < voting_period, or genesis
+        # validation fails ("expedited voting period 24h ... must be strictly less").
+        jq '.app_state.gov.params.voting_period = "30s" | .app_state.gov.params.expedited_voting_period = "20s"' "${genesis}" > "${genesis}.tmp" && mv "${genesis}.tmp" "${genesis}"
         jq '.app_state.transfer.params.send_enabled = true | .app_state.transfer.params.receive_enabled = true' \
             "${genesis}" > "${genesis}.tmp" && mv "${genesis}.tmp" "${genesis}"
     fi
@@ -217,10 +219,11 @@ init_chain() {
     sed -i.bak "s|timeout_propose = \"3s\"|timeout_propose = \"1s\"|g" "${config}"
 
     local app_config="${home_dir}/config/app.toml"
-    sed -i.bak '/^\[api\]/,/^\[/{s|enable = false|enable = true|}' "${app_config}"
+    # The `;` before `}` is required by BSD sed (macOS); GNU sed accepts it too.
+    sed -i.bak '/^\[api\]/,/^\[/{s|enable = false|enable = true|;}' "${app_config}"
     sed -i.bak "s|address = \"tcp://localhost:1317\"|address = \"tcp://0.0.0.0:${rest_port}\"|g" "${app_config}"
     sed -i.bak "s|address = \"tcp://0.0.0.0:1317\"|address = \"tcp://0.0.0.0:${rest_port}\"|g" "${app_config}"
-    sed -i.bak '/^\[grpc\]/,/^\[/{s|enable = false|enable = true|}' "${app_config}"
+    sed -i.bak '/^\[grpc\]/,/^\[/{s|enable = false|enable = true|;}' "${app_config}"
     sed -i.bak "s|address = \"0.0.0.0:9090\"|address = \"0.0.0.0:${grpc_port}\"|g" "${app_config}"
     sed -i.bak "s|address = \"localhost:9090\"|address = \"0.0.0.0:${grpc_port}\"|g" "${app_config}"
     sed -i.bak "s|minimum-gas-prices = \"\"|minimum-gas-prices = \"0${DENOM}\"|g" "${app_config}"

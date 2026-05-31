@@ -146,9 +146,21 @@ local node (`scripts/dex-local-swap.sh`):
 **Action for ops:** deploy the DEX from the local builds, not the neutron-targeted
 `artifacts/` (or rebuild Astroport without the `neutron` feature).
 
-**IBC:** transfer needs two chains + a relayer (the `contracts/dex/e2e/docker`
-two-chain harness or `scripts/ibc-two-chain-test.sh`); not exercised on this
-single-node network.
+**IBC — two chains boot; end-to-end relay not exercised (no relayer).**
+`scripts/ibc-two-chain-test.sh` now runs on macOS after two real bug fixes:
+(1) it set gov `voting_period=30s` without lowering `expedited_voting_period`
+(genesis validation requires expedited < regular); (2) two `[api]`/`[grpc]`
+range-block `sed` calls used GNU-only syntax that BSD/macOS sed rejects
+("bad flag in substitute command: '}'"). With those fixed, both chains
+(`clawchain-ibc-a`/`-b`) initialize, start, and produce blocks, and REST/RPC are
+healthy. **But:** the only `hermes` on this machine's PATH is an unrelated
+"Hermes Agent" CLI, not the Informal-Systems IBC relayer, so no client/
+connection/channel could be created — the script falls back to "manual" mode,
+which verifies IBC transfer **tx construction/submission on the source chain
+only**, NOT cross-chain packet relay or receipt on the destination. A genuine
+ICS-20 round-trip (escrow → relay → voucher mint) requires installing a real
+relayer (`hermes` 1.x or `rly`). Two-chain boot: proven. Cross-chain delivery:
+pending a relayer binary.
 
 ## Known limitations (not chain-breaking)
 
