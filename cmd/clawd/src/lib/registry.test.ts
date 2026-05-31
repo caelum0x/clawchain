@@ -80,4 +80,33 @@ describe("clawchain registry", () => {
     expect(urls).toContain("/clawchain.privacy.v1.MsgRegisterViewKey");
     expect(urls).toContain("/clawchain.privacy.v1.MsgBatchPrivateTransfer");
   });
+
+  it("registers agent, marketplace, and oracle message type urls", () => {
+    const urls = clawchainCustomTypes.map(([url]) => url);
+    expect(urls).toContain("/clawchain.agent.v1.MsgRegisterAgent");
+    expect(urls).toContain("/clawchain.agent.v1.MsgDelegateTask");
+    expect(urls).toContain("/clawchain.marketplace.v1.MsgListSkill");
+    expect(urls).toContain("/clawchain.marketplace.v1.MsgPurchaseSkill");
+    expect(urls).toContain("/clawchain.oracle.v1beta1.MsgAggregateExchangeRateVote");
+    expect(urls).toContain("/clawchain.oracle.v1beta1.MsgDelegateFeedConsent");
+    // Response types must NOT be registered.
+    expect(urls).not.toContain("/clawchain.agent.v1.MsgRegisterAgentResponse");
+  });
+
+  it("round-trips a cross-module message (MsgListSkill) through the registry", () => {
+    const registry = createClawchainRegistry();
+    const value = {
+      creator: "claw1seller",
+      name: "summarize",
+      description: "summarize text",
+      price: "100",
+      denom: "uclaw",
+    };
+    const bytes = registry.encode({ typeUrl: "/clawchain.marketplace.v1.MsgListSkill", value });
+    const decoded = registry.decode({ typeUrl: "/clawchain.marketplace.v1.MsgListSkill", value: bytes });
+    expect(decoded.creator).toBe(value.creator);
+    expect(decoded.name).toBe(value.name);
+    expect(decoded.price).toBe(value.price);
+    expect(decoded.denom).toBe(value.denom);
+  });
 });

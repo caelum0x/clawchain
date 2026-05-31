@@ -37,9 +37,12 @@ INCLUDES=(
 )
 
 # Custom modules to generate. Add more module proto directories here as their
-# CLI tx flows are wired up (oracle, agent, marketplace, …).
+# CLI tx flows are wired up.
 MODULE_DIRS=(
   "proto/clawchain/privacy/v1"
+  "proto/clawchain/agent/v1"
+  "proto/clawchain/marketplace/v1"
+  "proto/clawchain/oracle/v1beta1"
 )
 
 rm -rf "$OUT"

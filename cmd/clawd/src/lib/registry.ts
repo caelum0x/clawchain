@@ -10,14 +10,10 @@
 import { GeneratedType, Registry } from "@cosmjs/proto-signing";
 import { defaultRegistryTypes } from "@cosmjs/stargate";
 
-import {
-  MsgBatchPrivateTransfer,
-  MsgPrivateTransfer,
-  MsgRegisterViewKey,
-  MsgShield,
-  MsgUnshield,
-  MsgUpdateParams as MsgUpdatePrivacyParams,
-} from "../generated/proto/clawchain/privacy/v1/tx.js";
+import * as privacyTx from "../generated/proto/clawchain/privacy/v1/tx.js";
+import * as agentTx from "../generated/proto/clawchain/agent/v1/tx.js";
+import * as marketplaceTx from "../generated/proto/clawchain/marketplace/v1/tx.js";
+import * as oracleTx from "../generated/proto/clawchain/oracle/v1beta1/tx.js";
 
 /**
  * ts-proto v2 emits codecs backed by `@bufbuild/protobuf` wire types. These are
@@ -28,23 +24,51 @@ import {
  */
 const asGeneratedType = (codec: unknown): GeneratedType => codec as GeneratedType;
 
+/**
+ * Build registry entries for a module: maps each `MsgXxx` codec to its fully-qualified
+ * type url `/<protoPackage>.MsgXxx`. Response types and non-Msg codecs are skipped.
+ */
+function moduleTypes(
+  protoPackage: string,
+  txModule: Record<string, unknown>,
+): Array<[string, GeneratedType]> {
+  return Object.entries(txModule)
+    .filter(
+      ([name, codec]) =>
+        name.startsWith("Msg") &&
+        !name.endsWith("Response") &&
+        codec != null &&
+        typeof (codec as { encode?: unknown }).encode === "function",
+    )
+    .map(([name, codec]) => [`/${protoPackage}.${name}`, asGeneratedType(codec)]);
+}
+
 /** Privacy module (`x/privacy`) message codecs. */
-export const clawchainPrivacyTypes: ReadonlyArray<[string, GeneratedType]> = [
-  ["/clawchain.privacy.v1.MsgShield", asGeneratedType(MsgShield)],
-  ["/clawchain.privacy.v1.MsgUnshield", asGeneratedType(MsgUnshield)],
-  ["/clawchain.privacy.v1.MsgPrivateTransfer", asGeneratedType(MsgPrivateTransfer)],
-  ["/clawchain.privacy.v1.MsgRegisterViewKey", asGeneratedType(MsgRegisterViewKey)],
-  ["/clawchain.privacy.v1.MsgBatchPrivateTransfer", asGeneratedType(MsgBatchPrivateTransfer)],
-  ["/clawchain.privacy.v1.MsgUpdateParams", asGeneratedType(MsgUpdatePrivacyParams)],
-];
+export const clawchainPrivacyTypes: ReadonlyArray<[string, GeneratedType]> =
+  moduleTypes("clawchain.privacy.v1", privacyTx);
+
+/** Agent module (`x/agent`) message codecs. */
+export const clawchainAgentTypes: ReadonlyArray<[string, GeneratedType]> =
+  moduleTypes("clawchain.agent.v1", agentTx);
+
+/** Marketplace module (`x/marketplace`) message codecs. */
+export const clawchainMarketplaceTypes: ReadonlyArray<[string, GeneratedType]> =
+  moduleTypes("clawchain.marketplace.v1", marketplaceTx);
+
+/** Oracle module (`x/oracle`) message codecs. */
+export const clawchainOracleTypes: ReadonlyArray<[string, GeneratedType]> =
+  moduleTypes("clawchain.oracle.v1beta1", oracleTx);
 
 /**
  * All clawchain custom-module message codecs, ready to register.
- * Additional modules (oracle, agent, marketplace, …) are appended here as their
- * generated codecs are wired in.
+ * Additional modules (modelregistry, reputation, messaging, …) are appended here as
+ * their generated codecs are wired in.
  */
 export const clawchainCustomTypes: ReadonlyArray<[string, GeneratedType]> = [
   ...clawchainPrivacyTypes,
+  ...clawchainAgentTypes,
+  ...clawchainMarketplaceTypes,
+  ...clawchainOracleTypes,
 ];
 
 /**
