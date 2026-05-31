@@ -127,16 +127,24 @@ CosmWasm full lifecycle, real CLI txs on the live node (chain CLI; clawd lacks
 | query (smart `{"verifier":{}}`) | OK | returns dev address — state readable |
 | execute (`{"release":{}}`) | code 0 | tx `CA316AB2…`, `action=release` emitted |
 
-**DEX (Astroport fork):** the prebuilt `artifacts/*.wasm` require the `neutron`
-capability, which ClawChain does NOT enable (its caps =
+**DEX (Astroport fork) — full swap proven live.** The prebuilt `artifacts/*.wasm`
+require the `neutron` capability, which ClawChain does NOT enable (its caps =
 `wasmkeeper.BuiltInCapabilities()` + `token_factory`), so those won't store. The
 **locally-built** `contracts/dex/target/wasm32-unknown-unknown/release/*.wasm` are
-capability-compatible and store cleanly (verified: `astroport_factory`,
-`astroport_pair`, `astroport_xastro_token`, `astroport_native_coin_registry` all
-code 0). The remaining full swap (instantiate coin-registry + factory → create
-pair → provide liquidity → swap) is a multi-contract orchestration, not yet driven
-end-to-end. **Action:** use the local builds (not `artifacts/`) for DEX deploy, or
-rebuild Astroport without the `neutron` feature.
+capability-compatible. Using those, the entire AMM lifecycle ran end-to-end on the
+local node (`scripts/dex-local-swap.sh`):
+
+| Step | Result | Note |
+|---|---|---|
+| instantiate coin-registry | code 0 | register `uclaw` + a tokenfactory denom (decimals 6) |
+| instantiate factory | code 0 | xyk pair_config, LP token = cw20_base code id |
+| create_pair (uclaw / tf-denom, xyk) | code 0 | pair instantiates its own LP cw20 |
+| provide_liquidity (100k + 100k) | code 0 | seeds the pool |
+| swap 5000 uclaw → tf-denom | code 0 | received 4747 (XYK slippage + 0.3% fee); tx `294E73BC…` |
+| swap w/o `max_spread` | **rejected** | "exceeds max spread limit" — correct price-impact guard |
+
+**Action for ops:** deploy the DEX from the local builds, not the neutron-targeted
+`artifacts/` (or rebuild Astroport without the `neutron` feature).
 
 **IBC:** transfer needs two chains + a relayer (the `contracts/dex/e2e/docker`
 two-chain harness or `scripts/ibc-two-chain-test.sh`); not exercised on this
