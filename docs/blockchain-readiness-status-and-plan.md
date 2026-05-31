@@ -86,7 +86,19 @@ Ordered by leverage.
   round-trip is reproducible without a manual VK swap. Repro scripts:
   `cmd/clawd/scripts/roundtrip-{shield,unshield}.ts`.
 
-### Gap B — Oracle `Msg` service missing `cosmos.msg.v1.service` annotation
+### Gap B — Oracle `Msg` service missing `cosmos.msg.v1.service` annotation — ✅ FIXED (2026-05-31)
+
+**RESOLVED.** The proto SOURCE (`proto/clawchain/oracle/v1beta1/tx.proto`) already
+declared `package clawchain.oracle.v1beta1` *with* `option (cosmos.msg.v1.service)
+= true;` — the committed `x/oracle/types/*.pb.go` was simply **stale**, generated
+from an old `terra/oracle/v1beta1/tx.proto` that lacked the annotation. Regenerated
+`x/oracle/types/{tx,query,genesis,oracle}.pb.go` from the source proto via buf
+(local cosmos-sdk deps, scoped to `proto/clawchain/oracle`). Result: the startup
+annotation warning is gone, msg signer validation is enforced, and oracle msgs now
+register under `clawchain.oracle.v1beta1.*` like every other module (the client
+type urls were flipped to match). Verified live: rebuilt node boots clean (no
+warning); clawd set-feeder/prevote/vote all code 0; `uusd` rate = 1.5;
+`go test ./x/oracle/...` passes. Original analysis below for reference.
 
 - **Problem:** startup warning `service terra.oracle.v1beta1.Msg does not have
   cosmos.msg.v1.service proto annotation`; oracle msg routing/signing validation
@@ -207,8 +219,8 @@ Ordered by leverage.
 
 1. **Gap D first** (test honesty): remove the masking and get the app suite truly
    green, so the test suite stops lying and future regressions are caught.
-2. **Gap B** (oracle annotation) and **Gap C** (tokenfactory CLI): small, isolated,
-   unlock oracle and tokenfactory exercise.
+2. ~~**Gap B** (oracle annotation)~~ ✅ DONE and **Gap C** (tokenfactory CLI) ✅ DONE:
+   both unlocked and proven live.
 3. **Gap A** (privacy dev keys): unlocks the privacy round-trip demo; keep the
    prod MPC ceremony as a separate launch-gate item.
 
@@ -306,10 +318,14 @@ Two client-payload bugs that only live testing could surface (both fixed):
 `MsgShield.amount` is uint64→string (client passed BigInt); `MsgShield.coins` is
 a denom marker (`""`/`uclaw`), not a coin string (client packed `"1000uclaw"`).
 
-**Next (cleanups, not blockers):** regenerate the oracle descriptor to fix the
-proto-source vs `.pb.go` package mismatch (`clawchain.oracle.v1beta1` vs
-`terra.oracle.v1beta1`) and add the missing `cosmos.msg.v1.service` annotation
-(Gap B); fix the incomplete `rly` path inside `ibc-two-chain-test.sh` to match the
-working `ibc-relay-rly.sh`; and generate codecs for any remaining query-only protos.
+**Cleanups — both DONE (2026-05-31):**
+- ✅ Oracle descriptor regenerated from the source proto (Gap B): annotation now
+  present, package aligned to `clawchain.oracle.v1beta1`, startup warning gone.
+- ✅ The embedded `rly` path in `ibc-two-chain-test.sh` fixed (proper v2 chain
+  config, key funding, deterministic channel-state check); the script now does a
+  real end-to-end ICS-20 relay (voucher minted on chain-b) with `Relayer: rly`.
+
 All originally-scoped Phase 1 flows (privacy round-trip, oracle reveal, CosmWasm,
-DEX swap, IBC transfer) are now proven live.
+DEX swap, IBC transfer) are proven live, and no functional gaps remain in local
+operation. Remaining work is Gap D (un-mask the app test suite) and the external
+items (security audit, multi-validator genesis ceremony).

@@ -97,11 +97,12 @@ Reproduce via `cmd/clawd/scripts/roundtrip-shield.ts` + `roundtrip-unshield.ts`.
 All 9 custom modules' `Msg` services are now generated and registered in clawd's
 cosmjs registry (53 type urls): privacy, agent, marketplace, oracle, modelregistry,
 reputation, messaging, governance, clawchain. Regenerate with
-`cmd/clawd/scripts/gen-proto.sh`. One sharp edge found live: the **oracle** msgs
-register on-chain under `terra.oracle.v1beta1.*` (the `.pb.go` is generated from
-`terra/oracle/v1beta1/tx.proto`), not the `clawchain.oracle.v1beta1` its proto
-source file declares — the registry must use the `terra.*` type urls or tx parsing
-fails with "unable to resolve type URL".
+`cmd/clawd/scripts/gen-proto.sh`. One sharp edge found live (since FIXED): the
+**oracle** msgs used to register on-chain under `terra.oracle.v1beta1.*` because the
+committed `.pb.go` was stale (generated from an old `terra/oracle/v1beta1/tx.proto`),
+diverging from the `clawchain.oracle.v1beta1` its source proto declares. Gap B
+regenerated `x/oracle` from the source proto, so both chain and client now use
+`clawchain.oracle.v1beta1.*` consistently.
 
 ### Oracle commit-reveal (multi-step), captured live
 
@@ -181,8 +182,10 @@ Agent" CLI (not the Informal-Systems relayer), which is why `rly` was used.
 - **oracle**: codecs are registered in clawd, but the exchange-rate flow is a
   multi-step commit-reveal (prevote hash, then reveal next vote period) — needs a
   multi-step driver, not a single CLI/registry call. `set-feeder` is single-shot.
-- **oracle annotation**: the `terra.oracle.v1beta1.Msg` service is missing the
-  `cosmos.msg.v1.service` proto annotation (a startup warning).
+- **oracle annotation**: ✅ FIXED — `x/oracle` regenerated from its source proto, so
+  the `Msg` service now carries `cosmos.msg.v1.service` (startup warning gone) and
+  registers under `clawchain.oracle.v1beta1.*`. (Was: stale Terra-generated descriptor
+  under `terra.oracle.v1beta1` without the annotation.)
 - **tokenfactory**: CLI tx surface now wired and proven (see plan doc Gap C).
 - **app test suite**: with the boot fixed, the previously-skipped app tests now
   run and reveal test-helper genesis gaps (e.g. `TestExportAppState`). These are
