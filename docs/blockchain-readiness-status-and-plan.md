@@ -5,10 +5,14 @@ _Last updated: 2026-05-31 • Branch: `fix/security-blockers-and-landing-3d`_
 ## Bottom line
 
 The question was: "do we have a full working real blockchain?" The honest answer
-was **no — it could not even start.** After fixing four startup bugs it now boots,
+was **no — it could not even start.** After fixing four startup bugs it boots,
 produces blocks, reaches consensus, and processes real transactions through the
-core SDK and the custom modules. This document records what was wrong, what is now
-proven, and a concrete plan to close the remaining gaps.
+core SDK and the custom modules. Since then **all four remediation gaps (A–D) have
+been closed** and every Phase 1 flow — privacy shield→unshield (real ZK proof),
+oracle commit-reveal, CosmWasm, DEX swap, and a cross-chain IBC transfer — is proven
+live. **No known functional gaps remain in local operation;** the only outstanding
+items are external (security audit, multi-validator genesis ceremony). This document
+records what was wrong, what is now proven, and how each gap was closed.
 
 ## What was actually wrong
 
@@ -47,10 +51,10 @@ module. None were caught by the ~2,450 unit/integration tests, because:
 Every rejection is correct business logic. Full reproduction steps are in
 [blockchain-liveness-evidence.md](blockchain-liveness-evidence.md).
 
-## Remaining gaps & remediation plan
+## Remediation plan & gap status — ✅ all four closed (2026-05-31)
 
-Four known gaps remain. None break block production; the chain runs without them.
-Ordered by leverage.
+Four known gaps were identified; **all are now resolved** (details per gap below).
+None ever broke block production. Ordered by leverage as originally triaged.
 
 ### Gap A — Privacy ZK verifying keys not available in local dev
 
@@ -81,10 +85,19 @@ Ordered by leverage.
   setup is randomized → fresh VK ≠ original), then: shield 5000 (code 0) →
   `clawproof unshield-proof` (merkle_root matched on-chain) → MsgUnshield
   (code 0, height 1174, proof verified on-chain, funds released) → nullifier
-  spent, replay rejected as double-spend. **Remaining real work for Gap A:** the
-  dev key-gen script must emit pk+vk **together** (and seed them at init) so the
-  round-trip is reproducible without a manual VK swap. Repro scripts:
-  `cmd/clawd/scripts/roundtrip-{shield,unshield}.ts`.
+  spent, replay rejected as double-spend.
+- **UPDATE 2 (2026-05-31): ✅ Gap A CLOSED at the source.** `clawchaind privacy
+  gen-dev-keys <dir>` (called by `scripts/local-dev.sh` at init) previously wrote
+  only the verifying keys — it ran `SetupTransfer`/`SetupUnshield`, which return
+  both pk and vk, but discarded the proving keys. Fixed to also write
+  `transfer_pk.bin` + `unshield_pk.bin` (matched pair from the same setup). A dev
+  node seeded by `local-dev.sh` now has a complete key set: clawproof/clawd
+  generate proofs against `<home>/keys` that verify on-chain with **no manual VK
+  swap**. Verified live end-to-end: `gen-dev-keys .local-node/keys` → reboot (VKs
+  loaded, no warning) → shield 8000 → `clawproof unshield-proof --keys-dir
+  .local-node/keys` (root matched) → MsgUnshield code 0, proof verified. Repro:
+  `scripts/gen-privacy-keys.sh` (thin wrapper) + `cmd/clawd/scripts/roundtrip-*.ts`.
+  Production still requires the MPC ceremony output (these dev keys are insecure).
 
 ### Gap B — Oracle `Msg` service missing `cosmos.msg.v1.service` annotation — ✅ FIXED (2026-05-31)
 
@@ -190,7 +203,20 @@ warning); clawd set-feeder/prevote/vote all code 0; `uusd` rate = 1.5;
   `x/tokenfactory/types/descriptor_test.go` (reproduces the original
   "does not have a Descriptor() method" failure and asserts it stays fixed).
 
-### Gap D — Un-masked app tests reveal test-helper genesis gaps
+### Gap D — Un-masked app tests reveal test-helper genesis gaps — ✅ DONE (2026-05-31)
+
+**RESOLVED.** The `recover()/t.Skip()` masking in `newTestApp` is gone (construction
+must succeed or the test fails loudly), and the previously-cascading app tests now
+pass: `go test ./app/...` is green with `TestNewApp`, `TestExportAppState`,
+`TestExportAppStateZeroHeight`, `TestInitGenesisOnMigration`, `TestSetupWithGenesisAccounts`
+all PASSING — zero skipped app-construction tests. The only remaining skips are the
+standard cosmos-sdk simulation tests (`TestFullAppSimulation` etc.), which are gated
+behind the `-Enabled` sim flag by design, not by construction masking. Two regression
+guards added (`app/construction_guard_test.go`): `TestAppConstructionNeverSkips`
+(turns any construction panic into a FAIL, never a skip) and `TestNoConstructionMasking`
+(asserts `newTestApp` never reintroduces `recover()`/`t.Skip`). Original analysis below.
+
+
 
 - **Problem:** with `app.New` fixed, the previously-skipped app tests now run and
   fail in a cascade: `TestExportAppState` first hit agent params, now mint
@@ -215,18 +241,19 @@ warning); clawd set-feeder/prevote/vote all code 0; `uusd` rate = 1.5;
 - **Effort:** ~one to two days (cascade depth unknown). **Risk:** medium — each
   fixed module may reveal the next; bounded by the module count.
 
-## Recommended sequence
+## Recommended sequence — ✅ ALL FOUR GAPS DONE (2026-05-31)
 
-1. **Gap D first** (test honesty): remove the masking and get the app suite truly
-   green, so the test suite stops lying and future regressions are caught.
-2. ~~**Gap B** (oracle annotation)~~ ✅ DONE and **Gap C** (tokenfactory CLI) ✅ DONE:
-   both unlocked and proven live.
-3. **Gap A** (privacy dev keys): unlocks the privacy round-trip demo; keep the
-   prod MPC ceremony as a separate launch-gate item.
+1. ✅ **Gap D** (test honesty): masking removed; `go test ./app/...` green with zero
+   skipped construction tests; regression guards added.
+2. ✅ **Gap B** (oracle annotation) and ✅ **Gap C** (tokenfactory CLI): both unlocked
+   and proven live.
+3. ✅ **Gap A** (privacy dev keys): `gen-dev-keys` now emits pk+vk; round-trip works
+   from a `local-dev.sh`-seeded node with no manual swap. (Prod MPC ceremony stays a
+   separate launch-gate item.)
 
-These are all additive; none reopen the boot fixes. After they land, the chain has
-no known functional gaps in local operation, leaving the external security audit
-and the multi-validator genesis ceremony as the remaining mainnet launch gates
+These were all additive; none reopened the boot fixes. With them landed, **the chain
+has no known functional gaps in local operation** — leaving the external security
+audit and the multi-validator genesis ceremony as the remaining mainnet launch gates
 (tracked in [mainnet/README.md](../mainnet/README.md)).
 
 ## Phase 1 live-exercise findings (2026-05-31)
@@ -235,16 +262,14 @@ Exercising the not-yet-run modules on the live node (the "verify live, not via
 tests" discipline) surfaced these:
 
 - **oracle `set-feeder`**: ✅ works on-chain (code 0). Feeder delegation lands.
-- **oracle `aggregate-prevote`/`aggregate-vote`**: commit-reveal flow (hash of
-  salt+rates, then reveal in the next vote period). Needs the multi-step client
-  driver — not a single CLI call. Not yet proven end-to-end.
-- **privacy `shield`**: the bare `clawchaind tx privacy shield [amount] [coins]`
-  CLI does NOT supply the required 32-byte client blinding factor (msg correctly
-  rejects with code 1107 "blinding factor is required"). The blinding must also be
-  *persisted* by the client to later unshield. **Finding:** privacy shield/unshield
-  are only usable via the richer clawd/SDK client (which manages commitments and
-  proofs), not the raw chain CLI. Either add a `--blinding` flag (printing the
-  value for the user to save) or document clawd as the required client.
+- **oracle `aggregate-prevote`/`aggregate-vote`**: ✅ NOW PROVEN end-to-end via the
+  clawd multi-step driver (`cmd/clawd/scripts/live-oracle-check.ts`): commit
+  `SHA256(salt:rates:valoper)[:20]` → reveal salt+rates next vote period →
+  aggregated `uusd` rate = 1.5. (Salt must be 1–4 chars.)
+- **privacy `shield`**: ✅ NOW PROVEN via the clawd/SDK client, which supplies the
+  32-byte blinding and persists it for unshield (`roundtrip-{shield,unshield}.ts`).
+  Confirmed finding: the bare `clawchaind tx privacy shield` CLI can't drive this
+  (no blinding management) — clawd/SDK is the required client, as documented.
 
 **Takeaway:** the bare `clawchaind` CLI is sufficient for simple modules but
 incomplete for the ZK-privacy and oracle commit-reveal flows, which are
@@ -284,7 +309,8 @@ follow-up PR, separate from the merged chain-core work.
 
 ### Follow-up #1 progress (2026-05-31, branch `followup/clawd-sdk-phase1`)
 
-Steps 1–3 + 5 done; step 4 done for privacy/agent/marketplace (live):
+All steps (1–5) DONE — every custom module's codecs registered and every Phase 1
+flow proven live:
 
 1. **TS proto codecs (DONE, full coverage):** local protoc+ts-proto path via
    `cmd/clawd/scripts/gen-proto.sh` (buf-free fallback; `forceLong=string`,
@@ -312,7 +338,7 @@ Steps 1–3 + 5 done; step 4 done for privacy/agent/marketplace (live):
    unrelated tool, so `rly` was used.
 5. **Non-mocked encode tests (done):** `src/lib/registry.test.ts` round-trips
    real msgs through an actual `Registry`, asserts the bare registry throws
-   (regression guard), and excludes Response types. 636 clawd tests pass.
+   (regression guard), and excludes Response types. 637 clawd tests pass.
 
 Two client-payload bugs that only live testing could surface (both fixed):
 `MsgShield.amount` is uint64→string (client passed BigInt); `MsgShield.coins` is
@@ -326,6 +352,6 @@ a denom marker (`""`/`uclaw`), not a coin string (client packed `"1000uclaw"`).
   real end-to-end ICS-20 relay (voucher minted on chain-b) with `Relayer: rly`.
 
 All originally-scoped Phase 1 flows (privacy round-trip, oracle reveal, CosmWasm,
-DEX swap, IBC transfer) are proven live, and no functional gaps remain in local
-operation. Remaining work is Gap D (un-mask the app test suite) and the external
-items (security audit, multi-validator genesis ceremony).
+DEX swap, IBC transfer) are proven live, all four remediation gaps (A–D) are closed,
+and no functional gaps remain in local operation. The only remaining work is the
+external launch gates: the security audit and the multi-validator genesis ceremony.
