@@ -61,6 +61,85 @@ pub fn broadcast_tx_sync_path(rpc_base: &str, tx_bytes: &[u8]) -> String {
     )
 }
 
+/// Tendermint broadcast mode. `Sync` waits for CheckTx (mempool admission); `Async`
+/// returns immediately; `Commit` waits until the tx is committed in a block.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BroadcastMode {
+    Sync,
+    Async,
+    Commit,
+}
+
+impl BroadcastMode {
+    /// The JSON-RPC method name for this mode.
+    pub fn rpc_method(self) -> &'static str {
+        match self {
+            BroadcastMode::Sync => "broadcast_tx_sync",
+            BroadcastMode::Async => "broadcast_tx_async",
+            BroadcastMode::Commit => "broadcast_tx_commit",
+        }
+    }
+}
+
+/// Build the JSON-RPC POST body for a broadcast (tx sent base64 in the JSON body).
+///
+/// POST is preferred over the GET form for anything but tiny txs: a `0x`-hex GET URL
+/// blows past URL-length limits for large txs (e.g. a CosmWasm `store`), whereas the
+/// POST body has no such limit. The endpoint is the RPC root (`POST {rpc_base}`).
+pub fn broadcast_rpc_body(mode: BroadcastMode, tx_bytes: &[u8]) -> String {
+    format!(
+        r#"{{"jsonrpc":"2.0","id":1,"method":"{}","params":{{"tx":"{}"}}}}"#,
+        mode.rpc_method(),
+        BASE64.encode(tx_bytes)
+    )
+}
+
+/// Parse a JSON-RPC broadcast response for any mode, returning the tx hash on success.
+///
+/// Surfaces JSON-RPC errors and non-zero codes from CheckTx (sync/async) or from
+/// `check_tx`/`tx_result` (commit).
+pub fn parse_broadcast_result(body: &str) -> ClawResult<String> {
+    let env: serde_json::Value =
+        serde_json::from_str(body).map_err(|e| ClawError::Parse(e.to_string()))?;
+    if let Some(err) = env.get("error") {
+        return Err(ClawError::Field(format!("broadcast rpc error: {err}")));
+    }
+    let result = env
+        .get("result")
+        .ok_or_else(|| ClawError::Field("result".into()))?;
+
+    // Commit mode nests check_tx / tx_result (or deliver_tx); sync/async are flat.
+    let check_failure = |node: &serde_json::Value, stage: &str| -> Option<ClawError> {
+        let code = node.get("code").and_then(|c| c.as_u64()).unwrap_or(0);
+        if code != 0 {
+            let log = node.get("log").and_then(|l| l.as_str()).unwrap_or("unknown");
+            return Some(ClawError::Field(format!(
+                "tx rejected by {stage} (code {code}): {log}"
+            )));
+        }
+        None
+    };
+    if let Some(ct) = result.get("check_tx") {
+        if let Some(e) = check_failure(ct, "CheckTx") {
+            return Err(e);
+        }
+        let dt = result.get("tx_result").or_else(|| result.get("deliver_tx"));
+        if let Some(dt) = dt {
+            if let Some(e) = check_failure(dt, "tx execution") {
+                return Err(e);
+            }
+        }
+    } else if let Some(e) = check_failure(result, "CheckTx") {
+        return Err(e);
+    }
+
+    let hash = result
+        .get("hash")
+        .and_then(|h| h.as_str())
+        .ok_or_else(|| ClawError::Field("result.hash".into()))?;
+    Ok(hash.to_string())
+}
+
 // --- Response parsers -----------------------------------------------------
 
 /// Chain identity and head height, parsed from a Tendermint `/status` response.
@@ -400,5 +479,36 @@ mod tests {
             parse_broadcast_sync(body),
             Err(ClawError::Field(_))
         ));
+    }
+
+    #[test]
+    fn builds_broadcast_rpc_body_per_mode() {
+        let b = broadcast_rpc_body(BroadcastMode::Sync, &[0x01, 0x02]);
+        assert!(b.contains(r#""method":"broadcast_tx_sync""#));
+        // tx is base64 of the bytes (0x0102 -> "AQI=").
+        assert!(b.contains(r#""tx":"AQI=""#));
+        assert!(broadcast_rpc_body(BroadcastMode::Async, &[]).contains("broadcast_tx_async"));
+        assert!(broadcast_rpc_body(BroadcastMode::Commit, &[]).contains("broadcast_tx_commit"));
+    }
+
+    #[test]
+    fn parse_broadcast_result_handles_sync_async_and_commit() {
+        // sync/async: flat result with code 0 + hash.
+        let sync = r#"{"result":{"code":0,"hash":"ABC123"}}"#;
+        assert_eq!(parse_broadcast_result(sync).unwrap(), "ABC123");
+        // commit: nested check_tx + tx_result both ok.
+        let commit = r#"{"result":{"check_tx":{"code":0},"tx_result":{"code":0},"hash":"DEF456"}}"#;
+        assert_eq!(parse_broadcast_result(commit).unwrap(), "DEF456");
+        // commit: tx_result failure is surfaced even though check_tx passed.
+        let exec_fail =
+            r#"{"result":{"check_tx":{"code":0},"tx_result":{"code":5,"log":"oops"},"hash":"X"}}"#;
+        let err = parse_broadcast_result(exec_fail).unwrap_err();
+        assert!(matches!(err, ClawError::Field(ref m) if m.contains("tx execution")));
+        // CheckTx failure (flat).
+        let check_fail = r#"{"result":{"code":2,"log":"parse error"}}"#;
+        assert!(matches!(parse_broadcast_result(check_fail), Err(ClawError::Field(_))));
+        // JSON-RPC level error.
+        let rpc_err = r#"{"error":{"code":-32600,"message":"bad"}}"#;
+        assert!(matches!(parse_broadcast_result(rpc_err), Err(ClawError::Field(_))));
     }
 }

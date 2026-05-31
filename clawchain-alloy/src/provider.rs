@@ -3,9 +3,9 @@
 
 use crate::error::{ClawError, ClawResult};
 use crate::query::{
-    account_query_path, balance_query_path, broadcast_tx_sync_path, parse_account, parse_balance,
-    parse_broadcast_sync, parse_smart_query, parse_status, smart_query_path, status_path,
-    AccountInfo, StatusInfo,
+    account_query_path, balance_query_path, broadcast_rpc_body, parse_account, parse_balance,
+    parse_broadcast_result, parse_smart_query, parse_status, smart_query_path, status_path,
+    AccountInfo, BroadcastMode, StatusInfo,
 };
 use crate::signer::ClawSigner;
 use crate::tx::{build_and_sign, build_msg_execute, build_msg_send, compute_fee, TxContext};
@@ -125,11 +125,30 @@ impl ClawProvider {
         })
     }
 
-    /// POST signed tx bytes to Tendermint `/broadcast_tx_sync` and return the hash.
+    /// POST a JSON-RPC body to the RPC root and return the response text.
+    fn post_rpc(&self, body: String) -> ClawResult<String> {
+        let resp = self
+            .client
+            .post(self.rpc_base.trim_end_matches('/'))
+            .header("Content-Type", "application/json")
+            .body(body)
+            .send()
+            .map_err(|e| ClawError::Http(e.to_string()))?
+            .error_for_status()
+            .map_err(|e| ClawError::Http(e.to_string()))?;
+        resp.text().map_err(|e| ClawError::Http(e.to_string()))
+    }
+
+    /// Broadcast signed tx bytes in the given mode via JSON-RPC POST (no URL-length
+    /// limit — safe for large txs like a CosmWasm `store`). Returns the tx hash.
+    pub fn broadcast_with_mode(&self, tx_bytes: &[u8], mode: BroadcastMode) -> ClawResult<String> {
+        let body = self.post_rpc(broadcast_rpc_body(mode, tx_bytes))?;
+        parse_broadcast_result(&body)
+    }
+
+    /// Default broadcast: JSON-RPC POST in `Sync` mode (waits for CheckTx admission).
     fn broadcast(&self, tx_bytes: &[u8]) -> ClawResult<String> {
-        let url = broadcast_tx_sync_path(&self.rpc_base, tx_bytes);
-        let body = self.get(&url)?;
-        parse_broadcast_sync(&body)
+        self.broadcast_with_mode(tx_bytes, BroadcastMode::Sync)
     }
 
     /// Sign and broadcast a bank `MsgSend` (`signer` -> `to`, `amount` of `denom`).

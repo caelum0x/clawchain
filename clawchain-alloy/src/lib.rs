@@ -73,9 +73,9 @@ pub mod tx;
 pub use error::{ClawError, ClawResult};
 pub use provider::ClawProvider;
 pub use query::{
-    account_query_path, balance_query_path, broadcast_tx_sync_path, parse_account, parse_balance,
-    parse_broadcast_sync, parse_smart_query, parse_status, smart_query_path, status_path,
-    AccountInfo, Coin, StatusInfo,
+    account_query_path, balance_query_path, broadcast_rpc_body, broadcast_tx_sync_path,
+    parse_account, parse_balance, parse_broadcast_result, parse_broadcast_sync, parse_smart_query,
+    parse_status, smart_query_path, status_path, AccountInfo, BroadcastMode, Coin, StatusInfo,
 };
 pub use signer::{ClawSigner, CLAW_PREFIX};
 pub use tx::{
