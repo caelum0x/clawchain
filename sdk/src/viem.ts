@@ -148,6 +148,9 @@ export function createClawViemClient(options: ClawViemAdapterOptions = {}): Claw
       rpcUrl,
       grpcUrl: options.grpcUrl,
       mnemonic: options.mnemonic,
+      // Forward an external offline signer (e.g. a browser wallet) so wallet-signed
+      // txs work without a mnemonic; takes precedence over mnemonic in the client.
+      offlineSigner: options.offlineSigner,
       prefix: options.prefix ?? DEFAULT_PREFIX,
       gasPrice: options.gasPrice ?? DEFAULT_GAS_PRICE,
     });
