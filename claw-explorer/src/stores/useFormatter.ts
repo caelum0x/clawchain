@@ -353,10 +353,21 @@ export const useFormatter = defineStore('formatter', {
     },
     messages(msgs: { '@type'?: string; typeUrl?: string }[]) {
       if (msgs) {
+        // Optional human labels for clawchain custom-module msg type urls.
+        // Any type url not listed here falls back to the generic last-segment
+        // label below, so unknown/custom msgs still render correctly.
+        const customMsgLabels: Record<string, string> = {
+          '/clawchain.privacy.v1.MsgShield': 'Shield',
+          '/clawchain.agent.v1.MsgRegisterAgent': 'Register Agent',
+          '/clawchain.marketplace.v1.MsgListSkill': 'List Skill',
+          '/terra.oracle.v1beta1.MsgAggregateExchangeRateVote': 'Oracle Vote',
+        };
         const sum: Record<string, number> = msgs
           .map((msg) => {
             const msgType = msg['@type'] || msg.typeUrl || 'unknown';
-            return msgType.substring(msgType.lastIndexOf('.') + 1).replace('Msg', '');
+            return (
+              customMsgLabels[msgType] ?? msgType.substring(msgType.lastIndexOf('.') + 1).replace('Msg', '')
+            );
           })
           .reduce((s, c) => {
             const sh: Record<string, number> = s;

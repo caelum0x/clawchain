@@ -1,14 +1,14 @@
 {
-  "chain_name": "clawchain",
-  "registry_name": "ClawChain",
-  "chain_id": "clawchain-1",
-  "network_type": "mainnet",
+  "chain_name": "clawchain-devnet",
+  "registry_name": "ClawChain Devnet",
+  "chain_id": "clawchain-local",
+  "network_type": "devnet",
   "theme_color": "#6C5CE7",
   "api": [
-    { "provider": "ClawChain", "address": "https://api.REPLACE_ME.clawchain.io" }
+    { "provider": "ClawChain (local dev)", "address": "http://localhost:1317" }
   ],
   "rpc": [
-    { "provider": "ClawChain", "address": "https://rpc.REPLACE_ME.clawchain.io" }
+    { "provider": "ClawChain (local dev)", "address": "http://localhost:26657" }
   ],
   "sdk_version": "0.53.6",
   "coin_type": "118",

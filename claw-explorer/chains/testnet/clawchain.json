@@ -1,13 +1,14 @@
 {
   "chain_name": "clawchain-testnet",
   "registry_name": "ClawChain Testnet",
+  "chain_id": "clawchain-testnet-1",
   "network_type": "testnet",
   "theme_color": "#6C5CE7",
   "api": [
-    { "provider": "ClawChain", "address": "http://localhost:1317" }
+    { "provider": "ClawChain (local dev)", "address": "http://localhost:1317" }
   ],
   "rpc": [
-    { "provider": "ClawChain", "address": "http://localhost:26657" }
+    { "provider": "ClawChain (local dev)", "address": "http://localhost:26657" }
   ],
   "sdk_version": "0.53.6",
   "coin_type": "118",
