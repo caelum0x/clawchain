@@ -146,21 +146,27 @@ local node (`scripts/dex-local-swap.sh`):
 **Action for ops:** deploy the DEX from the local builds, not the neutron-targeted
 `artifacts/` (or rebuild Astroport without the `neutron` feature).
 
-**IBC — two chains boot; end-to-end relay not exercised (no relayer).**
-`scripts/ibc-two-chain-test.sh` now runs on macOS after two real bug fixes:
-(1) it set gov `voting_period=30s` without lowering `expedited_voting_period`
-(genesis validation requires expedited < regular); (2) two `[api]`/`[grpc]`
-range-block `sed` calls used GNU-only syntax that BSD/macOS sed rejects
-("bad flag in substitute command: '}'"). With those fixed, both chains
-(`clawchain-ibc-a`/`-b`) initialize, start, and produce blocks, and REST/RPC are
-healthy. **But:** the only `hermes` on this machine's PATH is an unrelated
-"Hermes Agent" CLI, not the Informal-Systems IBC relayer, so no client/
-connection/channel could be created — the script falls back to "manual" mode,
-which verifies IBC transfer **tx construction/submission on the source chain
-only**, NOT cross-chain packet relay or receipt on the destination. A genuine
-ICS-20 round-trip (escrow → relay → voucher mint) requires installing a real
-relayer (`hermes` 1.x or `rly`). Two-chain boot: proven. Cross-chain delivery:
-pending a relayer binary.
+**IBC — full ICS-20 transfer proven end-to-end** (two chains + real relayer).
+Getting here required two bug fixes to `scripts/ibc-two-chain-test.sh` (it set gov
+`voting_period=30s` without lowering `expedited_voting_period`, which genesis
+validation rejects; and two `[api]`/`[grpc]` range-block `sed` calls used GNU-only
+syntax that BSD/macOS sed rejects). With those, both chains (`clawchain-ibc-a`/`-b`)
+boot and produce blocks. The relayer path in that script is incomplete, so the
+real relay was driven by `scripts/ibc-relay-rly.sh` using the Go relayer (`rly`,
+`go install github.com/cosmos/relayer/v2@latest`):
+
+| Step | Result | Evidence |
+|---|---|---|
+| client + connection handshake | OK | `07-tendermint-0`, `connection-0` on both chains |
+| channel handshake (transfer/ics20-1) | OK | `channel-0` Init→Try→Ack→Confirm, all relayed |
+| ICS-20 transfer 5000 uclaw A→B | code 0 | source escrow, tx `9F0DF8EC…` |
+| relayer delivers `MsgRecvPacket` on B | OK | height 474, voucher minted |
+| chain-B user receives voucher | — | `ibc/EE9C0F2F79E4C612…` = 5000 |
+| `MsgAcknowledgement` relayed back to A | OK | height 476 |
+
+A genuine cross-chain round-trip: escrow on A → relay → voucher mint on B → ack
+back to A. NOTE: the only `hermes` on this machine's PATH is an unrelated "Hermes
+Agent" CLI (not the Informal-Systems relayer), which is why `rly` was used.
 
 ## Known limitations (not chain-breaking)
 
