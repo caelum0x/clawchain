@@ -72,6 +72,19 @@ Ordered by leverage.
 - **Acceptance:** `clawd privacy shield` succeeds on the local node; the
   shield→private-transfer→unshield round-trip works end-to-end.
 - **Effort:** ~half a day. **Risk:** low (dev-only); keep prod ceremony separate.
+- **UPDATE (2026-05-31): shield→unshield round-trip PROVEN live; key-gen gap
+  refined.** The VKs now exist in `.local-node/keys/`, but the **proving keys
+  (`*_pk.bin`) are NOT distributed with them**, so no verifiable unshield proof
+  can be produced from the on-chain VK as-is. To prove the round-trip we ran
+  `clawproof setup` (fast, ~4s; transfer 46659 / unshield 22604 constraints) to
+  regenerate a fresh pk+vk pair, swapped the new dev VK onto the node (Groth16
+  setup is randomized → fresh VK ≠ original), then: shield 5000 (code 0) →
+  `clawproof unshield-proof` (merkle_root matched on-chain) → MsgUnshield
+  (code 0, height 1174, proof verified on-chain, funds released) → nullifier
+  spent, replay rejected as double-spend. **Remaining real work for Gap A:** the
+  dev key-gen script must emit pk+vk **together** (and seed them at init) so the
+  round-trip is reproducible without a manual VK swap. Repro scripts:
+  `cmd/clawd/scripts/roundtrip-{shield,unshield}.ts`.
 
 ### Gap B — Oracle `Msg` service missing `cosmos.msg.v1.service` annotation
 
@@ -246,3 +259,32 @@ same theme as the chain-core findings (green tests over non-working code):
 
 This is a self-contained multi-step effort — the right size for a focused
 follow-up PR, separate from the merged chain-core work.
+
+### Follow-up #1 progress (2026-05-31, branch `followup/clawd-sdk-phase1`)
+
+Steps 1–3 + 5 done; step 4 done for privacy/agent/marketplace (live):
+
+1. **TS proto codecs (done, partial coverage):** local protoc+ts-proto path via
+   `cmd/clawd/scripts/gen-proto.sh` (buf-free fallback; `forceLong=string`,
+   `importSuffix=.js`). Generated for privacy, agent, marketplace, oracle.
+   Remaining: modelregistry, reputation, messaging, governance, clawchain.
+2. **Shared registry + helper (done):** `src/lib/registry.ts` derives type-url
+   entries per module (`moduleTypes`), `src/lib/signing.ts` exposes
+   `connectClawchainSigningClient`. Every command must connect through it.
+3. **clawd build fixed (done):** the pre-existing `gpu-provider-setup.test.ts`
+   `never`-return mock typing is fixed; `tsc` is green (was exit 2).
+4. **Live flows (done for 3 modules):** privacy shield + full shield→unshield ZK
+   round-trip; agent register-agent; marketplace list-skill — all code 0
+   (evidence in [blockchain-liveness-evidence.md](blockchain-liveness-evidence.md)
+   Layer 4). Oracle commit-reveal and CosmWasm/DEX/IBC remain.
+5. **Non-mocked encode tests (done):** `src/lib/registry.test.ts` round-trips
+   real msgs through an actual `Registry`, asserts the bare registry throws
+   (regression guard), and excludes Response types. 636 clawd tests pass.
+
+Two client-payload bugs that only live testing could surface (both fixed):
+`MsgShield.amount` is uint64→string (client passed BigInt); `MsgShield.coins` is
+a denom marker (`""`/`uclaw`), not a coin string (client packed `"1000uclaw"`).
+
+**Next:** generate the remaining modules' codecs; drive the oracle commit-reveal
+and CosmWasm/DEX/IBC flows; emit pk+vk together in the privacy dev key-gen (Gap A)
+so the round-trip needs no manual VK swap.

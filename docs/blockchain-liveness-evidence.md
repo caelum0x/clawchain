@@ -66,16 +66,48 @@ staked voter's weight equals their bonded amount.
 Every rejection above is **correct business logic**, not a chain failure — the
 modules execute real state machines with real validation.
 
+## Layer 4 — clawd client layer (cosmjs registry, real custom-module txs)
+
+Captured 2026-05-31 on `clawchain-local`. Until now clawd could not submit **any**
+custom-module tx: every command built its `SigningStargateClient` with cosmjs's
+default registry, which has no `/clawchain.*` codec, so `signAndBroadcast` threw
+"Unregistered type url". Its 581 tests passed only because they mocked
+`connectWithSigner` — the same "green tests over non-working code" pattern.
+
+Fixed by generating ts-proto codecs (`cmd/clawd/scripts/gen-proto.sh`) and a
+shared registry (`cmd/clawd/src/lib/registry.ts`) wired through
+`connectClawchainSigningClient`. Proven with real signed txs (not mocks):
+
+| Module | Action | Result | Evidence |
+|---|---|---|---|
+| privacy | shield 1000 uclaw | code 0 | tx `7E659E63…`, height 753, leaf_count 0→1 |
+| privacy | **shield→unshield round-trip** | code 0 | shield 5000 (commit `1ea3acbb…`); clawproof Groth16 proof; unshield tx `45290A90…` height 1174, **proof verified against on-chain VK**, funds released |
+| privacy | unshield replay (same proof) | **rejected** | `nullifier … already been used (double-spend)` (`state_machine.go:54`); nullifier `exists=true` |
+| agent | register-agent | code 0 | tx `ED37B2D0…`, height 1100; re-register correctly rejected `already registered` |
+| marketplace | list-skill | code 0 | tx `66A18880…`, height 1105 |
+
+The privacy round-trip is the headline: shield commits a MiMC commitment to the
+Merkle tree, `clawproof unshield-proof` rebuilds the tree from the leaves and
+generates a Groth16 proof whose `merkle_root` matched the on-chain root
+(`21d851…`), and the chain verified the proof on-chain before releasing funds.
+Reproduce via `cmd/clawd/scripts/roundtrip-shield.ts` + `roundtrip-unshield.ts`.
+
 ## Known limitations (not chain-breaking)
 
-- **privacy**: ZK verifying keys are not generated in the local dev setup
-  (`.local-node/keys/*_vk.bin` missing) — shield/unshield need a trusted-setup
-  ceremony output before use. Non-privacy operations are unaffected.
-- **oracle**: the `terra.oracle.v1beta1.Msg` service is missing the
-  `cosmos.msg.v1.service` proto annotation (a startup warning). Oracle vote txs
-  should be validated once that annotation is added.
-- **tokenfactory**: no `tx tokenfactory` CLI command is registered (module is
-  wired; CLI surface is missing).
+- **privacy proving key**: the on-chain VKs (`.local-node/keys/*_vk.bin`) now
+  exist, but **no matching proving key (`*_pk.bin`) is distributed**, so a
+  verifiable unshield proof cannot be made from them as-is. The round-trip above
+  required `clawproof setup` to regenerate a fresh pk+vk pair and swapping the
+  new dev VK onto the node (Groth16 setup is randomized → fresh VK ≠ original).
+  The dev key-gen path (Gap A) must emit pk+vk **together**. Mainnet must use the
+  MPC ceremony output. Also: `clawproof --blinding` is a uint64 while the on-chain
+  msg accepts a 256-bit blinding — keep dev blindings in uint64 range to reproduce.
+- **oracle**: codecs are registered in clawd, but the exchange-rate flow is a
+  multi-step commit-reveal (prevote hash, then reveal next vote period) — needs a
+  multi-step driver, not a single CLI/registry call. `set-feeder` is single-shot.
+- **oracle annotation**: the `terra.oracle.v1beta1.Msg` service is missing the
+  `cosmos.msg.v1.service` proto annotation (a startup warning).
+- **tokenfactory**: CLI tx surface now wired and proven (see plan doc Gap C).
 - **app test suite**: with the boot fixed, the previously-skipped app tests now
   run and reveal test-helper genesis gaps (e.g. `TestExportAppState`). These are
   test-helper issues; the live chain has correct state (verified).
