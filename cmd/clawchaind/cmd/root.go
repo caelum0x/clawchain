@@ -19,6 +19,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"clawchain/app"
+	tokenfactorytypes "clawchain/x/tokenfactory/types"
 )
 
 // NewRootCmd creates a new root command for clawchaind. It is called once in the main function.
@@ -110,6 +111,15 @@ func ProvideClientContext(
 	txConfigOpts tx.ConfigOptions,
 	legacyAmino *codec.LegacyAmino,
 ) client.Context {
+	// The tokenfactory module is wired into the app manually (see
+	// app/tokenfactory.go) rather than through depinject's app_config, so its
+	// Msg types are registered on the server's InterfaceRegistry via
+	// app.RegisterModules but NOT on the client-side registry that depinject
+	// builds here. Without this call, client-side tx decoding (e.g.
+	// `clawchaind query tx`, block explorers, tx history) fails with
+	// "unable to resolve type URL /osmosis.tokenfactory.v1beta1.Msg*".
+	tokenfactorytypes.RegisterInterfaces(interfaceRegistry)
+
 	clientCtx := client.Context{}.
 		WithCodec(appCodec).
 		WithInterfaceRegistry(interfaceRegistry).

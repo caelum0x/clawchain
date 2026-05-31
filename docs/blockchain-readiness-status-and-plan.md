@@ -131,16 +131,29 @@ Ordered by leverage.
      runtime passes, so the assertion silently failed and **no** msg handlers were
      registered ("no message handler found"). Now registers directly on the
      `grpc.ServiceRegistrar`. CheckTx now passes (code 0).
-  3. **Block inclusion (still broken):** create-denom/mint pass CheckTx but are
-     silently excluded from block proposals (PrepareProposal) and never commit —
-     a signer/ante incompatibility in the proposal exec path that stems from the
-     types being hand-crafted rather than generated. Normal txs (bank, staking,
-     gov, marketplace, messaging) commit fine on the same node, so this is
-     tokenfactory-specific.
-  - **Conclusion:** the clean fix is to **fully regenerate the tokenfactory module
-    from real Osmosis protos** (Marshal/Unmarshal, GetSigners, descriptors — not
-    just patch the hand-crafted types). Layers 1–2 are correct and committed; the
-    module is still not usable on-chain until layer 3 (full regen) lands.
+  3. **Block inclusion (fixed):** create-denom/mint passed CheckTx but were
+     silently excluded from block proposals (PrepareProposal) and never committed.
+     Root cause: the *first* descriptor attempt (`tx_descriptor.go`, hand-built)
+     omitted the `cosmos.msg.v1.signer` option, so the proposal-path ante handler
+     could not resolve the signer and dropped the tx. Replacing it with a
+     **properly generated** descriptor (`descriptor.go`, from
+     `proto/osmosis/tokenfactory/v1beta1/tx.proto` via `protoc-gen-gocosmos`,
+     carrying the signer option + the `Msg` service) makes the signer resolvable.
+  4. **Client-side decode (fixed):** `clawchaind query tx` (and block explorers /
+     tx history) failed with "unable to resolve type URL
+     /osmosis.tokenfactory.v1beta1.Msg*". The module is wired into the app manually
+     (`app/tokenfactory.go`), so `app.RegisterModules` registers its interfaces on
+     the *server* registry, but the depinject-built *client* registry in
+     `cmd/clawchaind/cmd/root.go` never saw them. Fixed by calling
+     `tokenfactorytypes.RegisterInterfaces` in `ProvideClientContext`.
+- **STATUS: DONE (2026-05-31).** All four layers fixed with a **surgical** change
+  (the hand-written Marshal/Unmarshal and `ProtoCoin` in `msgs.go` are unchanged,
+  so the validated Astroport-DEX Stargate wire path and all existing tests are
+  preserved). Proven end-to-end on the live local node as **real signed CLI txs**:
+  `create-denom` (code 0) → `mint 1000000` (balance = 1000000) → `burn 400000`
+  (balance = 600000), and `query tx` now decodes the messages. Regression test:
+  `x/tokenfactory/types/descriptor_test.go` (reproduces the original
+  "does not have a Descriptor() method" failure and asserts it stays fixed).
 
 ### Gap D — Un-masked app tests reveal test-helper genesis gaps
 
