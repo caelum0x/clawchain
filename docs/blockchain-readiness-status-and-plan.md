@@ -120,6 +120,27 @@ Ordered by leverage.
     embed a file descriptor and add `Descriptor()` methods like the oracle module
     fix). This is the actual blocker; the CLI is ready once it lands.
   - **Reclassified effort:** ~one day (proto descriptor generation for ~8 msgs).
+- **UPDATE 2 (2026-05-31): two more layers fixed; a third, deeper one remains.**
+  The hand-crafted types are broken at multiple layers, peeled back in order:
+  1. **Decode (fixed):** added a real proto file descriptor + `Descriptor()`
+     methods (`x/tokenfactory/types/descriptor.go`, generated from a new
+     `proto/osmosis/tokenfactory/v1beta1/tx.proto`, with `cosmos.msg.v1.signer`
+     and `cosmos.msg.v1.service` options). Txs now decode.
+  2. **Handler registration (fixed):** `AppModule.RegisterServices` type-asserted
+     the registrar to `module.Configurator`, which is NOT what the depinject
+     runtime passes, so the assertion silently failed and **no** msg handlers were
+     registered ("no message handler found"). Now registers directly on the
+     `grpc.ServiceRegistrar`. CheckTx now passes (code 0).
+  3. **Block inclusion (still broken):** create-denom/mint pass CheckTx but are
+     silently excluded from block proposals (PrepareProposal) and never commit —
+     a signer/ante incompatibility in the proposal exec path that stems from the
+     types being hand-crafted rather than generated. Normal txs (bank, staking,
+     gov, marketplace, messaging) commit fine on the same node, so this is
+     tokenfactory-specific.
+  - **Conclusion:** the clean fix is to **fully regenerate the tokenfactory module
+    from real Osmosis protos** (Marshal/Unmarshal, GetSigners, descriptors — not
+    just patch the hand-crafted types). Layers 1–2 are correct and committed; the
+    module is still not usable on-chain until layer 3 (full regen) lands.
 
 ### Gap D — Un-masked app tests reveal test-helper genesis gaps
 
