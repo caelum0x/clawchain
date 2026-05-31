@@ -9,7 +9,6 @@ import (
 	"clawchain/x/oracle/types"
 
 	"cosmossdk.io/core/appmodule"
-	"cosmossdk.io/core/store"
 	"cosmossdk.io/depinject"
 	"cosmossdk.io/depinject/appconfig"
 	storetypes "cosmossdk.io/store/types"
@@ -31,10 +30,12 @@ func init() {
 type ModuleInputs struct {
 	depinject.In
 
-	Config       *types.Module
-	StoreService store.KVStoreService
-	Cdc          codec.Codec
-	Key          *storetypes.KVStoreKey
+	// NOTE: request only the raw KVStoreKey (the keeper is legacy-style). Do NOT
+	// also request store.KVStoreService — the runtime would create and mount a
+	// second "oracle" store key, causing a duplicate-store-key panic at startup.
+	Config *types.Module
+	Cdc    codec.Codec
+	Key    *storetypes.KVStoreKey
 
 	AccountKeeper types.AccountKeeper
 	BankKeeper    types.BankKeeper
@@ -43,6 +44,7 @@ type ModuleInputs struct {
 
 	ParamsKeeper interface {
 		GetSubspace(moduleName string) (paramstypes.Subspace, bool)
+		Subspace(s string) paramstypes.Subspace
 	} `optional:"true"`
 }
 
@@ -60,9 +62,13 @@ func ProvideModule(in ModuleInputs) ModuleOutputs {
 	var paramSpace paramstypes.Subspace
 	if in.ParamsKeeper != nil {
 		ps, ok := in.ParamsKeeper.GetSubspace(types.ModuleName)
-		if ok {
-			paramSpace = ps
+		if !ok {
+			// The oracle subspace hasn't been registered yet — register it now.
+			// The keeper installs its own key table (see NewKeeper), so a bare
+			// subspace is sufficient here.
+			ps = in.ParamsKeeper.Subspace(types.ModuleName)
 		}
+		paramSpace = ps
 	}
 	if paramSpace.Name() == "" {
 		panic("oracle module requires a valid params subspace; ensure ParamsKeeper is wired in depinject")
