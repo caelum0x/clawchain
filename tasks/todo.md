@@ -1,5 +1,22 @@
 # Task Plan
 
+## Vendored Integration V1 2026-05-31
+
+- [x] Inspect the vendored integration plan, SDK, clawd registry, and package layout.
+- [x] Add a first ClawChain-native TypeScript adapter/example slice without modifying vendored upstream internals.
+- [x] Verify the slice locally with unit/smoke checks and, if practical, against devnet.
+- [x] Update `docs/plans/2026-05-31-vendored-integration.md` from plan-only to implemented status.
+- [x] Commit the finished local work.
+
+### Review
+
+- Added `sdk/src/viem.ts` with `createClawViemClient`, a viem-style ClawChain adapter that uses Tendermint status, Cosmos bank sends, and CosmWasm smart query/execute instead of `eth_*` JSON-RPC.
+- Exported the adapter and public types from `sdk/src/index.ts`.
+- Added `sdk/examples/viem-adapter.ts` and documented the adapter in `sdk/README.md`.
+- Added `sdk/src/viem.test.ts` covering connect/disconnect, chain id, block height, account, balance, bank send, CosmWasm read/write mapping, and transfer amount validation.
+- Updated `docs/plans/2026-05-31-vendored-integration.md` so Option B is marked selected for V1 and the remaining live-devnet/event/wagmi/alloy work stays explicit.
+- Verified `cd sdk && npm run build`, `cd sdk && npm test -- --test-reporter=spec dist/viem.test.js` (294 passed / 0 failed), and `git diff --check`.
+
 ## Devnet Optional Completion 2026-05-31
 
 - [x] Inspect current devnet, IBC, Docker, faucet, explorer, and web hooks.

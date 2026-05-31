@@ -50,6 +50,18 @@ export {
   clawCAIP10,
 } from "./walletconnect.js";
 
+// viem-style ClawChain adapter (Cosmos/Tendermint/CosmWasm-backed, not EVM)
+export { createClawViemClient } from "./viem.js";
+export type {
+  ClawViemAdapterOptions,
+  ClawViemClient,
+  ClawViemClientBackend,
+  ClawViemReadContractRequest,
+  ClawViemTransferRequest,
+  ClawViemTx,
+  ClawViemWriteContractRequest,
+} from "./viem.js";
+
 export type {
   ClawWalletConnectConfig,
   WalletConnectSession,

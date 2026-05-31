@@ -92,6 +92,37 @@ await agent.register();
 await agent.shieldTokens(1_000_000);
 ```
 
+### Viem-style ClawChain adapter
+
+For codebases that expect viem-shaped client methods, the SDK includes a
+ClawChain-native adapter. It does not emulate Ethereum JSON-RPC; it maps familiar
+method names to Tendermint, Cosmos bank, and CosmWasm calls.
+
+```typescript
+import { createClawViemClient } from "@clawchain/sdk";
+
+const mnemonic = process.env.CLAW_MNEMONIC;
+const client = createClawViemClient({
+  rpcUrl: "http://localhost:26657",
+  mnemonic,
+});
+
+await client.connect();
+
+const chainId = await client.getChainId();
+const height = await client.getBlockNumber();
+
+console.log({ chainId, height });
+
+if (mnemonic) {
+  const { address } = client.getAccount();
+  const balance = await client.getBalance({ address });
+  console.log({ address, balance });
+}
+
+await client.disconnect();
+```
+
 ## API Reference
 
 All public methods are available on the `ClawChainClient` class. Methods that submit transactions require a mnemonic to be provided at construction time. Query methods work in read-only mode.

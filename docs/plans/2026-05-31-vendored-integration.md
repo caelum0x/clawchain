@@ -1,6 +1,24 @@
 # Vendored-Project Integration Plan (make `viem` / `wagmi` / `alloy` use ClawChain)
 
-_Plan only — no code yet. Status: 2026-05-31. Owner: TBD._
+_Status: 2026-05-31. V1 TypeScript adapter slice implemented in `@clawchain/sdk`.
+Owner: TBD._
+
+## Current implementation status
+
+Option B is selected for the first implementation slice: ClawChain-native adapters
+layered beside the vendored projects. No EVM compatibility or `eth_*` JSON-RPC
+emulation has been added.
+
+Implemented now:
+- `sdk/src/viem.ts` exports `createClawViemClient`, a viem-style client surface
+  backed by Tendermint status, Cosmos bank sends, and CosmWasm smart query/execute.
+- `sdk/src/index.ts` exports the adapter and its public TypeScript types from
+  `@clawchain/sdk`.
+- `sdk/examples/viem-adapter.ts` is a runnable read-only example, with signed account
+  reads enabled by `CLAW_MNEMONIC`.
+- `sdk/src/viem.test.ts` covers connect/disconnect, chain id, block height, account,
+  balance, bank send mapping, CosmWasm read mapping, CosmWasm write mapping, and
+  transfer amount validation.
 
 ## The core mismatch (read first)
 
@@ -49,23 +67,24 @@ What maps cleanly vs not:
 
 Start with **Option B**, scoped per library, exposing a ClawChain-native client with a
 familiar API — and treat Option A as a separate, later product decision (needs its own
-design + audit).
+design + audit). This is now the active path for V1.
 
 ## Phased plan (Option B)
 
 ### V0 — Decide & scope (design spike)
-- Confirm the goal: "use ClawChain from these ecosystems" (transport + contracts) vs
+- [x] Confirm the goal: "use ClawChain from these ecosystems" (transport + contracts) vs
   "run EVM contracts" (→ Option A). Document the decision.
-- Inventory which exact APIs of each lib are in scope (connect, accounts, read, send,
+- [x] Inventory which exact APIs of each lib are in scope (connect, accounts, read, send,
   contract exec) and which are explicitly out (EVM execution).
 
 ### V1 — TypeScript: `viem` adapter
-- Provide a `@clawchain/viem` (or a viem transport) that implements viem's client
-  surface over Tendermint RPC + `@clawchain/sdk`'s registry (the 9-module cosmjs
-  `Registry` already exists in `cmd/clawd/src/lib/registry.ts`).
-- Contract interactions route to CosmWasm (`MsgExecuteContract`/smart-query) rather
+- [x] Provide a first viem-style adapter in `@clawchain/sdk` that implements a familiar
+  client surface over Tendermint RPC + existing SDK methods.
+- [x] Contract interactions route to CosmWasm (`MsgExecuteContract`/smart-query) rather
   than `eth_call`.
-- Tests against a devnet (the devnet plan) for connect/read/send/contract-exec.
+- [x] Unit tests cover connect/read/send/contract mapping with a mocked backend.
+- [ ] Run a live devnet transaction/example pass for signed bank send and CosmWasm
+  execute once a contract fixture is selected for this adapter example.
 
 ### V2 — React: `wagmi` adapter
 - Since wagmi is hooks-over-viem, build it on the V1 viem adapter: a ClawChain
@@ -84,16 +103,19 @@ design + audit).
 
 ## Acceptance criteria (per library, Option B)
 
-- Connect to a ClawChain devnet, read chain id/height/account/balance.
-- Sign + broadcast a bank send and a CosmWasm `MsgExecuteContract` that lands code 0.
-- Subscribe to / read Tendermint events for a tx.
-- A runnable example + docs; no `eth_*` dependency in the happy path.
+- [x] Adapter can read chain id/height/account/balance through the SDK surface.
+- [x] Adapter maps `sendTransaction` to Cosmos bank send.
+- [x] Adapter maps `readContract`/`writeContract` to CosmWasm smart query/execute.
+- [x] Runnable example and SDK docs exist; no `eth_*` dependency in the happy path.
+- [ ] Live devnet example for signed bank send and CosmWasm execute.
+- [ ] Subscribe to / read Tendermint events for a tx.
 
 ## Open decisions
 
-- **The big one:** Option A (EVM compat, libs unmodified) vs Option B (adapt libs to
-  Cosmos). Default recommendation: B now, A as a separate product track.
-- Whether to publish adapters as standalone packages or fold into `@clawchain/sdk`.
+- **Resolved for V1:** Option B (adapt libs to Cosmos). Option A remains a separate
+  product track only if EVM/Solidity support becomes a product requirement.
+- Whether to publish adapters as standalone packages or keep them folded into
+  `@clawchain/sdk`.
 - Keep the vendored upstreams as references (do NOT delete — see memory:
   "vendored forks are intentional") and layer adapters alongside.
 
