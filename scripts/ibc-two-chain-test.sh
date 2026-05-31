@@ -347,7 +347,10 @@ tx_and_wait() {
 RELAYER_TYPE="none"
 
 detect_relayer() {
-    if command -v hermes &>/dev/null; then
+    # Only treat `hermes` as usable if it's the Informal-Systems IBC relayer
+    # (reports "hermes <semver>"). Some environments have an unrelated tool also
+    # named `hermes` on PATH; in that case fall through to rly.
+    if command -v hermes &>/dev/null && hermes version 2>/dev/null | grep -qiE '^hermes [0-9]'; then
         RELAYER_TYPE="hermes"
         ok "Using Hermes relayer"
         return
@@ -469,53 +472,68 @@ setup_rly_relayer() {
     info "Configuring Go relayer (rly)..."
 
     local rly_dir="${DATA_DIR}/relayer"
-    mkdir -p "${rly_dir}"
-
-    export RLY_HOME="${rly_dir}"
+    rm -rf "${rly_dir}"; mkdir -p "${rly_dir}"
 
     rly config init --home "${rly_dir}" 2>/dev/null || true
 
-    # Add chain configs
-    rly chains add --home "${rly_dir}" --url "http://localhost:${CHAIN_A_RPC}" "${CHAIN_A_ID}" 2>/dev/null || {
-        # Manual chain config
-        cat > "${rly_dir}/chains/${CHAIN_A_ID}.json" <<HEREDOC
-{
-  "type": "cosmos",
-  "value": {
-    "key": "relayer",
-    "chain-id": "${CHAIN_A_ID}",
-    "rpc-addr": "http://localhost:${CHAIN_A_RPC}",
-    "account-prefix": "claw",
-    "keyring-backend": "test",
-    "gas-adjustment": 1.5,
-    "gas-prices": "0${DENOM}",
-    "min-gas-amount": 0,
-    "debug": false,
-    "timeout": "10s"
-  }
-}
+    # rly v2 adds chains from a config FILE (not --url, which expects a chain
+    # registry). Write a proper per-chain config and add it. The `rpc-addr` in the
+    # file points each chain at its own node, so no --node juggling is needed.
+    local cfg_a="${rly_dir}/chain-a.json" cfg_b="${rly_dir}/chain-b.json"
+    cat > "${cfg_a}" <<HEREDOC
+{"type":"cosmos","value":{"key":"rkey","chain-id":"${CHAIN_A_ID}","rpc-addr":"http://localhost:${CHAIN_A_RPC}","account-prefix":"claw","keyring-backend":"test","gas-adjustment":1.6,"gas-prices":"0.025${DENOM}","coin-type":118,"timeout":"20s","output-format":"json","sign-mode":"direct"}}
 HEREDOC
-    }
+    cat > "${cfg_b}" <<HEREDOC
+{"type":"cosmos","value":{"key":"rkey","chain-id":"${CHAIN_B_ID}","rpc-addr":"http://localhost:${CHAIN_B_RPC}","account-prefix":"claw","keyring-backend":"test","gas-adjustment":1.6,"gas-prices":"0.025${DENOM}","coin-type":118,"timeout":"20s","output-format":"json","sign-mode":"direct"}}
+HEREDOC
+    rly chains add --file "${cfg_a}" "${CHAIN_A_ID}" --home "${rly_dir}" || { warn "rly chains add A failed"; RELAYER_TYPE="manual"; return 1; }
+    rly chains add --file "${cfg_b}" "${CHAIN_B_ID}" --home "${rly_dir}" || { warn "rly chains add B failed"; RELAYER_TYPE="manual"; return 1; }
 
-    rly chains add --home "${rly_dir}" --url "http://localhost:${CHAIN_B_RPC}" "${CHAIN_B_ID}" 2>/dev/null || true
+    # Create fresh relayer keys and fund them from each chain's validator. (The
+    # genesis "relayer" account's mnemonic isn't captured, so we can't restore it;
+    # funding a new rly key is simpler and self-contained.)
+    local rly_addr_a rly_addr_b
+    rly_addr_a=$(rly keys add "${CHAIN_A_ID}" rkey --home "${rly_dir}" 2>/dev/null | jq -r '.address')
+    rly_addr_b=$(rly keys add "${CHAIN_B_ID}" rkey --home "${rly_dir}" 2>/dev/null | jq -r '.address')
+    if [ -z "${rly_addr_a}" ] || [ -z "${rly_addr_b}" ]; then
+        warn "rly key creation failed"; RELAYER_TYPE="manual"; return 1
+    fi
+    ${BINARY} tx bank send validator "${rly_addr_a}" 100000000${DENOM} --from validator \
+        --keyring-backend "${KEYRING}" --home "${CHAIN_A_HOME}" --chain-id "${CHAIN_A_ID}" \
+        --node "tcp://localhost:${CHAIN_A_RPC}" --gas auto --gas-adjustment 1.5 \
+        --gas-prices 0.025${DENOM} --yes -o json >/dev/null 2>&1
+    ${BINARY} tx bank send validator "${rly_addr_b}" 100000000${DENOM} --from validator \
+        --keyring-backend "${KEYRING}" --home "${CHAIN_B_HOME}" --chain-id "${CHAIN_B_ID}" \
+        --node "tcp://localhost:${CHAIN_B_RPC}" --gas auto --gas-adjustment 1.5 \
+        --gas-prices 0.025${DENOM} --yes -o json >/dev/null 2>&1
+    sleep 8
 
-    # Restore keys
-    local chain_a_mnemonic chain_b_mnemonic
-    chain_a_mnemonic=$(${BINARY} keys export "relayer" --keyring-backend "${KEYRING}" --home "${CHAIN_A_HOME}" --unsafe --unarmored-hex 2>/dev/null || echo "")
-    chain_b_mnemonic=$(${BINARY} keys export "relayer" --keyring-backend "${KEYRING}" --home "${CHAIN_B_HOME}" --unsafe --unarmored-hex 2>/dev/null || echo "")
-
-    # Try to link the chains
+    # Link: create client + connection + channel (transfer/ics20-1). Don't rely on
+    # grepping rly's (retry-noisy) output — verify deterministically by querying the
+    # chain for an OPEN transfer channel afterward.
     rly paths new "${CHAIN_A_ID}" "${CHAIN_B_ID}" "ibc-test" --home "${rly_dir}" 2>/dev/null || true
-    rly tx link "ibc-test" --home "${rly_dir}" 2>&1 || {
-        warn "Go relayer link failed, falling back to manual"
+    rly tx link "ibc-test" --src-port transfer --dst-port transfer --version ics20-1 \
+        --home "${rly_dir}" > "${DATA_DIR}/rly-link.log" 2>&1 || true
+
+    local channel_open=""
+    local i
+    for i in $(seq 1 15); do
+        if ${BINARY} query ibc channel channels --node "tcp://localhost:${CHAIN_A_RPC}" -o json 2>/dev/null \
+                | jq -e '.channels[] | select(.port_id=="transfer" and .state=="STATE_OPEN")' >/dev/null 2>&1; then
+            channel_open="yes"; break
+        fi
+        sleep 2
+    done
+    if [ -z "${channel_open}" ]; then
+        warn "Go relayer link failed (no OPEN transfer channel), falling back to manual"
         RELAYER_TYPE="manual"
         return 1
-    }
+    fi
 
-    # Start relayer
+    # Start relayer to auto-relay packets.
     rly start "ibc-test" --home "${rly_dir}" > "${DATA_DIR}/rly.log" 2>&1 &
     RLY_PID=$!
-    ok "Go relayer started (PID ${RLY_PID})"
+    ok "Go relayer started (PID ${RLY_PID}); channel-0 established"
     return 0
 }
 
@@ -654,26 +672,20 @@ test_ibc_token_transfer() {
     sleep 10
 
     # Check balance on chain-b
-    local balance_b
-    balance_b=$(${BINARY} query bank balances "${CHAIN_B_USER_ADDR}" \
+    # A real relay mints an `ibc/<HASH>` voucher on chain-b. Require that specific
+    # denom to appear (the recipient may already hold native uclaw, so a non-empty
+    # balance alone proves nothing).
+    local ibc_entry
+    ibc_entry=$(${BINARY} query bank balances "${CHAIN_B_USER_ADDR}" \
         --home "${CHAIN_B_HOME}" \
         --node "tcp://localhost:${CHAIN_B_RPC}" \
-        -o json 2>/dev/null | jq -r '.balances | length' || echo "0")
+        -o json 2>/dev/null | jq -r '.balances[] | select(.denom | startswith("ibc/")) | "\(.denom) \(.amount)"' 2>/dev/null | head -1)
 
-    if [ "${balance_b}" -gt 0 ] 2>/dev/null; then
-        local ibc_denom
-        ibc_denom=$(${BINARY} query bank balances "${CHAIN_B_USER_ADDR}" \
-            --home "${CHAIN_B_HOME}" \
-            --node "tcp://localhost:${CHAIN_B_RPC}" \
-            -o json 2>/dev/null | jq -r '.balances[0].denom' || echo "")
-        info "Chain-B user received tokens: denom=${ibc_denom}"
-        if echo "${ibc_denom}" | grep -q "ibc/"; then
-            record_pass "IBC Token Transfer: tokens received with IBC denom on chain-b"
-        else
-            record_pass "IBC Token Transfer: tokens received on chain-b (denom: ${ibc_denom})"
-        fi
+    if [ -n "${ibc_entry}" ]; then
+        info "Chain-B user received IBC voucher: ${ibc_entry}"
+        record_pass "IBC Token Transfer: ibc/ voucher minted on chain-b (relay verified)"
     else
-        record_fail "IBC Token Transfer" "No tokens received on chain-b after relay"
+        record_fail "IBC Token Transfer" "No ibc/ voucher on chain-b after relay"
     fi
 }
 
