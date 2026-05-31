@@ -1,6 +1,24 @@
 # Testnet Launch Plan
 
-_Plan only — no code yet. Status: 2026-05-31. Owner: TBD._
+_Status: 2026-05-31. Rehearsal substrate IMPLEMENTED; public deploy pending._
+
+## Implementation status
+
+- ✅ **Local multi-validator rehearsal (Phase T0 genesis + T2 consensus):**
+  `scripts/testnet/local-multinode.sh {up [N]|down|status}` stands up an N-validator
+  (default 4) testnet via `clawchaind multi-node`, seeds identical privacy ZK pk+vk
+  into every node, applies testnet genesis params (fast gov with expedited<voting,
+  lenient slashing), enables REST API, boots all validators, and verifies consensus.
+  **Verified live:** 4 validators reach lockstep consensus (heights agree, spread 0),
+  active validator set = 4, privacy VKs loaded on all nodes, REST API serving, and a
+  privacy `shield` via the clawd registry committed (code 0) with the commitment
+  landing in state while all 4 validators stayed in lockstep.
+- ⏳ **Public deploy (Phase T1/T3):** uses the existing `testnet/docker-compose.yml`
+  (node0–3 + Prometheus/Grafana/AlertManager + faucet), `testnet/nginx/`,
+  `testnet/publish-public-testnet.sh`, `testnet/deploy-hetzner-public.sh`. Remaining:
+  provision hosts, point endpoints at real IPs/DNS + TLS, run the genesis ceremony
+  with external validators (`scripts/genesis-ceremony.sh`), deploy explorer
+  (see explorer plan) — all operational, not local-codeable.
 
 ## Goal
 
