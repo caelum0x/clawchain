@@ -1,0 +1,87 @@
+syntax = "proto3";
+// NOTE: package is the Osmosis-compatible namespace on purpose. The Astroport DEX
+// contracts send Stargate messages with the "/osmosis.tokenfactory.v1beta1.Msg*"
+// type URLs, and app/wasm_tokenfactory.go intercepts exactly those URLs. The Go
+// message structs and their hand-written marshalling live in
+// x/tokenfactory/types/msgs.go; this file exists so that protoc-gen-gocosmos can
+// emit a real FileDescriptor (giving the messages a Descriptor() method for
+// tx-decode unknown-field rejection) and so the "sender" signer option is
+// available to the ante handler when the messages are submitted as signed txs.
+package osmosis.tokenfactory.v1beta1;
+
+import "cosmos/msg/v1/msg.proto";
+import "cosmos/base/v1beta1/coin.proto";
+import "gogoproto/gogo.proto";
+
+option go_package = "clawchain/x/tokenfactory/types";
+
+// Msg defines the tokenfactory Msg service.
+service Msg {
+  option (cosmos.msg.v1.service) = true;
+
+  // CreateDenom creates a new factory denom owned by the sender.
+  rpc CreateDenom(MsgCreateDenom) returns (MsgCreateDenomResponse);
+  // Mint mints factory tokens to an address.
+  rpc Mint(MsgMint) returns (MsgMintResponse);
+  // Burn burns factory tokens from an address.
+  rpc Burn(MsgBurn) returns (MsgBurnResponse);
+  // SetBeforeSendHook sets a CosmWasm before-send hook on a factory denom.
+  rpc SetBeforeSendHook(MsgSetBeforeSendHook) returns (MsgSetBeforeSendHookResponse);
+}
+
+// MsgCreateDenom creates a denom of the form factory/{sender}/{subdenom}.
+message MsgCreateDenom {
+  option (cosmos.msg.v1.signer)      = "sender";
+  option (gogoproto.equal)           = false;
+  option (gogoproto.goproto_getters) = false;
+
+  string sender   = 1;
+  string subdenom = 2;
+}
+
+// MsgCreateDenomResponse returns the newly created denom.
+message MsgCreateDenomResponse {
+  string new_token_denom = 1;
+}
+
+// MsgMint mints factory tokens to mint_to_address.
+message MsgMint {
+  option (cosmos.msg.v1.signer)      = "sender";
+  option (gogoproto.equal)           = false;
+  option (gogoproto.goproto_getters) = false;
+
+  string sender = 1;
+  cosmos.base.v1beta1.Coin amount = 2 [(gogoproto.nullable) = false];
+  string mint_to_address = 3;
+}
+
+// MsgMintResponse is the response for MsgMint.
+message MsgMintResponse {}
+
+// MsgBurn burns factory tokens from burn_from_address.
+message MsgBurn {
+  option (cosmos.msg.v1.signer)      = "sender";
+  option (gogoproto.equal)           = false;
+  option (gogoproto.goproto_getters) = false;
+
+  string sender = 1;
+  cosmos.base.v1beta1.Coin amount = 2 [(gogoproto.nullable) = false];
+  string burn_from_address = 3;
+}
+
+// MsgBurnResponse is the response for MsgBurn.
+message MsgBurnResponse {}
+
+// MsgSetBeforeSendHook sets a before-send hook contract on a factory denom.
+message MsgSetBeforeSendHook {
+  option (cosmos.msg.v1.signer)      = "sender";
+  option (gogoproto.equal)           = false;
+  option (gogoproto.goproto_getters) = false;
+
+  string sender = 1;
+  string denom = 2;
+  string cosmwasm_address = 3;
+}
+
+// MsgSetBeforeSendHookResponse is the response for MsgSetBeforeSendHook.
+message MsgSetBeforeSendHookResponse {}

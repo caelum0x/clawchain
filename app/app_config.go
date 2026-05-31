@@ -8,13 +8,13 @@ import (
 	_ "clawchain/x/governance/module"
 	governancemoduletypes "clawchain/x/governance/types"
 	_ "clawchain/x/marketplace/module"
-	_ "clawchain/x/oracle/module"
-	oraclemoduletypes "clawchain/x/oracle/types"
 	marketplacemoduletypes "clawchain/x/marketplace/types"
 	_ "clawchain/x/messaging/module"
+	messagingmoduletypes "clawchain/x/messaging/types"
 	_ "clawchain/x/modelregistry/module"
 	modelregistrymoduletypes "clawchain/x/modelregistry/types"
-	messagingmoduletypes "clawchain/x/messaging/types"
+	_ "clawchain/x/oracle/module"
+	oraclemoduletypes "clawchain/x/oracle/types"
 	_ "clawchain/x/privacy/module"
 	privacymoduletypes "clawchain/x/privacy/types"
 	_ "clawchain/x/reputation/module"
@@ -55,6 +55,7 @@ import (
 	_ "cosmossdk.io/x/nft/module" // import for side-effects
 	_ "cosmossdk.io/x/upgrade"    // import for side-effects
 	upgradetypes "cosmossdk.io/x/upgrade/types"
+	wasmtypes "github.com/CosmWasm/wasmd/x/wasm/types"
 	"github.com/cosmos/cosmos-sdk/runtime"
 	_ "github.com/cosmos/cosmos-sdk/x/auth/tx/config" // import for side-effects
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
@@ -83,7 +84,6 @@ import (
 	slashingtypes "github.com/cosmos/cosmos-sdk/x/slashing/types"
 	_ "github.com/cosmos/cosmos-sdk/x/staking" // import for side-effects
 	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
-	wasmtypes "github.com/CosmWasm/wasmd/x/wasm/types"
 	icatypes "github.com/cosmos/ibc-go/v10/modules/apps/27-interchain-accounts/types"
 	ibctransfertypes "github.com/cosmos/ibc-go/v10/modules/apps/transfer/types"
 	ibcexported "github.com/cosmos/ibc-go/v10/modules/core/exported"
@@ -102,6 +102,7 @@ var (
 		{Account: modelregistrymoduletypes.ModuleName, Permissions: []string{authtypes.Burner}},
 		{Account: agentmoduletypes.ModuleName, Permissions: []string{authtypes.Burner, authtypes.Minter}},
 		{Account: privacymoduletypes.ModuleName},
+		{Account: oraclemoduletypes.ModuleName},
 		{Account: governancemoduletypes.ModuleName, Permissions: []string{authtypes.Burner}},
 		{Account: nft.ModuleName},
 		{Account: ibctransfertypes.ModuleName, Permissions: []string{authtypes.Minter, authtypes.Burner}},

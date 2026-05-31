@@ -183,6 +183,19 @@ fi
 echo ""
 
 # ── 7. Start the chain in background ──
+# ── 6b. Generate privacy verifying keys (dev only) ──
+# The privacy module loads Groth16 verifying keys from <home>/keys at startup.
+# Generate insecure dev keys if missing so shield/unshield work locally.
+if [ ! -f "$HOME_DIR/keys/transfer_vk.bin" ]; then
+  info "Generating privacy dev verifying keys..."
+  "$BINARY" privacy gen-dev-keys "$HOME_DIR/keys" >/dev/null 2>&1 \
+    && ok "Privacy dev keys generated (INSECURE — dev only)" \
+    || warn "Could not generate privacy keys (privacy ops will be unavailable)"
+else
+  info "Privacy verifying keys already present — skipping"
+fi
+echo ""
+
 info "Starting chain..."
 LOGFILE="$BUILD_DIR/chain.log"
 

@@ -319,7 +319,7 @@ func TestShieldHandler(t *testing.T) {
 	// Shield 100 tokens.
 	resp, err := msgServer.Shield(f.ctx, &types.MsgShield{
 		Creator:  creatorAddr,
-		Amount:   100,
+		Amount:   1000,
 		Coins:    "stake",
 		Blinding: fixedBlinding32(1),
 	})
@@ -371,7 +371,7 @@ func TestShieldHandlerMultiple(t *testing.T) {
 	// Shield twice and verify both commitments are stored with different roots.
 	_, err = msgServer.Shield(f.ctx, &types.MsgShield{
 		Creator:  creatorAddr,
-		Amount:   100,
+		Amount:   1000,
 		Coins:    "stake",
 		Blinding: fixedBlinding32(3),
 	})
@@ -383,7 +383,7 @@ func TestShieldHandlerMultiple(t *testing.T) {
 
 	_, err = msgServer.Shield(f.ctx, &types.MsgShield{
 		Creator:  creatorAddr,
-		Amount:   200,
+		Amount:   2000,
 		Coins:    "stake",
 		Blinding: fixedBlinding32(4),
 	})
@@ -644,7 +644,7 @@ func TestMerkleRootQueryAfterShield(t *testing.T) {
 	// Shield tokens.
 	_, err = msgServer.Shield(f.ctx, &types.MsgShield{
 		Creator:  creatorAddr,
-		Amount:   50,
+		Amount:   1000,
 		Coins:    "stake",
 		Blinding: fixedBlinding32(5),
 	})
@@ -672,7 +672,7 @@ func TestMerkleRootConsistencyOnAndOffChain(t *testing.T) {
 	// Shield operation: commitment = MiMC(amount, blinding) with test blinding.
 	_, err = msgServer.Shield(f.ctx, &types.MsgShield{
 		Creator:  creatorAddr,
-		Amount:   100,
+		Amount:   1000,
 		Coins:    "stake",
 		Blinding: fixedBlinding32(6),
 	})
@@ -684,7 +684,7 @@ func TestMerkleRootConsistencyOnAndOffChain(t *testing.T) {
 	onChainCommitment := new(big.Int).SetBytes(commitBytes)
 
 	// Compute the same commitment off-chain.
-	expectedCommitment := merkle.MiMCHashPair(big.NewInt(100), new(big.Int).SetUint64(6))
+	expectedCommitment := merkle.MiMCHashPair(big.NewInt(1000), new(big.Int).SetUint64(6))
 	require.Equal(t, 0, expectedCommitment.Cmp(onChainCommitment),
 		"on-chain commitment should match off-chain computation")
 
@@ -798,7 +798,7 @@ func TestUnshieldHandlerE2E(t *testing.T) {
 	require.NoError(t, err)
 
 	// --- 3. Shield 500 tokens ---
-	shieldAmount := uint64(500)
+	shieldAmount := uint64(5000)
 	_, err = msgServer.Shield(f.ctx, &types.MsgShield{
 		Creator:  creatorAddr,
 		Amount:   shieldAmount,
@@ -982,7 +982,7 @@ func TestUnshieldWithHistoricalRoot(t *testing.T) {
 	require.NoError(t, err)
 
 	// --- 2. Shield 500 tokens → root1 ---
-	shieldAmount := uint64(500)
+	shieldAmount := uint64(5000)
 	_, err = msgServer.Shield(f.ctx, &types.MsgShield{
 		Creator:  creatorAddr,
 		Amount:   shieldAmount,
@@ -1040,7 +1040,7 @@ func TestUnshieldWithHistoricalRoot(t *testing.T) {
 	// --- 4. Shield 200 more tokens → root changes to root2 ---
 	_, err = msgServer.Shield(f.ctx, &types.MsgShield{
 		Creator:  creatorAddr,
-		Amount:   200,
+		Amount:   2000,
 		Coins:    "stake",
 		Blinding: fixedBlinding32(9),
 	})
@@ -1255,7 +1255,7 @@ func TestCommitmentIndexAfterShield(t *testing.T) {
 	// Shield tokens.
 	_, err = msgServer.Shield(f.ctx, &types.MsgShield{
 		Creator:  creatorAddr,
-		Amount:   100,
+		Amount:   1000,
 		Coins:    "stake",
 		Blinding: fixedBlinding32(10),
 	})
@@ -1297,7 +1297,7 @@ func TestMerkleProofAfterShield(t *testing.T) {
 	// Shield tokens.
 	_, err = msgServer.Shield(f.ctx, &types.MsgShield{
 		Creator:  creatorAddr,
-		Amount:   100,
+		Amount:   1000,
 		Coins:    "stake",
 		Blinding: fixedBlinding32(11),
 	})
@@ -1374,9 +1374,9 @@ func TestTreeStatsAfterShields(t *testing.T) {
 	require.NoError(t, err)
 
 	// Shield twice.
-	_, err = msgServer.Shield(f.ctx, &types.MsgShield{Creator: creatorAddr, Amount: 100, Coins: "stake", Blinding: fixedBlinding32(12)})
+	_, err = msgServer.Shield(f.ctx, &types.MsgShield{Creator: creatorAddr, Amount: 1000, Coins: "stake", Blinding: fixedBlinding32(12)})
 	require.NoError(t, err)
-	_, err = msgServer.Shield(f.ctx, &types.MsgShield{Creator: creatorAddr, Amount: 200, Coins: "stake", Blinding: fixedBlinding32(13)})
+	_, err = msgServer.Shield(f.ctx, &types.MsgShield{Creator: creatorAddr, Amount: 2000, Coins: "stake", Blinding: fixedBlinding32(13)})
 	require.NoError(t, err)
 
 	resp, err := queryServer.TreeStats(f.ctx, &types.QueryTreeStatsRequest{})
@@ -1515,14 +1515,14 @@ func TestPrivateTransferSuccess(t *testing.T) {
 	// Shield two UTXOs that will be consumed by the private transfer.
 	_, err = msgServer.Shield(f.ctx, &types.MsgShield{
 		Creator:  creatorAddr,
-		Amount:   250,
+		Amount:   2500,
 		Coins:    "stake",
 		Blinding: fixedBlinding32(41),
 	})
 	require.NoError(t, err)
 	_, err = msgServer.Shield(f.ctx, &types.MsgShield{
 		Creator:  creatorAddr,
-		Amount:   350,
+		Amount:   3500,
 		Coins:    "stake",
 		Blinding: fixedBlinding32(42),
 	})
@@ -1543,7 +1543,7 @@ func TestPrivateTransferSuccess(t *testing.T) {
 		idx, insErr := offChainTree.Insert(commit)
 		require.NoError(t, insErr)
 		utxos[i] = utxoInfo{
-			amount:     new(big.Int).SetUint64([]uint64{250, 350}[i]),
+			amount:     new(big.Int).SetUint64([]uint64{2500, 3500}[i]),
 			blinding:   new(big.Int).SetUint64([]uint64{41, 42}[i]),
 			commitment: commit,
 			leafIdx:    idx,
@@ -1555,8 +1555,8 @@ func TestPrivateTransferSuccess(t *testing.T) {
 	secret1 := big.NewInt(11002)
 	newBlinding0 := big.NewInt(12001)
 	newBlinding1 := big.NewInt(12002)
-	newAmount0 := big.NewInt(300)
-	newAmount1 := big.NewInt(300)
+	newAmount0 := big.NewInt(3000)
+	newAmount1 := big.NewInt(3000)
 	newCommit0 := merkle.MiMCHashPair(newAmount0, newBlinding0)
 	newCommit1 := merkle.MiMCHashPair(newAmount1, newBlinding1)
 	null0 := merkle.MiMCHashPair(secret0, utxos[0].commitment)
@@ -1636,7 +1636,7 @@ func TestBatchPrivateTransferSuccess(t *testing.T) {
 	for i := 0; i < 4; i++ {
 		_, err = msgServer.Shield(f.ctx, &types.MsgShield{
 			Creator:  creatorAddr,
-			Amount:   uint64(100 * (i + 1)), // 100, 200, 300, 400
+			Amount:   uint64(1000 * (i + 1)), // 1000, 2000, 3000, 4000
 			Coins:    "stake",
 			Blinding: fixedBlinding32(uint64(20 + i)),
 		})
@@ -1658,7 +1658,7 @@ func TestBatchPrivateTransferSuccess(t *testing.T) {
 		idx, err := offChainTree.Insert(commit)
 		require.NoError(t, err)
 		utxos[i] = utxoInfo{
-			amount:     new(big.Int).SetUint64(uint64(100 * (i + 1))),
+			amount:     new(big.Int).SetUint64(uint64(1000 * (i + 1))),
 			blinding:   new(big.Int).SetUint64(uint64(20 + i)),
 			commitment: commit,
 			leafIdx:    idx,
@@ -1672,8 +1672,8 @@ func TestBatchPrivateTransferSuccess(t *testing.T) {
 	require.Equal(t, hex.EncodeToString(root.Bytes()), rootResp.Root)
 
 	// Build 2 transfers:
-	// Transfer 1: spend utxos[0]+utxos[1] (100+200=300) → create 150+150
-	// Transfer 2: spend utxos[2]+utxos[3] (300+400=700) → create 400+300
+	// Transfer 1: spend utxos[0]+utxos[1] (1000+2000=3000) → create 1500+1500
+	// Transfer 2: spend utxos[2]+utxos[3] (3000+4000=7000) → create 4000+3000
 	buildTransferEntry := func(old0, old1 utxoInfo, newAmt0, newAmt1 int64, secret0, secret1 *big.Int, newBl0, newBl1 *big.Int) *types.BatchTransferEntry {
 		newCommit0 := merkle.MiMCHashPair(big.NewInt(newAmt0), newBl0)
 		newCommit1 := merkle.MiMCHashPair(big.NewInt(newAmt1), newBl1)
@@ -1720,8 +1720,8 @@ func TestBatchPrivateTransferSuccess(t *testing.T) {
 		}
 	}
 
-	entry1 := buildTransferEntry(utxos[0], utxos[1], 150, 150, big.NewInt(9001), big.NewInt(9002), big.NewInt(6001), big.NewInt(6002))
-	entry2 := buildTransferEntry(utxos[2], utxos[3], 400, 300, big.NewInt(9003), big.NewInt(9004), big.NewInt(6003), big.NewInt(6004))
+	entry1 := buildTransferEntry(utxos[0], utxos[1], 1500, 1500, big.NewInt(9001), big.NewInt(9002), big.NewInt(6001), big.NewInt(6002))
+	entry2 := buildTransferEntry(utxos[2], utxos[3], 4000, 3000, big.NewInt(9003), big.NewInt(9004), big.NewInt(6003), big.NewInt(6004))
 
 	// Submit batch.
 	_, err = msgServer.BatchPrivateTransfer(f.ctx, &types.MsgBatchPrivateTransfer{
@@ -1763,7 +1763,7 @@ func TestBatchPrivateTransferDuplicateNullifier(t *testing.T) {
 	for i := 0; i < 2; i++ {
 		_, err = msgServer.Shield(f.ctx, &types.MsgShield{
 			Creator:  creatorAddr,
-			Amount:   uint64(200),
+			Amount:   uint64(2000),
 			Coins:    "stake",
 			Blinding: fixedBlinding32(uint64(30 + i)),
 		})
@@ -1785,7 +1785,7 @@ func TestBatchPrivateTransferDuplicateNullifier(t *testing.T) {
 		idx, err := offChainTree.Insert(commit)
 		require.NoError(t, err)
 		utxos[i] = utxoInfo{
-			amount:     big.NewInt(200),
+			amount:     big.NewInt(2000),
 			blinding:   new(big.Int).SetUint64(uint64(30 + i)),
 			commitment: commit,
 			leafIdx:    idx,
@@ -1799,8 +1799,8 @@ func TestBatchPrivateTransferDuplicateNullifier(t *testing.T) {
 	null0 := merkle.MiMCHashPair(secret0, utxos[0].commitment)
 	null1 := merkle.MiMCHashPair(secret1, utxos[1].commitment)
 	newBl0, newBl1 := big.NewInt(8001), big.NewInt(8002)
-	newCommit0 := merkle.MiMCHashPair(big.NewInt(200), newBl0)
-	newCommit1 := merkle.MiMCHashPair(big.NewInt(200), newBl1)
+	newCommit0 := merkle.MiMCHashPair(big.NewInt(2000), newBl0)
+	newCommit1 := merkle.MiMCHashPair(big.NewInt(2000), newBl1)
 
 	var assignment circuit.TransferCircuit
 	assignment.OldNullifiers[0] = null0
@@ -1814,8 +1814,8 @@ func TestBatchPrivateTransferDuplicateNullifier(t *testing.T) {
 	assignment.OldBlindings[1] = utxos[1].blinding
 	assignment.OldSecrets[0] = secret0
 	assignment.OldSecrets[1] = secret1
-	assignment.NewAmounts[0] = big.NewInt(200)
-	assignment.NewAmounts[1] = big.NewInt(200)
+	assignment.NewAmounts[0] = big.NewInt(2000)
+	assignment.NewAmounts[1] = big.NewInt(2000)
 	assignment.NewBlindings[0] = newBl0
 	assignment.NewBlindings[1] = newBl1
 

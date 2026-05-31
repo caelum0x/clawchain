@@ -182,6 +182,9 @@ func TestCastVote(t *testing.T) {
 	)
 	require.NoError(t, err)
 
+	// Voter must have bonded stake to have voting power.
+	f.stakingKeeper.setBonded(voter, math.NewInt(1000))
+
 	// Cast a vote.
 	err = f.keeper.CastVote(f.ctx, proposalID, voterStr, "yes")
 	require.NoError(t, err)

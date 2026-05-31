@@ -8,10 +8,23 @@
 #   3. Enable REST API and gRPC
 #   4. Enable unsafe CORS (for development / Docker usage)
 #
+# ============================================================================
+#  WARNING — DEVELOPMENT / TESTNET ONLY.
+#  This script auto-initializes a SINGLE-validator node with unsafe CORS and,
+#  by default, the insecure `test` keyring backend (keys stored UNENCRYPTED on
+#  disk). It MUST NOT be used to run a mainnet validator. A mainnet validator
+#  must use a proper multi-party genesis ceremony, an encrypted keyring
+#  (`file`/`os`) or a remote signer/HSM, and authenticated RPC behind a proxy.
+# ============================================================================
+#
 # Environment variables:
-#   CHAIN_ID   - Chain ID (default: clawchain-testnet-1)
-#   HOME_DIR   - Node home directory (default: /root/.clawchain)
-#   MONIKER    - Node moniker (default: clawchain-docker)
+#   CHAIN_ID          - Chain ID (default: clawchain-testnet-1)
+#   HOME_DIR          - Node home directory (default: /root/.clawchain)
+#   MONIKER           - Node moniker (default: clawchain-docker)
+#   KEYRING_BACKEND   - Cosmos keyring backend (default: test). Use `file` or
+#                       `os` for any node holding real value.
+#   KEYRING_PASSWORD  - Passphrase for the keyring; REQUIRED when
+#                       KEYRING_BACKEND is not `test`.
 #
 set -euo pipefail
 
@@ -19,6 +32,29 @@ CHAIN_ID="${CHAIN_ID:-clawchain-testnet-1}"
 HOME_DIR="${HOME_DIR:-/root/.clawchain}"
 MONIKER="${MONIKER:-clawchain-docker}"
 DENOM="uclaw"
+KEYRING_BACKEND="${KEYRING_BACKEND:-test}"
+KEYRING_PASSWORD="${KEYRING_PASSWORD:-}"
+
+# A non-`test` backend stores keys encrypted and therefore needs a passphrase.
+# Fail closed if one wasn't provided rather than silently falling back.
+if [ "${KEYRING_BACKEND}" != "test" ] && [ -z "${KEYRING_PASSWORD}" ]; then
+    echo "ERROR: KEYRING_BACKEND='${KEYRING_BACKEND}' requires KEYRING_PASSWORD to be set." >&2
+    exit 1
+fi
+
+if [ "${KEYRING_BACKEND}" = "test" ]; then
+    echo "WARNING: using insecure 'test' keyring backend (unencrypted keys). Dev/testnet only — do NOT use for a mainnet validator." >&2
+fi
+
+# kr runs a clawchaind command, supplying the keyring passphrase on stdin twice
+# (set + confirm). With the `test` backend no prompt appears and the input is
+# harmlessly ignored, so this wrapper is safe for every backend.
+kr() {
+    clawchaind "$@" <<EOF
+${KEYRING_PASSWORD}
+${KEYRING_PASSWORD}
+EOF
+}
 
 if [ ! -f "${HOME_DIR}/.initialized" ]; then
     echo "========================================"
@@ -34,18 +70,18 @@ if [ ! -f "${HOME_DIR}/.initialized" ]; then
     clawchaind init "${MONIKER}" --chain-id "${CHAIN_ID}" --home "${HOME_DIR}" --default-denom "${DENOM}" > /dev/null 2>&1
 
     # Create validator key
-    clawchaind keys add validator --keyring-backend test --home "${HOME_DIR}" > /dev/null 2>&1
+    kr keys add validator --keyring-backend "${KEYRING_BACKEND}" --home "${HOME_DIR}" > /dev/null 2>&1
 
     # Fund validator and faucet
-    clawchaind genesis add-genesis-account validator "100000000000${DENOM}" \
-        --keyring-backend test --home "${HOME_DIR}" > /dev/null 2>&1
-    clawchaind keys add faucet --keyring-backend test --home "${HOME_DIR}" > /dev/null 2>&1
-    clawchaind genesis add-genesis-account faucet "1000000000000${DENOM}" \
-        --keyring-backend test --home "${HOME_DIR}" > /dev/null 2>&1
+    kr genesis add-genesis-account validator "100000000000${DENOM}" \
+        --keyring-backend "${KEYRING_BACKEND}" --home "${HOME_DIR}" > /dev/null 2>&1
+    kr keys add faucet --keyring-backend "${KEYRING_BACKEND}" --home "${HOME_DIR}" > /dev/null 2>&1
+    kr genesis add-genesis-account faucet "1000000000000${DENOM}" \
+        --keyring-backend "${KEYRING_BACKEND}" --home "${HOME_DIR}" > /dev/null 2>&1
 
     # Create and collect gentx
-    clawchaind genesis gentx validator "50000000000${DENOM}" \
-        --chain-id "${CHAIN_ID}" --keyring-backend test --home "${HOME_DIR}" > /dev/null 2>&1
+    kr genesis gentx validator "50000000000${DENOM}" \
+        --chain-id "${CHAIN_ID}" --keyring-backend "${KEYRING_BACKEND}" --home "${HOME_DIR}" > /dev/null 2>&1
     clawchaind genesis collect-gentxs --home "${HOME_DIR}" > /dev/null 2>&1
 
     # Configure app.toml
@@ -71,8 +107,8 @@ if [ ! -f "${HOME_DIR}/.initialized" ]; then
 
     echo ""
     echo "Chain initialized successfully."
-    echo "Validator: $(clawchaind keys show validator -a --keyring-backend test --home "${HOME_DIR}" 2>/dev/null || echo 'N/A')"
-    echo "Faucet:    $(clawchaind keys show faucet -a --keyring-backend test --home "${HOME_DIR}" 2>/dev/null || echo 'N/A')"
+    echo "Validator: $(kr keys show validator -a --keyring-backend "${KEYRING_BACKEND}" --home "${HOME_DIR}" 2>/dev/null || echo 'N/A')"
+    echo "Faucet:    $(kr keys show faucet -a --keyring-backend "${KEYRING_BACKEND}" --home "${HOME_DIR}" 2>/dev/null || echo 'N/A')"
     echo ""
 fi
 

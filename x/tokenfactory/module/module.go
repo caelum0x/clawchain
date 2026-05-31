@@ -73,22 +73,13 @@ func (am AppModule) RegisterServices(registrar grpc.ServiceRegistrar) error {
 	// The MsgServer is invoked by the Cosmos SDK's baseapp router after
 	// UnpackAny resolves our registered type URLs.
 	//
-	// We register a handler via the module.Configurator to wire messages.
-	if cfg, ok := registrar.(module.Configurator); ok {
-		RegisterMsgServer(cfg, am.keeper)
-	}
+	// Register directly on the gRPC ServiceRegistrar (the baseapp MsgServiceRouter
+	// in depinject apps). The previous code type-asserted to module.Configurator,
+	// which is NOT the type the runtime passes here, so the assertion silently
+	// failed and NO message handlers were registered — every tokenfactory tx was
+	// rejected with "no message handler found".
+	registrar.RegisterService(&_TokenFactory_serviceDesc, keeper.NewMsgServerImpl(am.keeper))
 	return nil
-}
-
-// RegisterMsgServer registers the tokenfactory message handlers with the
-// Cosmos SDK configurator so that messages routed by type URL are dispatched
-// to our MsgServer implementation.
-func RegisterMsgServer(cfg module.Configurator, k keeper.Keeper) {
-	ms := keeper.NewMsgServerImpl(k)
-	cfg.RegisterService(
-		&_TokenFactory_serviceDesc,
-		ms,
-	)
 }
 
 // _TokenFactory_serviceDesc is a hand-crafted gRPC service descriptor that

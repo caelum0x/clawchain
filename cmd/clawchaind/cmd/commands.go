@@ -27,6 +27,7 @@ import (
 	wasmcli "github.com/CosmWasm/wasmd/x/wasm/client/cli"
 
 	"clawchain/app"
+	tokenfactorycli "clawchain/x/tokenfactory/client/cli"
 )
 
 func initRootCmd(
@@ -42,6 +43,7 @@ func initRootCmd(
 		confixcmd.ConfigCommand(),
 		pruning.Cmd(newApp, app.DefaultNodeHome),
 		snapshot.Cmd(newApp),
+		privacyCmd(),
 	)
 
 	server.AddCommandsWithStartCmdOptions(rootCmd, app.DefaultNodeHome, newApp, appExport, server.StartCmdOptions{
@@ -107,6 +109,7 @@ func txCommand() *cobra.Command {
 		authcmd.GetDecodeCommand(),
 		authcmd.GetSimulateCmd(),
 		wasmcli.GetTxCmd(),
+		tokenfactorycli.GetTxCmd(),
 	)
 
 	return cmd

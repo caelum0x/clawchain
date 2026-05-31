@@ -55,11 +55,14 @@ func (k msgServer) Shield(ctx context.Context, msg *types.MsgShield) (*types.Msg
 			"amount %d is below minimum shield amount %d", msg.Amount, minShieldAmount)
 	}
 
-	// Parse the coin denomination from msg.Coins (e.g., "stake").
-	// If empty, default to "stake".
-	denom := msg.Coins
-	if denom == "" {
-		denom = "stake"
+	// The shielded pool is single-denom and operates exclusively on the chain's
+	// native bond denom, so that Unshield always pays out the same asset that
+	// was deposited. Reject any attempt to shield a different denom (an empty
+	// msg.Coins is treated as the native denom for backwards compatibility).
+	denom := types.PoolDenom()
+	if msg.Coins != "" && msg.Coins != denom {
+		return nil, errorsmod.Wrapf(types.ErrUnsupportedDenom,
+			"pool denom is %q, got %q", denom, msg.Coins)
 	}
 	coins := sdk.NewCoins(sdk.NewCoin(denom, math.NewIntFromUint64(msg.Amount)))
 

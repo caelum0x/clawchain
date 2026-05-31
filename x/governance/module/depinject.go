@@ -33,8 +33,11 @@ type ModuleInputs struct {
 	Cdc          codec.Codec
 	AddressCodec address.Codec
 
-	BankKeeper    types.BankKeeper
-	StakingKeeper types.StakingKeeper `optional:"true"`
+	BankKeeper types.BankKeeper
+	// StakingKeeper is REQUIRED (not optional): governance is stake-weighted, so
+	// a missing staking keeper must fail wiring at startup rather than silently
+	// degrade voting to one-address-one-vote (a Sybil vector).
+	StakingKeeper types.StakingKeeper
 }
 
 type ModuleOutputs struct {
@@ -57,9 +60,10 @@ func ProvideModule(in ModuleInputs) ModuleOutputs {
 		authority,
 		in.BankKeeper,
 	)
-	if in.StakingKeeper != nil {
-		k.SetStakingKeeper(in.StakingKeeper)
+	if in.StakingKeeper == nil {
+		panic("governance module requires a non-nil StakingKeeper for stake-weighted voting")
 	}
+	k.SetStakingKeeper(in.StakingKeeper)
 	m := NewAppModule(in.Cdc, k)
 
 	return ModuleOutputs{GovernanceKeeper: k, Module: m}

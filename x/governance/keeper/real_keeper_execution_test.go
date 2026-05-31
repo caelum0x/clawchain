@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"cosmossdk.io/core/address"
+	"cosmossdk.io/math"
 	storetypes "cosmossdk.io/store/types"
 	addresscodec "github.com/cosmos/cosmos-sdk/codec/address"
 	"github.com/cosmos/cosmos-sdk/runtime"
@@ -29,6 +30,7 @@ type realKeeperFixture struct {
 	ctx              context.Context
 	addressCodec     address.Codec
 	bankKeeper       *mockBankKeeper
+	stakingKeeper    *mockStakingKeeper
 	governanceKeeper govkeeper.Keeper
 	messagingKeeper  messagingkeeper.Keeper
 	reputationKeeper reputationkeeper.Keeper
@@ -36,8 +38,10 @@ type realKeeperFixture struct {
 
 type repMockAgentKeeper struct{}
 
-func (repMockAgentKeeper) IsAgentRegistered(_ context.Context, _ string) (bool, error) { return true, nil }
-func (repMockAgentKeeper) GetMaxHeartbeatGapBlocks(_ context.Context) (int64, error)     { return 100, nil }
+func (repMockAgentKeeper) IsAgentRegistered(_ context.Context, _ string) (bool, error) {
+	return true, nil
+}
+func (repMockAgentKeeper) GetMaxHeartbeatGapBlocks(_ context.Context) (int64, error) { return 100, nil }
 func (repMockAgentKeeper) WalkHeartbeatStatuses(_ context.Context, _ func(string, int64) (bool, error)) error {
 	return nil
 }
@@ -51,7 +55,9 @@ func (repMockAgentKeeper) SlashAgentDeposit(_ context.Context, _ string, _ uint6
 
 type repMockMarketplaceKeeper struct{}
 
-func (repMockMarketplaceKeeper) HasPurchased(_ context.Context, _, _ string) (bool, error) { return true, nil }
+func (repMockMarketplaceKeeper) HasPurchased(_ context.Context, _, _ string) (bool, error) {
+	return true, nil
+}
 
 func initRealKeeperFixture(t *testing.T) *realKeeperFixture {
 	t.Helper()
@@ -85,10 +91,15 @@ func initRealKeeperFixture(t *testing.T) *realKeeperFixture {
 	govKeeper.RegisterModuleParamExecutor("messaging", msgKeeper)
 	govKeeper.RegisterModuleParamExecutor("reputation", repKeeper)
 
+	// Governance is stake-weighted and now requires a staking keeper.
+	stakingKeeper := newMockStakingKeeper()
+	govKeeper.SetStakingKeeper(stakingKeeper)
+
 	return &realKeeperFixture{
 		ctx:              ctx,
 		addressCodec:     addressCodec,
 		bankKeeper:       bankKeeper,
+		stakingKeeper:    stakingKeeper,
 		governanceKeeper: govKeeper,
 		messagingKeeper:  msgKeeper,
 		reputationKeeper: repKeeper,
@@ -140,6 +151,7 @@ func TestEndBlocker_RealReputationKeeper(t *testing.T) {
 		sdk.NewCoins(sdk.NewInt64Coin("uclaw", govtypes.DefaultMinDepositUclaw)),
 	)
 	require.NoError(t, err)
+	f.stakingKeeper.setBonded(voter, math.NewInt(1_000_000))
 	require.NoError(t, f.governanceKeeper.CastVote(f.ctx, id, voterStr, govtypes.VoteOptionYes))
 
 	// Force proposal voting period to end in this block.
@@ -177,6 +189,7 @@ func TestEndBlocker_RealKeeperProposalRejected_NoParamChange(t *testing.T) {
 		sdk.NewCoins(sdk.NewInt64Coin("uclaw", govtypes.DefaultMinDepositUclaw)),
 	)
 	require.NoError(t, err)
+	f.stakingKeeper.setBonded(voter, math.NewInt(1_000_000))
 	require.NoError(t, f.governanceKeeper.CastVote(f.ctx, id, voterStr, govtypes.VoteOptionNo))
 
 	sdkCtx := sdk.UnwrapSDKContext(f.ctx)

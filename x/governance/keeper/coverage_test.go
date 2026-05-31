@@ -411,38 +411,52 @@ func TestExecuteProposal_RefundsDeposit(t *testing.T) {
 // SetStakingKeeper with nil (equal-weight voting)
 // ---------------------------------------------------------------------------
 
-func TestCastVote_EqualWeightWithoutStakingKeeper(t *testing.T) {
+// Voting must fail closed when no staking keeper is configured, rather than
+// silently degrading to one-address-one-vote (a Sybil attack vector).
+func TestCastVote_FailsClosedWithoutStakingKeeper(t *testing.T) {
 	f := initFixture(t)
-	// Override staking keeper to nil for equal-weight voting.
 	f.keeper.SetStakingKeeper(nil)
 
 	proposer := sdk.AccAddress([]byte("proposer_nostake____"))
-	voter1 := sdk.AccAddress([]byte("voter_nostake1______"))
-	voter2 := sdk.AccAddress([]byte("voter_nostake2______"))
+	voter := sdk.AccAddress([]byte("voter_nostake1______"))
 	f.bankKeeper.fundAccount(proposer, sdk.NewCoins(sdk.NewInt64Coin("uclaw", 100_000_000)))
 
 	deposit := sdk.NewCoins(sdk.NewInt64Coin("uclaw", 10_000_000))
 	proposerStr, _ := f.addressCodec.BytesToString(proposer)
-	voter1Str, _ := f.addressCodec.BytesToString(voter1)
-	voter2Str, _ := f.addressCodec.BytesToString(voter2)
+	voterStr, _ := f.addressCodec.BytesToString(voter)
 
 	id, err := f.keeper.SubmitProposal(f.ctx,
-		"Equal Weight Test", "desc", "agent", "max_heartbeat_gap_blocks", "100",
+		"No Staking Test", "desc", "agent", "max_heartbeat_gap_blocks", "100",
 		proposerStr, deposit,
 	)
 	require.NoError(t, err)
 
-	require.NoError(t, f.keeper.CastVote(f.ctx, id, voter1Str, "yes"))
-	require.NoError(t, f.keeper.CastVote(f.ctx, id, voter2Str, "no"))
+	err = f.keeper.CastVote(f.ctx, id, voterStr, "yes")
+	require.ErrorIs(t, err, types.ErrStakingUnavailable)
+}
 
-	proposal, err := f.keeper.GetProposal(f.ctx, id)
+// A voter with zero bonded stake has no voting power and must be rejected,
+// instead of receiving a free minimum-weight vote.
+func TestCastVote_ZeroStakeRejected(t *testing.T) {
+	f := initFixture(t)
+
+	proposer := sdk.AccAddress([]byte("proposer_zerostake__"))
+	voter := sdk.AccAddress([]byte("voter_zerostake_____"))
+	f.bankKeeper.fundAccount(proposer, sdk.NewCoins(sdk.NewInt64Coin("uclaw", 100_000_000)))
+	// Deliberately do NOT set any bonded stake for the voter.
+
+	deposit := sdk.NewCoins(sdk.NewInt64Coin("uclaw", 10_000_000))
+	proposerStr, _ := f.addressCodec.BytesToString(proposer)
+	voterStr, _ := f.addressCodec.BytesToString(voter)
+
+	id, err := f.keeper.SubmitProposal(f.ctx,
+		"Zero Stake Test", "desc", "agent", "max_heartbeat_gap_blocks", "100",
+		proposerStr, deposit,
+	)
 	require.NoError(t, err)
 
-	// Without staking keeper, each vote should have equal weight of 1.
-	require.True(t, proposal.YesVotes.Equal(math.OneInt()),
-		"yes votes should be 1 with equal weighting, got %s", proposal.YesVotes)
-	require.True(t, proposal.NoVotes.Equal(math.OneInt()),
-		"no votes should be 1 with equal weighting, got %s", proposal.NoVotes)
+	err = f.keeper.CastVote(f.ctx, id, voterStr, "yes")
+	require.ErrorIs(t, err, types.ErrNoVotingPower)
 }
 
 // ---------------------------------------------------------------------------
