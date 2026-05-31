@@ -13,6 +13,10 @@ const (
 	// UpgradeNameV2 is the upgrade plan name for the v2 chain upgrade.
 	// Bump this for each new consensus-breaking upgrade.
 	UpgradeNameV2 = "v2"
+
+	// UpgradeNameTestnetRehearsal is a no-op migration target used to rehearse
+	// the governance-driven upgrade path on local/testnet networks.
+	UpgradeNameTestnetRehearsal = "testnet-v1-rehearsal"
 )
 
 // RegisterUpgradeHandlers registers all upgrade handlers for the application.
@@ -23,6 +27,16 @@ func (app *App) RegisterUpgradeHandlers() {
 		func(ctx context.Context, plan upgradetypes.Plan, fromVM module.VersionMap) (module.VersionMap, error) {
 			// RunMigrations will detect ConsensusVersion changes and invoke
 			// registered module migration functions automatically.
+			return app.ModuleManager.RunMigrations(ctx, app.Configurator(), fromVM)
+		},
+	)
+
+	app.UpgradeKeeper.SetUpgradeHandler(
+		UpgradeNameTestnetRehearsal,
+		func(ctx context.Context, plan upgradetypes.Plan, fromVM module.VersionMap) (module.VersionMap, error) {
+			// Rehearses the x/upgrade governance path without changing the store
+			// layout; useful for local/testnet networks that already include all
+			// current module stores at genesis.
 			return app.ModuleManager.RunMigrations(ctx, app.Configurator(), fromVM)
 		},
 	)

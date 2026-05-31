@@ -13,6 +13,19 @@ _Status: 2026-05-31. Rehearsal substrate IMPLEMENTED; public deploy pending._
   active validator set = 4, privacy VKs loaded on all nodes, REST API serving, and a
   privacy `shield` via the clawd registry committed (code 0) with the commitment
   landing in state while all 4 validators stayed in lockstep.
+- ✅ **Local full-module smoke (Phase T2 flow coverage):**
+  `scripts/testnet/smoke-multinode.sh` verifies bank, tokenfactory, privacy
+  shield->unshield with a real ZK proof on a fresh tree, oracle commit-reveal,
+  agent+marketplace, and governance submit/vote against the 4-validator network.
+  **Verified live:** 6 passed / 0 failed on a fresh local multinode run.
+- ✅ **Local gov-driven upgrade rehearsal (Phase T2 upgrade path):**
+  `scripts/testnet/rehearse-gov-upgrade.sh` drives a real `MsgSoftwareUpgrade`
+  proposal for the `testnet-v1-rehearsal` handler, votes all local validators,
+  observes the pre-upgrade binary halt, restarts all validators with the
+  post-upgrade binary, and verifies `query upgrade applied`.
+  **Verified live:** proposal passed, pre-upgrade binary halted at height 134,
+  post-upgrade binary applied `testnet-v1-rehearsal` at height 134, and all 4
+  validators produced post-upgrade blocks (10 passed / 0 failed).
 - ⏳ **Public deploy (Phase T1/T3):** uses the existing `testnet/docker-compose.yml`
   (node0–3 + Prometheus/Grafana/AlertManager + faucet), `testnet/nginx/`,
   `testnet/publish-public-testnet.sh`, `testnet/deploy-hetzner-public.sh`. Remaining:
@@ -82,7 +95,8 @@ real (but valueless) tokens, public endpoints, and a published upgrade cadence.
   over TLS.
 - All Phase 1 flows pass against the public endpoints (not just localhost).
 - Faucet + explorer + monitoring live and healthy.
-- One full gov-driven chain upgrade rehearsed successfully on testnet.
+- One full gov-driven chain upgrade rehearsed successfully on the local multinode
+  testnet substrate; repeat on public testnet after external validators join.
 - ≥1 external validator and ≥1 external integrator onboarded.
 
 ## Open decisions

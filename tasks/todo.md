@@ -1,5 +1,22 @@
 # Task Plan
 
+## Multi-Validator Testnet Upgrade Rehearsal 2026-05-31
+
+- [x] Confirm the full-module multinode smoke is already committed and the worktree is clean.
+- [x] Add a safe no-op upgrade handler for local/testnet upgrade rehearsal that does not replay the existing `v2` oracle store addition.
+- [x] Add a governance-driven multinode upgrade rehearsal script.
+- [x] Verify the rehearsal on a fresh 4-validator local testnet.
+- [x] Document results in the testnet launch plan and commit the changes.
+
+### Review
+
+- Current `v2` upgrade handler runs normal migrations but also configures an oracle store addition at the upgrade height. That is not safe as a generic rehearsal target for the current local multinode genesis because the oracle store already exists.
+- Added `testnet-v1-rehearsal` as a no-op upgrade handler target for local/testnet rehearsal.
+- Added `scripts/testnet/rehearse-gov-upgrade.sh` to submit a `MsgSoftwareUpgrade` proposal, vote all local validators, wait for passage, and verify post-upgrade blocks.
+- While verifying, `local-multinode.sh up` reached consensus but validator processes exited when the parent shell ended in this non-interactive runner. Updated the launcher to start validators under `nohup` so the testnet survives after `up` returns.
+- First same-binary rehearsal attempt halted early with `BINARY UPDATED BEFORE TRIGGER`, which is the correct Cosmos SDK guard. Updated the rehearsal to require a pre-upgrade binary for voting/halt and a post-upgrade binary for restart/apply.
+- Verified with a pre-upgrade binary built from `c6049230` and the current post-upgrade binary: proposal `1` passed, the pre-upgrade binary halted at height 134, the post-upgrade binary applied `testnet-v1-rehearsal` at height 134, and all 4 validators produced post-upgrade blocks (10 passed / 0 failed).
+
 ## Operator Runtime Gateway Contract 2026-05-17
 
 - [x] Add formal OpenClaw protocol schemas/types for `provider.status`, `provider.help`, and `provider.dashboard`.

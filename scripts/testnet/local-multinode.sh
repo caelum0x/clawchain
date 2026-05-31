@@ -105,7 +105,7 @@ cmd_up() {
   echo "== start $N validators =="
   : > "$PIDFILE"
   for i in $(seq 0 $((N - 1))); do
-    "$BIN" start --home "$OUT_DIR/validator$i" --minimum-gas-prices "0.0001${DENOM}" \
+    nohup "$BIN" start --home "$OUT_DIR/validator$i" --minimum-gas-prices "0.0001${DENOM}" \
       > "$OUT_DIR/validator$i.log" 2>&1 &
     echo $! >> "$PIDFILE"
   done
