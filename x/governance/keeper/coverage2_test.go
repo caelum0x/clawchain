@@ -6,6 +6,7 @@ package keeper_test
 import (
 	"testing"
 
+	"cosmossdk.io/math"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/stretchr/testify/require"
 
@@ -72,6 +73,7 @@ func TestGRPCMsgServer_Vote(t *testing.T) {
 	f.bankKeeper.fundAccount(proposer, sdk.NewCoins(sdk.NewInt64Coin("uclaw", 100_000_000)))
 	proposerStr, _ := f.addressCodec.BytesToString(proposer)
 	voterStr, _ := f.addressCodec.BytesToString(voter)
+	f.stakingKeeper.setBonded(voter, math.NewInt(1_000_000))
 
 	submitResp, err := msgServer.SubmitProposal(f.ctx, &types.MsgSubmitProposal{
 		Proposer:      proposerStr,
@@ -232,6 +234,7 @@ func TestGRPCQueryServer_Votes(t *testing.T) {
 	f.bankKeeper.fundAccount(proposer, sdk.NewCoins(sdk.NewInt64Coin("uclaw", 100_000_000)))
 	proposerStr, _ := f.addressCodec.BytesToString(proposer)
 	voterStr, _ := f.addressCodec.BytesToString(voter)
+	f.stakingKeeper.setBonded(voter, math.NewInt(1_000_000))
 
 	deposit := sdk.NewCoins(sdk.NewInt64Coin("uclaw", 10_000_000))
 	id, err := f.keeper.SubmitProposal(f.ctx,
@@ -346,6 +349,7 @@ func TestHandleMsgVote(t *testing.T) {
 	f.bankKeeper.fundAccount(proposer, sdk.NewCoins(sdk.NewInt64Coin("uclaw", 100_000_000)))
 	proposerStr, _ := f.addressCodec.BytesToString(proposer)
 	voterStr, _ := f.addressCodec.BytesToString(voter)
+	f.stakingKeeper.setBonded(voter, math.NewInt(1_000_000))
 
 	deposit := sdk.NewCoins(sdk.NewInt64Coin("uclaw", 10_000_000))
 	id, err := f.keeper.SubmitProposal(f.ctx,
@@ -434,6 +438,7 @@ func TestQueryVotes_Keeper(t *testing.T) {
 	f.bankKeeper.fundAccount(proposer, sdk.NewCoins(sdk.NewInt64Coin("uclaw", 100_000_000)))
 	proposerStr, _ := f.addressCodec.BytesToString(proposer)
 	voterStr, _ := f.addressCodec.BytesToString(voter)
+	f.stakingKeeper.setBonded(voter, math.NewInt(1_000_000))
 
 	deposit := sdk.NewCoins(sdk.NewInt64Coin("uclaw", 10_000_000))
 	id, err := f.keeper.SubmitProposal(f.ctx,

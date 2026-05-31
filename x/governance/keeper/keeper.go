@@ -206,18 +206,26 @@ func (k Keeper) CastVote(ctx context.Context, proposalID uint64, voter, option s
 		return types.ErrAlreadyVoted.Wrapf("voter %s already voted on proposal %d", voter, proposalID)
 	}
 
-	// Determine vote weight: if a StakingKeeper is available, weight by
-	// delegated/bonded stake. Otherwise, each vote has equal weight of 1.
-	weight := math.LegacyOneDec()
-	if k.stakingKeeper != nil {
-		voterAddr, addrErr := k.addressCodec.StringToBytes(voter)
-		if addrErr == nil {
-			bonded, bondErr := k.stakingKeeper.GetDelegatorBonded(ctx, voterAddr)
-			if bondErr == nil && bonded.IsPositive() {
-				weight = math.LegacyNewDecFromInt(bonded)
-			}
-		}
+	// Vote weight is the voter's bonded stake. This MUST be derived from the
+	// staking keeper — never fall back to one-address-one-vote, which is a
+	// Sybil attack vector (an attacker can spin up unlimited zero-stake
+	// addresses). Fail closed if staking is unavailable or the voter has no
+	// bonded stake.
+	if k.stakingKeeper == nil {
+		return types.ErrStakingUnavailable
 	}
+	voterAddr, addrErr := k.addressCodec.StringToBytes(voter)
+	if addrErr != nil {
+		return types.ErrInvalidAddress.Wrapf("invalid voter address %s", voter)
+	}
+	bonded, bondErr := k.stakingKeeper.GetDelegatorBonded(ctx, voterAddr)
+	if bondErr != nil {
+		return fmt.Errorf("failed to query bonded stake for voter %s: %w", voter, bondErr)
+	}
+	if !bonded.IsPositive() {
+		return types.ErrNoVotingPower.Wrapf("voter %s has no bonded stake", voter)
+	}
+	weight := math.LegacyNewDecFromInt(bonded)
 
 	vote := types.Vote{
 		ProposalId: proposalID,
@@ -235,11 +243,10 @@ func (k Keeper) CastVote(ctx context.Context, proposalID uint64, voter, option s
 		return fmt.Errorf("failed to store vote: %w", err)
 	}
 
-	// Update proposal tally.
+	// Update proposal tally. weight is the voter's bonded stake, already
+	// guaranteed positive above — no minimum-weight floor (a floor would hand
+	// zero-stake addresses a free vote, reintroducing the Sybil vector).
 	weightInt := weight.TruncateInt()
-	if weightInt.IsZero() {
-		weightInt = math.OneInt()
-	}
 
 	switch option {
 	case types.VoteOptionYes:
