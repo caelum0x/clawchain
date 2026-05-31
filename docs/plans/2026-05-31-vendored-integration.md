@@ -93,8 +93,11 @@ design + audit). This is now the active path for V1.
 - [x] Unit tests cover connect/read/send/contract mapping with a mocked backend.
 - [x] Event subscription mapping is exposed through `watchTransactions` and
   `watchEvent`.
-- [ ] Run a live devnet transaction/example pass for signed bank send and CosmWasm
-  execute once a contract fixture is selected for this adapter example.
+- [x] Live signed bank send verified against the local 4-validator testnet via the
+  viem adapter's `offlineSigner` path (chainId/blockNumber/balance read + bank send
+  code 0). Required fixing `createClawViemClient` to forward `offlineSigner` to its
+  backend.
+- [ ] Live CosmWasm `execute` pass — pending a deployed contract fixture for the example.
 
 ### V2 — React: `wagmi` adapter
 - [x] Since wagmi is hooks-over-viem, build it on the V1 viem adapter: a ClawChain
@@ -139,7 +142,8 @@ no write path exists yet.
 - [x] Runnable example and SDK docs exist; no `eth_*` dependency in the happy path.
 - [x] Subscribe to / read Tendermint transaction events through the SDK WebSocket
   subscription path.
-- [ ] Live devnet example for signed bank send and CosmWasm execute.
+- [x] Live signed bank send (viem adapter, offlineSigner path) against the local
+  multi-validator testnet. CosmWasm execute live still pending a contract fixture.
 
 ## Open decisions
 
