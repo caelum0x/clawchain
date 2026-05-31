@@ -24,14 +24,24 @@
 //! - [`ClawProvider::query_contract`] from CosmWasm
 //!   `GET {rest}/cosmwasm/wasm/v1/contract/{contract}/smart/{base64(msg)}`.
 //!
-//! ## Out of scope (follow-up): signing & tx submission
+//! ## Write path (signing & tx submission)
 //!
-//! This is a **read-provider slice**. Signing and broadcasting transactions
-//! (bank `MsgSend`, CosmWasm `MsgExecuteContract`) is deliberately **NOT**
-//! implemented here. Cosmos tx signing in Rust — SIGN_MODE_DIRECT, protobuf
-//! `Any` packing, secp256k1 over the canonical sign-bytes, account/sequence
-//! fetch, fee/gas estimation, and broadcast — is a substantial surface and is
-//! left as an explicit follow-up. Do not assume a write path exists.
+//! The V3 follow-up is now implemented: this crate can build, sign, and broadcast
+//! Cosmos transactions backed by [`cosmrs`].
+//! - [`ClawSigner`] wraps a secp256k1 key (32-byte hex) bound to the `claw`
+//!   bech32 prefix and exposes its address.
+//! - [`ClawProvider::send`] builds a bank `MsgSend`, signs with SIGN_MODE_DIRECT,
+//!   and broadcasts.
+//! - [`ClawProvider::execute_contract`] builds a CosmWasm `MsgExecuteContract`
+//!   and broadcasts.
+//!
+//! Account number + sequence come from `GET {rest}/cosmos/auth/v1beta1/accounts/{addr}`,
+//! the chain id from `/status`, and broadcast goes to Tendermint `/broadcast_tx_sync`.
+//! Tx **building + signing** lives in pure functions in [`tx`]
+//! ([`tx::build_sign_doc`], [`tx::sign_tx`], [`tx::encode_tx_bytes`],
+//! [`tx::compute_fee`]) that take `chain_id`/`account_number`/`sequence`/fee as
+//! plain params and return bytes/structs — **no network**, so the signing tests
+//! run fully offline with a fixed key + fixed chain context.
 //!
 //! ## HTTP-agnostic seam
 //!
@@ -57,10 +67,18 @@
 pub mod error;
 pub mod provider;
 pub mod query;
+pub mod signer;
+pub mod tx;
 
 pub use error::{ClawError, ClawResult};
 pub use provider::ClawProvider;
 pub use query::{
-    balance_query_path, parse_balance, parse_smart_query, parse_status, smart_query_path,
-    status_path, Coin, StatusInfo,
+    account_query_path, balance_query_path, broadcast_tx_sync_path, parse_account, parse_balance,
+    parse_broadcast_sync, parse_smart_query, parse_status, smart_query_path, status_path,
+    AccountInfo, Coin, StatusInfo,
+};
+pub use signer::{ClawSigner, CLAW_PREFIX};
+pub use tx::{
+    build_and_sign, build_msg_execute, build_msg_send, build_sign_doc, compute_fee,
+    encode_tx_bytes, sign_tx, TxContext,
 };

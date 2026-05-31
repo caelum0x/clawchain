@@ -3,9 +3,12 @@
 
 use crate::error::{ClawError, ClawResult};
 use crate::query::{
-    balance_query_path, parse_balance, parse_smart_query, parse_status, smart_query_path,
-    status_path, StatusInfo,
+    account_query_path, balance_query_path, broadcast_tx_sync_path, parse_account, parse_balance,
+    parse_broadcast_sync, parse_smart_query, parse_status, smart_query_path, status_path,
+    AccountInfo, StatusInfo,
 };
+use crate::signer::ClawSigner;
+use crate::tx::{build_and_sign, build_msg_execute, build_msg_send, compute_fee, TxContext};
 
 /// A ClawChain-native provider with an alloy-flavored read API.
 ///
@@ -83,13 +86,88 @@ impl ClawProvider {
     ///
     /// This is the Cosmos analogue of an alloy `eth_call` read — there is no EVM
     /// bytecode or ABI encoding involved; the message is a CosmWasm query schema.
-    pub fn query_contract(
-        &self,
-        contract: &str,
-        msg_json: &str,
-    ) -> ClawResult<serde_json::Value> {
+    pub fn query_contract(&self, contract: &str, msg_json: &str) -> ClawResult<serde_json::Value> {
         let body = self.get(&smart_query_path(&self.rest_base, contract, msg_json))?;
         parse_smart_query(&body)
+    }
+
+    // --- Write path -------------------------------------------------------
+
+    /// Fetch an account's number + sequence from Cosmos auth REST.
+    pub fn account(&self, addr: &str) -> ClawResult<AccountInfo> {
+        let body = self.get(&account_query_path(&self.rest_base, addr))?;
+        parse_account(&body)
+    }
+
+    /// Assemble the on-chain [`TxContext`] for `signer`: chain id from Tendermint
+    /// status, account number + sequence from auth REST, and the fee computed
+    /// from `gas_limit` * `gas_price` (e.g. `"0.0001uclaw"`).
+    ///
+    /// This is the single network-touching step before the pure build/sign path.
+    fn tx_context(
+        &self,
+        signer: &ClawSigner,
+        gas_limit: u64,
+        gas_price: &str,
+        memo: &str,
+    ) -> ClawResult<TxContext> {
+        let chain_id = self.chain_id()?;
+        let acct = self.account(&signer.address())?;
+        let (fee_amount, fee_denom) = compute_fee(gas_limit, gas_price)?;
+        Ok(TxContext {
+            chain_id,
+            account_number: acct.account_number,
+            sequence: acct.sequence,
+            gas_limit,
+            fee_amount,
+            fee_denom,
+            memo: memo.to_string(),
+        })
+    }
+
+    /// POST signed tx bytes to Tendermint `/broadcast_tx_sync` and return the hash.
+    fn broadcast(&self, tx_bytes: &[u8]) -> ClawResult<String> {
+        let url = broadcast_tx_sync_path(&self.rpc_base, tx_bytes);
+        let body = self.get(&url)?;
+        parse_broadcast_sync(&body)
+    }
+
+    /// Sign and broadcast a bank `MsgSend` (`signer` -> `to`, `amount` of `denom`).
+    ///
+    /// Uses SIGN_MODE_DIRECT. `gas_limit` and `gas_price` (e.g. `"0.0001uclaw"`)
+    /// drive the fee. Returns the broadcast tx hash on success.
+    pub fn send(
+        &self,
+        signer: &ClawSigner,
+        to: &str,
+        amount: u128,
+        denom: &str,
+        gas_limit: u64,
+        gas_price: &str,
+    ) -> ClawResult<String> {
+        let ctx = self.tx_context(signer, gas_limit, gas_price, "")?;
+        let msg = build_msg_send(signer.account_id(), to, amount, denom)?;
+        let bytes = build_and_sign(signer, msg, &ctx)?;
+        self.broadcast(&bytes)
+    }
+
+    /// Sign and broadcast a CosmWasm `MsgExecuteContract`.
+    ///
+    /// `msg_json` is the execute message; `funds` optionally attaches a single
+    /// coin `(amount, denom)`. Returns the broadcast tx hash on success.
+    pub fn execute_contract(
+        &self,
+        signer: &ClawSigner,
+        contract: &str,
+        msg_json: &str,
+        funds: Option<(u128, &str)>,
+        gas_limit: u64,
+        gas_price: &str,
+    ) -> ClawResult<String> {
+        let ctx = self.tx_context(signer, gas_limit, gas_price, "")?;
+        let msg = build_msg_execute(signer.account_id(), contract, msg_json, funds)?;
+        let bytes = build_and_sign(signer, msg, &ctx)?;
+        self.broadcast(&bytes)
     }
 }
 

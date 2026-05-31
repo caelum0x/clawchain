@@ -123,9 +123,27 @@ from CosmWasm smart-query `GET {rest}/cosmwasm/wasm/v1/contract/{contract}/smart
 URL-building and response-parsing live in pure functions (`parse_status`, `parse_balance`,
 `balance_query_path`, `smart_query_path`, `parse_smart_query`) unit-tested OFFLINE with
 fixture JSON (`cargo test`, 11 tests, no network). The vendored `alloy/` upstream is
-untouched. **Follow-up (out of scope here):** Cosmos tx signing + broadcast in Rust
-(SIGN_MODE_DIRECT, protobuf `Any`, secp256k1, account/sequence + fee/gas, broadcast) —
-no write path exists yet.
+untouched.
+
+**V3 write path landed (2026-06-01).** The follow-up Cosmos tx signing + broadcast path
+is now implemented in the same `clawchain-alloy/` crate via the standard `cosmrs`
+crate (`cosmrs = { version = "0.22", features = ["cosmwasm", "bip32"] }`):
+- `ClawSigner` (`src/signer.rs`) wraps a secp256k1 key built from a 32-byte hex private
+  key and derives the `claw`-prefixed bech32 address.
+- `ClawProvider::send(signer, to, amount, denom, gas_limit, gas_price)` builds a bank
+  `MsgSend` and `ClawProvider::execute_contract(signer, contract, msg_json, funds, ...)`
+  builds a CosmWasm `MsgExecuteContract`, both SIGN_MODE_DIRECT, broadcast via Tendermint
+  `/broadcast_tx_sync`. Account number + sequence come from
+  `GET {rest}/cosmos/auth/v1beta1/accounts/{addr}`, chain id from `/status`. Fee is
+  computed from a gas limit + gas price string (e.g. `"0.0001uclaw"`).
+- Tx **building + signing** is isolated in pure functions in `src/tx.rs`
+  (`compute_fee`, `build_msg_send`, `build_msg_execute`, `build_sign_doc`, `sign_tx`,
+  `encode_tx_bytes`) that take `chain_id`/`account_number`/`sequence`/fee as plain params
+  and return bytes/structs — **no network**. The new signing tests are fully offline:
+  they sign with a fixed key + fixed chain context and assert the encoded tx decodes back,
+  the message type URL is correct, and the secp256k1 signature is 64 bytes.
+- All read-path code + tests are unchanged. `cargo build` + `cargo test` pass with
+  32 unit tests + 1 doc test (was 11), no network.
 
 ### V4 — Examples & docs
 - [x] One end-to-end example per ecosystem (connect → query balance → send → CosmWasm
