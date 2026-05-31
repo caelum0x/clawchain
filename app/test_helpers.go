@@ -197,5 +197,27 @@ func addTestValidator(genesisState GenesisState, application *App) (GenesisState
 	}
 	genesisState[stakingtypes.ModuleName] = stakingGenBz
 
+	// staking InitGenesis requires the bonded pool module account balance to
+	// equal the bonded validators' tokens, otherwise it rejects the genesis as
+	// malformed. Fund the bonded pool to match the validator above, merging into
+	// any bank genesis already present (e.g. from SetupWithGenesisAccounts).
+	bondedCoins := sdk.NewCoins(sdk.NewCoin("uclaw", validator.Tokens))
+	bankGenesis := banktypes.DefaultGenesisState()
+	if existing, ok := genesisState[banktypes.ModuleName]; ok {
+		if err := application.AppCodec().UnmarshalJSON(existing, bankGenesis); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal bank genesis: %w", err)
+		}
+	}
+	bankGenesis.Balances = append(bankGenesis.Balances, banktypes.Balance{
+		Address: authtypes.NewModuleAddress(stakingtypes.BondedPoolName).String(),
+		Coins:   bondedCoins,
+	})
+	bankGenesis.Supply = bankGenesis.Supply.Add(bondedCoins...)
+	bankGenBz, err := application.AppCodec().MarshalJSON(bankGenesis)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal bank genesis: %w", err)
+	}
+	genesisState[banktypes.ModuleName] = bankGenBz
+
 	return genesisState, nil
 }
