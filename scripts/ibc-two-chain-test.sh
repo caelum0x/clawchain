@@ -99,6 +99,7 @@ record_skip() {
 # ---------------------------------------------------------------------------
 CHAIN_A_PID=""
 CHAIN_B_PID=""
+RLY_PID=""
 
 cleanup() {
     if [ "${KEEP_RUNNING}" = true ]; then
@@ -107,6 +108,10 @@ cleanup() {
         return
     fi
     info "Cleaning up..."
+    if [ -n "${RLY_PID}" ] && kill -0 "${RLY_PID}" 2>/dev/null; then
+        kill "${RLY_PID}" 2>/dev/null || true
+        wait "${RLY_PID}" 2>/dev/null || true
+    fi
     if [ -n "${CHAIN_A_PID}" ] && kill -0 "${CHAIN_A_PID}" 2>/dev/null; then
         kill "${CHAIN_A_PID}" 2>/dev/null || true
         wait "${CHAIN_A_PID}" 2>/dev/null || true
