@@ -1,5 +1,22 @@
 # Task Plan
 
+## Devnet Launch Implementation 2026-05-31
+
+- [x] Inspect existing local dev, Docker compose, live driver, DEX, IBC, and Makefile hooks.
+- [x] Add `scripts/local-dev.sh --devnet` with isolated `.devnet-node/` state and `clawchain-devnet` chain ID.
+- [x] Add devnet reset and smoke commands.
+- [x] Update `docs/plans/2026-05-31-devnet-launch.md` to separate completed local work from optional Docker/CI work.
+- [x] Run verification and commit changes.
+
+### Review
+
+- Existing `scripts/local-dev.sh` already builds, initializes, funds a dev key, creates an oracle feeder, configures genesis, generates privacy dev keys, starts the node, and delegates oracle feeder consent.
+- Missing pieces are devnet-specific chain ID/home isolation, one-command reset, a focused devnet smoke wrapper, Docker profile validation, and CI wiring.
+- Added `scripts/local-dev.sh --devnet` with `clawchain-devnet`, `.devnet-node/`, fast devnet governance/staking/slashing params, persistent PID file, and indexed feeder-delegation wait.
+- Added `scripts/devnet-reset.sh`, `scripts/devnet-smoke.sh`, and Makefile targets `devnet-up`, `devnet-smoke`, and `devnet-reset`.
+- Verified fresh devnet boot plus smoke: 7 passed / 0 failed. Docker profile and CI job remain active follow-up work.
+- Final verification passed: shell syntax, Makefile dry-run for devnet targets, `git diff --check`, and devnet reset.
+
 ## Local-Only Public Testnet Readiness 2026-05-31
 
 - [x] Inspect current public testnet scripts/configs to identify what can be completed without VPS or external validators.

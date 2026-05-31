@@ -1,61 +1,83 @@
 # Devnet Launch Plan
 
-_Plan only — no code yet. Status: 2026-05-31. Owner: TBD._
+_Status: 2026-05-31. Local single-node devnet is implemented and verified; Docker profile and CI wiring remain._
 
 ## Goal
 
-A throwaway, fast-iterating **developer network** that any contributor (or CI) can
-stand up in minutes and tear down freely. Not public, not persistent, not secure —
-optimized for iteration speed and parity with the real chain's module set.
+A throwaway, fast-iterating developer network that any contributor can stand up
+and reset locally. It is not public, persistent, or secure; it is optimized for
+iteration speed and parity with the chain module set.
 
-## Shape
+## Completed Local Devnet
+
+- `scripts/local-dev.sh --devnet`
+  - Uses chain ID `clawchain-devnet`.
+  - Uses isolated home `.devnet-node/`, separate from `.local-node/`.
+  - Builds `build/clawchaind`.
+  - Funds the reproducible `dev-account`.
+  - Creates an oracle feeder key.
+  - Enables REST/gRPC/CORS.
+  - Configures permissionless CosmWasm upload.
+  - Generates insecure dev privacy pk/vk keys.
+  - Applies fast devnet gov/staking/slashing params.
+  - Starts the node and writes `.devnet-node/.clawchaind.pid`.
+- `scripts/devnet-reset.sh`
+  - Stops the devnet node and wipes `.devnet-node/`.
+- `scripts/devnet-smoke.sh`
+  - Verifies block production, bank send, tokenfactory create+mint, privacy
+    shield, oracle commit-reveal, agent+marketplace, and governance submit+vote.
+- Make targets:
+  - `make devnet-up`
+  - `make devnet-smoke`
+  - `make devnet-reset`
+
+Latest live verification:
+
+```bash
+bash scripts/devnet-reset.sh && bash scripts/local-dev.sh --devnet && bash scripts/devnet-smoke.sh
+```
+
+Result: 7 passed / 0 failed.
+
+## Active Remaining Work
+
+- Add a Docker `devnet` profile that starts chain, faucet, explorer, and web with
+  devnet defaults.
+- Add a CI ephemeral devnet job that boots devnet, runs `scripts/devnet-smoke.sh`,
+  and tears down.
+- Add optional seeded demo state for heavier UI demos:
+  agent, skill, privacy note, tokenfactory denom, and DEX fixture.
+- Decide whether to commit fixed dev mnemonics beyond the existing reproducible
+  `dev-account` mnemonic.
+- Add optional 2-chain IBC devnet mode using `scripts/ibc-two-chain-test.sh` as the
+  base.
+
+## Target Shape
 
 | Property | Devnet |
 |---|---|
-| Validators | 1 (single-node) or 2–3 local (IBC dev) |
-| Chain ID | `clawchain-devnet` (vs `clawchain-local` for one-off) |
-| Persistence | Ephemeral — wipe `.devnet-node/` freely |
-| Keys | `test` keyring; well-known dev mnemonics committed for reproducibility |
-| Privacy ZK keys | `clawchaind privacy gen-dev-keys` (insecure dev pk+vk, auto-seeded) |
-| Faucet | Open, unlimited (`cmd/claw-faucet`) |
+| Validators | 1 by default; optional 2-chain mode for IBC dev |
+| Chain ID | `clawchain-devnet` |
+| Persistence | Ephemeral; wipe `.devnet-node/` freely |
+| Keys | `test` keyring and reproducible dev account |
+| Privacy ZK keys | Insecure `privacy gen-dev-keys` pk/vk |
+| Faucet | Open local faucet once Docker profile is wired |
 | Tokenomics | Inflated dev supply; gas price `0.025uclaw` |
 
-## Steps
+## Acceptance Criteria
 
-1. **Reuse `scripts/local-dev.sh` as the base** — it already does init → fund dev +
-   feeder keys → genesis params → gentx → `privacy gen-dev-keys` (now emits pk+vk) →
-   start with API/gRPC enabled. Add a `--devnet` flag that sets `CHAIN_ID=clawchain-devnet`
-   and a separate home (`.devnet-node/`) so it doesn't collide with `clawchain-local`.
-2. **Docker path** — extend the root `docker-compose.yml` with a `devnet` profile that
-   brings up: chain, faucet (open), explorer (devnet config), web, optionally a 2nd
-   chain + relayer for IBC dev. Reuse the validated `golang:1.24-bookworm` base.
-3. **Seeded state** — optional `scripts/devnet-seed.sh` that, after boot, exercises a
-   canonical fixture set (register an agent, list a skill, shield→unshield, create a
-   tokenfactory denom, deploy the local Astroport build) so a fresh devnet has
-   demo-ready data. Reuse `cmd/clawd/scripts/*` drivers.
-4. **CI ephemeral devnet** — a CI job that boots the devnet in Docker, runs the
-   `cmd/clawd/scripts` live drivers (shield/unshield, oracle, dex, ibc), asserts the
-   expected tx codes, then tears down. This is the integration gate.
-5. **Reset command** — `scripts/devnet-reset.sh` = stop + `rm -rf .devnet-node/` +
-   re-run boot. One command back to clean slate.
-
-## Acceptance criteria
-
-- `scripts/local-dev.sh --devnet` boots a producing chain in < 60s on a dev laptop.
-- A fresh devnet passes the full live-flow driver set (privacy, oracle, CosmWasm,
-  DEX, IBC) with no manual key swap (relies on the Gap A `gen-dev-keys` pk+vk fix).
-- `docker compose --profile devnet up` brings the whole stack healthy.
+- `scripts/local-dev.sh --devnet` boots a producing local chain.
+- `scripts/devnet-smoke.sh` passes against a fresh devnet.
+- `scripts/devnet-reset.sh` returns the devnet to a clean slate.
+- Docker profile brings the local stack up with devnet defaults.
 - CI devnet job runs the live drivers and is green.
 
-## Open decisions
+## References
 
-- 1-node vs 2–3-node default (IBC needs ≥2). Recommend: 1-node default, `--ibc` opt-in
-  for the 2-chain + `rly` setup (`scripts/ibc-two-chain-test.sh` is the proven base).
-- Whether to commit dev mnemonics (reproducible, but never reuse on testnet/mainnet).
-
-## Dependencies / references
-
-- `scripts/local-dev.sh`, `scripts/ibc-two-chain-test.sh`, `scripts/ibc-relay-rly.sh`
-- `cmd/clawd/scripts/{roundtrip-shield,roundtrip-unshield,live-oracle-check,live-modules-check}.ts`
-- `scripts/dex-local-swap.sh`, `cmd/claw-faucet`
-- Builds on: testnet-launch (devnet is the rehearsal for it).
+- Local devnet boot: `scripts/local-dev.sh --devnet`
+- Reset: `scripts/devnet-reset.sh`
+- Smoke: `scripts/devnet-smoke.sh`
+- IBC base: `scripts/ibc-two-chain-test.sh`, `scripts/ibc-relay-rly.sh`
+- Live drivers: `cmd/clawd/scripts/live-shield-check.ts`,
+  `cmd/clawd/scripts/live-oracle-check.ts`,
+  `cmd/clawd/scripts/live-modules-check.ts`

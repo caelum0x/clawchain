@@ -2,21 +2,53 @@
 # local-dev.sh — Bootstrap a local ClawChain development environment.
 # Usage:
 #   ./scripts/local-dev.sh              # chain only
+#   ./scripts/local-dev.sh --devnet     # isolated devnet at .devnet-node/
 #   ./scripts/local-dev.sh --all        # chain + all frontend services via docker compose
 
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 BUILD_DIR="$ROOT_DIR/build"
-CHAIN_ID="clawchain-local"
 BINARY="$BUILD_DIR/clawchaind"
-HOME_DIR="$ROOT_DIR/.local-node"
-MONIKER="local-node"
 DENOM="uclaw"
 KEY_NAME="dev-account"
 KEY_MNEMONIC="abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon art"
 CHAIN_RPC="http://localhost:26657"
 CHAIN_REST="http://localhost:1317"
+MODE="local"
+START_ALL=false
+
+for arg in "$@"; do
+  case "$arg" in
+    --devnet)
+      MODE="devnet"
+      ;;
+    --all)
+      START_ALL=true
+      ;;
+    -h|--help)
+      sed -n '2,8p' "$0"
+      exit 0
+      ;;
+    *)
+      echo "unknown argument: $arg" >&2
+      exit 1
+      ;;
+  esac
+done
+
+if [ "$MODE" = "devnet" ]; then
+  CHAIN_ID="clawchain-devnet"
+  HOME_DIR="$ROOT_DIR/.devnet-node"
+  MONIKER="devnet-node"
+  LOGFILE="$BUILD_DIR/devnet.log"
+else
+  CHAIN_ID="clawchain-local"
+  HOME_DIR="$ROOT_DIR/.local-node"
+  MONIKER="local-node"
+  LOGFILE="$BUILD_DIR/chain.log"
+fi
+PIDFILE="$HOME_DIR/.clawchaind.pid"
 
 # ── Colors ──
 RED='\033[0;31m'
@@ -53,7 +85,7 @@ check_bin docker
 echo ""
 
 # ── 2. Build the chain binary ──
-info "Building chain binary..."
+info "Building chain binary for $MODE..."
 mkdir -p "$BUILD_DIR"
 (cd "$ROOT_DIR" && go build -o "$BINARY" ./cmd/clawchaind/)
 ok "Binary built at $BINARY"
@@ -167,6 +199,24 @@ if 'wasm' not in app:
     g['app_state'] = app
 " && ok "CosmWasm genesis state configured (upload: Everybody)" || warn "Could not set wasm genesis (python3 may be missing)"
 
+if [ "$MODE" = "devnet" ]; then
+  update_genesis "
+app = g.get('app_state', {})
+gov = app.get('gov', {}).get('params', {})
+if gov:
+    gov['voting_period'] = '30s'
+    gov['expedited_voting_period'] = '20s'
+    gov['max_deposit_period'] = '30s'
+staking = app.get('staking', {}).get('params', {})
+if staking:
+    staking['unbonding_time'] = '60s'
+slashing = app.get('slashing', {}).get('params', {})
+if slashing:
+    slashing['signed_blocks_window'] = '1000'
+    slashing['min_signed_per_window'] = '0.050000000000000000'
+" && ok "Devnet-fast genesis params configured" || warn "Could not set devnet-fast params"
+fi
+
 echo ""
 
 # ── 6. Create gentx (if not already done) ──
@@ -197,19 +247,20 @@ fi
 echo ""
 
 info "Starting chain..."
-LOGFILE="$BUILD_DIR/chain.log"
 
 # Kill any existing instance
 pkill -f "clawchaind start.*$HOME_DIR" 2>/dev/null || true
 sleep 1
 
-"$BINARY" start --home "$HOME_DIR" \
+nohup "$BINARY" start --home "$HOME_DIR" \
   --minimum-gas-prices "0.025${DENOM}" \
   --api.enable \
   --grpc.enable \
   > "$LOGFILE" 2>&1 &
 
 CHAIN_PID=$!
+mkdir -p "$HOME_DIR"
+echo "$CHAIN_PID" > "$PIDFILE"
 ok "Chain starting (PID: $CHAIN_PID, log: $LOGFILE)"
 echo ""
 
@@ -238,28 +289,43 @@ echo ""
 # validator operator (dev-account) and grants voting rights to the feeder key.
 info "Delegating oracle feed consent to $FEEDER_ADDR..."
 VALIDATOR_ADDR=$("$BINARY" keys show "$KEY_NAME" --home "$HOME_DIR" --keyring-backend test --bech val -a)
-if "$BINARY" tx oracle set-feeder "$FEEDER_ADDR" \
+FEEDER_TX=$("$BINARY" tx oracle set-feeder "$FEEDER_ADDR" \
   --from "$KEY_NAME" \
   --home "$HOME_DIR" \
   --keyring-backend test \
   --chain-id "$CHAIN_ID" \
   --gas auto \
   --gas-adjustment 1.4 \
-  -y 2>/dev/null; then
+  --gas-prices "0.025${DENOM}" \
+  -y -o json 2>/dev/null || true)
+FEEDER_CODE=$(printf '%s' "$FEEDER_TX" | grep -oE '"code":[0-9]+' | head -1 | grep -oE '[0-9]+' || true)
+if [ "${FEEDER_CODE:-0}" = "0" ]; then
+  FEEDER_HASH=$(printf '%s' "$FEEDER_TX" | grep -o '"txhash":"[^"]*"' | cut -d'"' -f4 || true)
+  if [ -n "$FEEDER_HASH" ]; then
+    for _ in $(seq 1 15); do
+      sleep 1
+      "$BINARY" query tx "$FEEDER_HASH" --node "$CHAIN_RPC" -o json >/dev/null 2>&1 && break
+    done
+  fi
   ok "Oracle feeder delegated: $VALIDATOR_ADDR -> $FEEDER_ADDR"
 else
-  warn "Could not delegate oracle feeder — oracle module may not be active yet"
+  warn "Could not delegate oracle feeder (code ${FEEDER_CODE:-unknown}) — oracle smoke can still self-delegate"
 fi
 echo ""
 
 # ── 9. Print endpoint URLs ──
 echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${GREEN} ClawChain Local Development Environment${NC}"
+if [ "$MODE" = "devnet" ]; then
+  echo -e "${GREEN} ClawChain Devnet Environment${NC}"
+else
+  echo -e "${GREEN} ClawChain Local Development Environment${NC}"
+fi
 echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 echo -e "  Chain RPC:      ${CYAN}http://localhost:26657${NC}"
 echo -e "  Chain REST:     ${CYAN}http://localhost:1317${NC}"
 echo -e "  Chain gRPC:     ${CYAN}localhost:9090${NC}"
+echo -e "  Chain ID:       ${CYAN}$CHAIN_ID${NC}"
 echo -e ""
 echo -e "  Web Dashboard:  ${CYAN}http://localhost:3000${NC}"
 echo -e "  Explorer:       ${CYAN}http://localhost:8080${NC}"
@@ -271,12 +337,13 @@ echo -e "  Dev Account:    ${YELLOW}$DEV_ADDR${NC}"
 echo -e "  Oracle Feeder:  ${YELLOW}$FEEDER_ADDR${NC}"
 echo -e "  Chain PID:      ${YELLOW}$CHAIN_PID${NC}"
 echo -e "  Log file:       ${YELLOW}$LOGFILE${NC}"
+echo -e "  Home:           ${YELLOW}$HOME_DIR${NC}"
 echo ""
 echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 
 # ── 10. Optionally start all frontend services ──
-if [ "${1:-}" = "--all" ]; then
+if [ "$START_ALL" = true ]; then
   info "Starting all frontend services with docker compose..."
   if [ -f "$ROOT_DIR/docker-compose.yml" ]; then
     (cd "$ROOT_DIR" && docker compose up -d)
