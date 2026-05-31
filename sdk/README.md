@@ -120,6 +120,12 @@ if (mnemonic) {
   console.log({ address, balance });
 }
 
+const stopWatchingTransfers = client.watchEvent({
+  eventType: "transfer",
+  onEvent: (event) => console.log("transfer event", event),
+});
+stopWatchingTransfers();
+
 await client.disconnect();
 ```
 

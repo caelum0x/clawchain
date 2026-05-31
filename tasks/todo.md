@@ -1,5 +1,21 @@
 # Task Plan
 
+## Vendored Integration V1 Events 2026-06-01
+
+- [x] Inspect the existing SDK WebSocket subscription APIs and viem adapter surface.
+- [x] Add viem-style event watch methods for transaction and chain events.
+- [x] Add focused unit tests and update exports/docs.
+- [x] Verify build/tests/whitespace checks.
+- [x] Commit the finished local work.
+
+### Review
+
+- Added `watchTransactions` and `watchEvent` to `createClawViemClient`, backed by the existing `ClawChainClient.subscribeTx` and `ClawChainClient.subscribeEvent` WebSocket paths.
+- Exported the new request types from `sdk/src/index.ts`.
+- Added adapter tests for transaction and event subscription mapping, including unsubscribe propagation.
+- Updated `sdk/README.md` and `docs/plans/2026-05-31-vendored-integration.md` so the Tendermint event acceptance criterion is no longer stale.
+- Verified `cd sdk && npm run build`, `cd sdk && npm test -- --test-reporter=spec dist/viem.test.js` (296 passed / 0 failed), and `git diff --check`.
+
 ## Vendored Integration V1 2026-05-31
 
 - [x] Inspect the vendored integration plan, SDK, clawd registry, and package layout.

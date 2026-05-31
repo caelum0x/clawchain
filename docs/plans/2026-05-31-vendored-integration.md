@@ -18,7 +18,7 @@ Implemented now:
   reads enabled by `CLAW_MNEMONIC`.
 - `sdk/src/viem.test.ts` covers connect/disconnect, chain id, block height, account,
   balance, bank send mapping, CosmWasm read mapping, CosmWasm write mapping, and
-  transfer amount validation.
+  event subscription mapping.
 
 ## The core mismatch (read first)
 
@@ -83,6 +83,8 @@ design + audit). This is now the active path for V1.
 - [x] Contract interactions route to CosmWasm (`MsgExecuteContract`/smart-query) rather
   than `eth_call`.
 - [x] Unit tests cover connect/read/send/contract mapping with a mocked backend.
+- [x] Event subscription mapping is exposed through `watchTransactions` and
+  `watchEvent`.
 - [ ] Run a live devnet transaction/example pass for signed bank send and CosmWasm
   execute once a contract fixture is selected for this adapter example.
 
@@ -107,8 +109,9 @@ design + audit). This is now the active path for V1.
 - [x] Adapter maps `sendTransaction` to Cosmos bank send.
 - [x] Adapter maps `readContract`/`writeContract` to CosmWasm smart query/execute.
 - [x] Runnable example and SDK docs exist; no `eth_*` dependency in the happy path.
+- [x] Subscribe to / read Tendermint transaction events through the SDK WebSocket
+  subscription path.
 - [ ] Live devnet example for signed bank send and CosmWasm execute.
-- [ ] Subscribe to / read Tendermint events for a tx.
 
 ## Open decisions
 

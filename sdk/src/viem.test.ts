@@ -2,7 +2,7 @@ import test, { describe } from "node:test";
 import assert from "node:assert/strict";
 
 import { createClawViemClient, type ClawViemClientBackend } from "./viem.js";
-import type { TxResult, WasmCoin, WasmExecuteResult } from "./types.js";
+import type { ChainEvent, TxResult, WasmCoin, WasmExecuteResult, WsTxEvent } from "./types.js";
 
 function tx(overrides: Partial<TxResult> = {}): TxResult {
   return {
@@ -63,6 +63,14 @@ function mockBackend(): ClawViemClientBackend & {
     ) {
       calls.push({ name: "executeContract", args: [senderAddress, contractAddress, execMsg, funds] });
       return wasmTx();
+    },
+    subscribeTx(address: string, callback: (tx: WsTxEvent) => void) {
+      calls.push({ name: "subscribeTx", args: [address, callback] });
+      return () => calls.push({ name: "unsubscribeTx", args: [address] });
+    },
+    subscribeEvent(eventType: string, callback: (event: ChainEvent) => void) {
+      calls.push({ name: "subscribeEvent", args: [eventType, callback] });
+      return () => calls.push({ name: "unsubscribeEvent", args: [eventType] });
     },
   };
 }
@@ -185,5 +193,41 @@ describe("createClawViemClient", () => {
       () => client.sendTransaction({ to: "claw1dest", value: "1.5" }),
       /value must be an integer string/,
     );
+  });
+
+  test("maps watchTransactions to the SDK tx subscription", () => {
+    const backend = mockBackend();
+    const client = createClawViemClient({ client: backend, fetch: statusFetch() });
+    const onTx = (_tx: WsTxEvent) => {};
+
+    const unsubscribe = client.watchTransactions({ address: "claw1sender", onTx });
+    unsubscribe();
+
+    assert.deepEqual(backend.calls.at(-2), {
+      name: "subscribeTx",
+      args: ["claw1sender", onTx],
+    });
+    assert.deepEqual(backend.calls.at(-1), {
+      name: "unsubscribeTx",
+      args: ["claw1sender"],
+    });
+  });
+
+  test("maps watchEvent to the SDK event subscription", () => {
+    const backend = mockBackend();
+    const client = createClawViemClient({ client: backend, fetch: statusFetch() });
+    const onEvent = (_event: ChainEvent) => {};
+
+    const unsubscribe = client.watchEvent({ eventType: "transfer", onEvent });
+    unsubscribe();
+
+    assert.deepEqual(backend.calls.at(-2), {
+      name: "subscribeEvent",
+      args: ["transfer", onEvent],
+    });
+    assert.deepEqual(backend.calls.at(-1), {
+      name: "unsubscribeEvent",
+      args: ["transfer"],
+    });
   });
 });

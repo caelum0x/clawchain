@@ -59,6 +59,8 @@ export type {
   ClawViemReadContractRequest,
   ClawViemTransferRequest,
   ClawViemTx,
+  ClawViemWatchEventRequest,
+  ClawViemWatchTransactionsRequest,
   ClawViemWriteContractRequest,
 } from "./viem.js";
 

@@ -5,7 +5,15 @@ import {
   DEFAULT_PREFIX,
   DEFAULT_RPC_URL,
 } from "./constants.js";
-import type { ClawChainClientOptions, TxResult, WasmCoin, WasmExecuteResult } from "./types.js";
+import type {
+  ChainEvent,
+  ClawChainClientOptions,
+  TxResult,
+  Unsubscribe,
+  WasmCoin,
+  WasmExecuteResult,
+  WsTxEvent,
+} from "./types.js";
 
 export interface ClawViemAdapterOptions extends ClawChainClientOptions {
   client?: ClawViemClientBackend;
@@ -25,6 +33,8 @@ export interface ClawViemClientBackend {
     execMsg: Record<string, unknown>,
     funds?: WasmCoin[],
   ): Promise<WasmExecuteResult>;
+  subscribeTx(address: string, callback: (tx: WsTxEvent) => void): Unsubscribe;
+  subscribeEvent(eventType: string, callback: (event: ChainEvent) => void): Unsubscribe;
 }
 
 export interface ClawViemTransferRequest {
@@ -42,6 +52,16 @@ export interface ClawViemReadContractRequest {
 export interface ClawViemWriteContractRequest extends ClawViemReadContractRequest {
   funds?: WasmCoin[];
   senderAddress?: string;
+}
+
+export interface ClawViemWatchTransactionsRequest {
+  address?: string;
+  onTx: (tx: WsTxEvent) => void;
+}
+
+export interface ClawViemWatchEventRequest {
+  eventType: string;
+  onEvent: (event: ChainEvent) => void;
 }
 
 export interface ClawViemTx {
@@ -63,6 +83,8 @@ export interface ClawViemClient {
   sendTransaction(args: ClawViemTransferRequest): Promise<ClawViemTx>;
   readContract(args: ClawViemReadContractRequest): Promise<unknown>;
   writeContract(args: ClawViemWriteContractRequest): Promise<ClawViemTx>;
+  watchTransactions(args: ClawViemWatchTransactionsRequest): Unsubscribe;
+  watchEvent(args: ClawViemWatchEventRequest): Unsubscribe;
 }
 
 interface TendermintStatusResponse {
@@ -189,6 +211,14 @@ export function createClawViemClient(options: ClawViemAdapterOptions = {}): Claw
         args.funds,
       );
       return toViemTx(tx);
+    },
+
+    watchTransactions(args) {
+      return backend.subscribeTx(args.address ?? "", args.onTx);
+    },
+
+    watchEvent(args) {
+      return backend.subscribeEvent(args.eventType, args.onEvent);
     },
   };
 }
