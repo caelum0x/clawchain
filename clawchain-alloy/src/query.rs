@@ -46,18 +46,18 @@ pub fn account_query_path(rest_base: &str, addr: &str) -> String {
     )
 }
 
-/// Tendermint RPC synchronous broadcast endpoint. The signed tx bytes are sent
-/// base64-encoded as the `tx` query param (`/broadcast_tx_sync?tx="..."`).
+/// Tendermint RPC synchronous broadcast endpoint. The signed tx bytes are sent as a
+/// `0x`-prefixed hex `tx` query param (`/broadcast_tx_sync?tx=0x...`).
+///
+/// Tendermint's URI arg parser hex-decodes a `0x`-prefixed value to raw bytes. A
+/// quoted base64 value is instead treated as a literal string (NOT decoded), which
+/// corrupts the tx and yields an on-chain "tx parse error". Hex also needs no
+/// percent-encoding, so this is the safe GET form for binary tx bytes.
 pub fn broadcast_tx_sync_path(rpc_base: &str, tx_bytes: &[u8]) -> String {
-    let encoded = BASE64.encode(tx_bytes);
     format!(
-        "{}/broadcast_tx_sync?tx=%22{}%22",
+        "{}/broadcast_tx_sync?tx=0x{}",
         rpc_base.trim_end_matches('/'),
-        // base64 may contain '+' and '/'; percent-encode the few unsafe chars.
-        encoded
-            .replace('+', "%2B")
-            .replace('/', "%2F")
-            .replace('=', "%3D")
+        hex::encode(tx_bytes)
     )
 }
 
@@ -373,10 +373,10 @@ mod tests {
     }
 
     #[test]
-    fn builds_broadcast_path_with_encoded_tx() {
-        let path = broadcast_tx_sync_path("http://localhost:26657/", &[0xff, 0x00]);
-        assert!(path.starts_with("http://localhost:26657/broadcast_tx_sync?tx=%22"));
-        assert!(path.ends_with("%22"));
+    fn builds_broadcast_path_with_hex_tx() {
+        // 0x-prefixed lowercase hex; Tendermint decodes this to raw bytes.
+        let path = broadcast_tx_sync_path("http://localhost:26657/", &[0xff, 0x00, 0x10]);
+        assert_eq!(path, "http://localhost:26657/broadcast_tx_sync?tx=0xff0010");
     }
 
     #[test]
