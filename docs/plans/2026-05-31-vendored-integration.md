@@ -1,7 +1,7 @@
 # Vendored-Project Integration Plan (make `viem` / `wagmi` / `alloy` use ClawChain)
 
-_Status: 2026-05-31. V1 TypeScript adapter slice implemented in `@clawchain/sdk`.
-Owner: TBD._
+_Status: 2026-05-31. V1 + V2 TypeScript adapter slices implemented in `@clawchain/sdk`
+(viem-style + wagmi-style), with V4 examples/docs. Owner: TBD._
 
 ## Current implementation status
 
@@ -19,6 +19,14 @@ Implemented now:
 - `sdk/src/viem.test.ts` covers connect/disconnect, chain id, block height, account,
   balance, bank send mapping, CosmWasm read mapping, CosmWasm write mapping, and
   event subscription mapping.
+- `sdk/src/wagmi.ts` exports the wagmi-style slice (V2): `defineClawChain`,
+  `createKeplrConnector`/`createLeapConnector`, `createClawWagmiConfig`,
+  `signingClientFromConnector`, and actions `connect`/`disconnect`/`getAccount`/
+  `getBalance`/`getBlockNumber`/`readContract`/`writeContract`, built on the viem client.
+- `sdk/examples/wagmi-adapter.ts` is a runnable read-only example (connector wiring +
+  account/balance/readContract); a real browser uses `window.keplr`.
+- `sdk/src/wagmi.test.ts` covers chain definition, connect/disconnect, default-address
+  balance, block height + contract read routing, and connector/error paths.
 
 ## The core mismatch (read first)
 
@@ -89,19 +97,39 @@ design + audit). This is now the active path for V1.
   execute once a contract fixture is selected for this adapter example.
 
 ### V2 — React: `wagmi` adapter
-- Since wagmi is hooks-over-viem, build it on the V1 viem adapter: a ClawChain
+- [x] Since wagmi is hooks-over-viem, build it on the V1 viem adapter: a ClawChain
   connector + chain definition so `useAccount`/`useBalance`/`useWriteContract`-style
   hooks resolve against ClawChain. Wallet connector targets Keplr/Leap (Cosmos), not
   MetaMask (`keplr-wallet/`, `keplr-chain-registry/` are also vendored — reuse).
+  Implemented in `sdk/src/wagmi.ts`: `defineClawChain`, `createKeplrConnector`/
+  `createLeapConnector`, `createClawWagmiConfig`, `signingClientFromConnector`, and the
+  wagmi-style actions `connect`/`disconnect`/`getAccount`/`getBalance`/`getBlockNumber`/
+  `readContract`/`writeContract`. Covered by `sdk/src/wagmi.test.ts`.
 
 ### V3 — Rust: `alloy` adapter
 - Mirror V1 in Rust: an alloy provider/transport backed by Cosmos gRPC/Tendermint RPC,
   CosmWasm for contracts. Lower priority unless a Rust integrator needs it.
 
+**V3 status (2026-05-31): read-provider implemented.** A standalone `clawchain-alloy/`
+crate at repo root (NOT inside the vendored `alloy/` workspace) provides an alloy-style
+`ClawProvider` with a Cosmos read path — `chain_id()`/`block_number()` from Tendermint
+`GET {rpc}/status`, `get_balance(addr, denom)` from Cosmos REST
+`GET {rest}/cosmos/bank/v1beta1/balances/{addr}`, and `query_contract(contract, msg_json)`
+from CosmWasm smart-query `GET {rest}/cosmwasm/wasm/v1/contract/{contract}/smart/{base64(msg)}`.
+URL-building and response-parsing live in pure functions (`parse_status`, `parse_balance`,
+`balance_query_path`, `smart_query_path`, `parse_smart_query`) unit-tested OFFLINE with
+fixture JSON (`cargo test`, 11 tests, no network). The vendored `alloy/` upstream is
+untouched. **Follow-up (out of scope here):** Cosmos tx signing + broadcast in Rust
+(SIGN_MODE_DIRECT, protobuf `Any`, secp256k1, account/sequence + fee/gas, broadcast) —
+no write path exists yet.
+
 ### V4 — Examples & docs
-- One end-to-end example per ecosystem (connect → query balance → send → CosmWasm
-  exec) runnable against devnet/testnet.
-- Update `docs/reference-integrations.md` + `docs/integrator-quickstart.md`.
+- [x] One end-to-end example per ecosystem (connect → query balance → send → CosmWasm
+  exec) runnable against devnet/testnet. TypeScript: `sdk/examples/viem-adapter.ts`
+  (viem-style) and `sdk/examples/wagmi-adapter.ts` (wagmi-style). Rust (alloy) example
+  pending V3.
+- [x] Update `docs/reference-integrations.md` + `docs/integrator-quickstart.md`
+  (added "viem-style and wagmi-style ClawChain adapters in `@clawchain/sdk`" sections).
 
 ## Acceptance criteria (per library, Option B)
 

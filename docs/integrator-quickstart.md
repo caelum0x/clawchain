@@ -56,6 +56,35 @@ console.log(tx.transactionHash);
 await client.disconnect();
 ```
 
+## 3b) viem-style and wagmi-style ClawChain adapters in `@clawchain/sdk`
+
+If your team is coming from the Ethereum tooling world, the SDK ships adapters with a
+familiar viem/wagmi API shape. Caveat: ClawChain is a pure Cosmos SDK chain (no `x/evm`,
+no Ethereum JSON-RPC), so these route to Tendermint RPC + Cosmos bank + CosmWasm — they
+do NOT emulate EVM (`eth_*`, Solidity ABI, RLP). Wallets are Cosmos (Keplr/Leap).
+
+viem-style client (`sdk/examples/viem-adapter.ts`):
+
+```ts
+import { createClawViemClient } from "@clawchain/sdk";
+
+const client = createClawViemClient({ rpcUrl: "http://localhost:26657" });
+await client.connect();
+console.log(await client.getBlockNumber());
+await client.disconnect();
+```
+
+wagmi-style config + actions (`sdk/examples/wagmi-adapter.ts`):
+
+```ts
+import { defineClawChain, createKeplrConnector, createClawWagmiConfig, getBalance } from "@clawchain/sdk";
+
+const chain = defineClawChain({ id: "clawchain-testnet-1", rpcUrl: "http://localhost:26657" });
+const config = createClawWagmiConfig({ chain, connectors: [createKeplrConnector()] });
+await config.client.connect();
+console.log(await getBalance(config, { address: "claw1..." }));
+```
+
 ## 4) Release-facing integration gate
 
 For release candidate verification without CI/test-suite expansion:

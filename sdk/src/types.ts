@@ -6,6 +6,8 @@
  *   - clawchain.agent.v1   (tx.proto, query.proto)
  */
 
+import type { OfflineSigner } from "@cosmjs/proto-signing";
+
 // ---------------------------------------------------------------------------
 // Client configuration
 // ---------------------------------------------------------------------------
@@ -18,6 +20,12 @@ export interface ClawChainClientOptions {
   grpcUrl?: string;
   /** BIP-39 mnemonic for signing transactions. Optional for read-only usage. */
   mnemonic?: string;
+  /**
+   * An external offline signer (e.g. from Keplr/Leap via `window.keplr
+   * .getOfflineSigner(chainId)`), used instead of a mnemonic. Takes precedence
+   * over `mnemonic` when both are set. Enables browser-wallet-signed txs.
+   */
+  offlineSigner?: OfflineSigner;
   /** Address prefix (default: "cosmos"). */
   prefix?: string;
   /** Gas price string, e.g. "0.025uclaw". */

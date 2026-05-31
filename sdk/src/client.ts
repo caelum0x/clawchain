@@ -11,7 +11,7 @@ import {
   GasPrice,
   type DeliverTxResponse,
 } from "@cosmjs/stargate";
-import { DirectSecp256k1HdWallet, Registry } from "@cosmjs/proto-signing";
+import { DirectSecp256k1HdWallet, type OfflineSigner, Registry } from "@cosmjs/proto-signing";
 import type {
   ClawChainClientOptions,
   MsgShieldParams,
@@ -1428,6 +1428,7 @@ export class ClawChainClient {
   private readonly prefix: string;
   private readonly gasPriceStr: string;
   private mnemonic: string | undefined;
+  private externalSigner: OfflineSigner | undefined;
 
   private queryClient: StargateClient | null = null;
   private signingClient: SigningStargateClient | null = null;
@@ -1451,6 +1452,7 @@ export class ClawChainClient {
     this.prefix = options.prefix ?? DEFAULT_PREFIX;
     this.gasPriceStr = options.gasPrice ?? DEFAULT_GAS_PRICE;
     this.mnemonic = options.mnemonic;
+    this.externalSigner = options.offlineSigner;
 
     // Derive the REST URL from the RPC URL by switching to port 1317.
     try {
@@ -1484,26 +1486,29 @@ export class ClawChainClient {
   async connect(): Promise<void> {
     this.queryClient = await StargateClient.connect(this.rpcUrl);
 
-    if (this.mnemonic) {
-      this.wallet = await DirectSecp256k1HdWallet.fromMnemonic(this.mnemonic, {
-        prefix: this.prefix,
-      });
+    // An external offline signer (e.g. from a browser wallet) takes precedence
+    // over a mnemonic, enabling wallet-signed txs without exposing a seed phrase.
+    const signer: OfflineSigner | null = this.externalSigner
+      ? this.externalSigner
+      : this.mnemonic
+        ? await DirectSecp256k1HdWallet.fromMnemonic(this.mnemonic, { prefix: this.prefix })
+        : null;
 
-      const [account] = await this.wallet.getAccounts();
+    if (signer) {
+      if (signer instanceof DirectSecp256k1HdWallet) {
+        this.wallet = signer;
+      }
+      const [account] = await signer.getAccounts();
       if (!account) {
-        throw new Error("ClawChainClient: failed to derive account from mnemonic");
+        throw new Error("ClawChainClient: failed to derive account from signer");
       }
       this.signerAddress = account.address;
 
       const registry = createClawChainRegistry();
-      this.signingClient = await SigningStargateClient.connectWithSigner(
-        this.rpcUrl,
-        this.wallet,
-        {
-          registry,
-          gasPrice: GasPrice.fromString(this.gasPriceStr),
-        },
-      );
+      this.signingClient = await SigningStargateClient.connectWithSigner(this.rpcUrl, signer, {
+        registry,
+        gasPrice: GasPrice.fromString(this.gasPriceStr),
+      });
     }
   }
 

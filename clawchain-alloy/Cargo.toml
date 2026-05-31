@@ -1,0 +1,18 @@
+[package]
+name = "clawchain-alloy"
+version = "0.1.0"
+edition = "2021"
+description = "An alloy-style provider for ClawChain, backed by Tendermint RPC + Cosmos REST (not eth_* JSON-RPC)."
+license = "MIT OR Apache-2.0"
+
+# Standalone crate intentionally OUTSIDE the vendored `alloy/` workspace.
+# Do not add to `alloy/Cargo.toml` members — that upstream is a read-only reference.
+[package.metadata]
+note = "ClawChain-native; reuses alloy's Provider naming/ergonomics, but speaks Cosmos transport."
+
+[dependencies]
+reqwest = { version = "0.12", features = ["blocking", "json"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+base64 = "0.22"
+thiserror = "1"

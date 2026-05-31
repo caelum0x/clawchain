@@ -64,6 +64,29 @@ export type {
   ClawViemWriteContractRequest,
 } from "./viem.js";
 
+// wagmi-style ClawChain adapter (Cosmos wallet connectors + chain def + actions)
+export {
+  defineClawChain,
+  createKeplrConnector,
+  createLeapConnector,
+  createClawWagmiConfig,
+  signingClientFromConnector,
+  connect,
+  disconnect,
+  getAccount,
+  getBalance,
+  getBlockNumber,
+  readContract,
+  writeContract,
+} from "./wagmi.js";
+export type {
+  ClawChainDefinition,
+  ClawConnector,
+  ClawWagmiConfig,
+  ClawWagmiConfigOptions,
+  InjectedCosmosWallet,
+} from "./wagmi.js";
+
 export type {
   ClawWalletConnectConfig,
   WalletConnectSession,
