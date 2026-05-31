@@ -169,24 +169,28 @@ A genuine cross-chain round-trip: escrow on A → relay → voucher mint on B �
 back to A. NOTE: the only `hermes` on this machine's PATH is an unrelated "Hermes
 Agent" CLI (not the Informal-Systems relayer), which is why `rly` was used.
 
-## Known limitations (not chain-breaking)
+## Former limitations — all resolved (2026-05-31)
 
-- **privacy proving key**: the on-chain VKs (`.local-node/keys/*_vk.bin`) now
-  exist, but **no matching proving key (`*_pk.bin`) is distributed**, so a
-  verifiable unshield proof cannot be made from them as-is. The round-trip above
-  required `clawproof setup` to regenerate a fresh pk+vk pair and swapping the
-  new dev VK onto the node (Groth16 setup is randomized → fresh VK ≠ original).
-  The dev key-gen path (Gap A) must emit pk+vk **together**. Mainnet must use the
-  MPC ceremony output. Also: `clawproof --blinding` is a uint64 while the on-chain
-  msg accepts a 256-bit blinding — keep dev blindings in uint64 range to reproduce.
-- **oracle**: codecs are registered in clawd, but the exchange-rate flow is a
-  multi-step commit-reveal (prevote hash, then reveal next vote period) — needs a
-  multi-step driver, not a single CLI/registry call. `set-feeder` is single-shot.
+These were the known gaps when this doc was first written; all have since been
+fixed (none were ever chain-breaking). Kept here for the record.
+
+- **privacy proving key**: ✅ FIXED — `clawchaind privacy gen-dev-keys <dir>` (run by
+  `scripts/local-dev.sh`) now writes the matched proving keys (`*_pk.bin`) alongside
+  the verifying keys, so a `local-dev.sh`-seeded node has a complete key set and the
+  shield→unshield round-trip works with no `clawproof setup` and no manual VK swap.
+  (Mainnet must still use the MPC ceremony output — these dev keys are insecure.)
+  Note: `clawproof --blinding` is a uint64 while the on-chain msg accepts a 256-bit
+  blinding — keep dev blindings in uint64 range so the prover reproduces the commitment.
+- **oracle**: ✅ commit-reveal proven via clawd's multi-step driver
+  (`live-oracle-check.ts`): prevote-hash then reveal next vote period →
+  aggregated rate. `set-feeder` is single-shot.
 - **oracle annotation**: ✅ FIXED — `x/oracle` regenerated from its source proto, so
   the `Msg` service now carries `cosmos.msg.v1.service` (startup warning gone) and
   registers under `clawchain.oracle.v1beta1.*`. (Was: stale Terra-generated descriptor
   under `terra.oracle.v1beta1` without the annotation.)
 - **tokenfactory**: CLI tx surface now wired and proven (see plan doc Gap C).
-- **app test suite**: with the boot fixed, the previously-skipped app tests now
-  run and reveal test-helper genesis gaps (e.g. `TestExportAppState`). These are
-  test-helper issues; the live chain has correct state (verified).
+- **app test suite**: ✅ FIXED — the `recover()/t.Skip()` construction masking is
+  gone and `go test ./app/...` is green with zero skipped construction tests
+  (`TestNewApp`, `TestExportAppState`, `TestInitGenesisOnMigration`, … all pass).
+  Regression guards (`app/construction_guard_test.go`) keep a future boot break from
+  hiding behind a skip. (Only the standard `-Enabled`-gated simulation tests skip.)
