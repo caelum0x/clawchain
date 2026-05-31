@@ -97,7 +97,8 @@ design + audit). This is now the active path for V1.
   viem adapter's `offlineSigner` path (chainId/blockNumber/balance read + bank send
   code 0). Required fixing `createClawViemClient` to forward `offlineSigner` to its
   backend.
-- [ ] Live CosmWasm `execute` pass — pending a deployed contract fixture for the example.
+- [x] Live CosmWasm `execute` pass: deployed hackatom on the local testnet and ran the viem
+  adapter's `readContract` (verifier query) + `writeContract` (release) — code 0, height 58.
 
 ### V2 — React: `wagmi` adapter
 - [x] Since wagmi is hooks-over-viem, build it on the V1 viem adapter: a ClawChain
@@ -142,8 +143,8 @@ no write path exists yet.
 - [x] Runnable example and SDK docs exist; no `eth_*` dependency in the happy path.
 - [x] Subscribe to / read Tendermint transaction events through the SDK WebSocket
   subscription path.
-- [x] Live signed bank send (viem adapter, offlineSigner path) against the local
-  multi-validator testnet. CosmWasm execute live still pending a contract fixture.
+- [x] Live signed bank send AND CosmWasm execute (viem adapter, offlineSigner path)
+  against the local multi-validator testnet — both code 0.
 
 ## Open decisions
 
