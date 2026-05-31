@@ -107,6 +107,19 @@ Ordered by leverage.
 - **Acceptance:** `clawchaind tx tokenfactory create-denom <sub>` mints a new
   `factory/<addr>/<sub>` denom, then `mint`/`burn` adjust supply on the live node.
 - **Effort:** ~half to one day. **Risk:** low.
+- **UPDATE (2026-05-31): partially done + deeper finding.** A manual
+  `x/tokenfactory/client/cli/tx.go` (`GetTxCmd` with create-denom/mint/burn) is
+  now wired into the root `tx` command, so the subcommands appear. But submitting
+  them fails at decode time: `*types.MsgCreateDenom does not have a Descriptor()
+  method`. The hand-crafted Osmosis-compatible msg types (`x/tokenfactory/types/
+  msgs.go`) implement Marshal/Unmarshal but have **no proto `Descriptor()` and no
+  file descriptor**, so they are not tx-submittable by the standard proto codec at
+  all — the module is unit-tested but its messages cannot be sent on-chain.
+  - **Real remaining work:** generate proper proto descriptors for the
+    `osmosis.tokenfactory.v1beta1` Msg types (regenerate `tx.pb.go` with buf, or
+    embed a file descriptor and add `Descriptor()` methods like the oracle module
+    fix). This is the actual blocker; the CLI is ready once it lands.
+  - **Reclassified effort:** ~one day (proto descriptor generation for ~8 msgs).
 
 ### Gap D — Un-masked app tests reveal test-helper genesis gaps
 
