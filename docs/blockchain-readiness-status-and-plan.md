@@ -104,6 +104,16 @@ Ordered by leverage.
 - **Acceptance:** no annotation warning at startup; an oracle exchange-rate vote
   from the feeder account is accepted.
 - **Effort:** ~half a day (mostly proto toolchain). **Risk:** low.
+- **UPDATE (2026-05-31): oracle commit-reveal PROVEN live via clawd**, and a
+  related type-url divergence found. The on-chain oracle msgs register under
+  `terra.oracle.v1beta1.*` (the `.pb.go` is generated from
+  `terra/oracle/v1beta1/tx.proto`), while the proto SOURCE file declares
+  `package clawchain.oracle.v1beta1`. Clients MUST use the `terra.*` type urls or
+  the chain rejects with "unable to resolve type URL". With that fixed, the full
+  flow works: set-feeder (code 0) → prevote (code 0) → vote next period (code 0) →
+  `uusd` aggregated `exchange_rate = 1.5`. The remaining cleanup is the proto
+  source/`.pb.go` package mismatch + the missing service annotation (regen the
+  descriptor). Driver: `cmd/clawd/scripts/live-oracle-check.ts`.
 
 ### Gap C — Tokenfactory has no CLI tx commands
 
@@ -264,19 +274,24 @@ follow-up PR, separate from the merged chain-core work.
 
 Steps 1–3 + 5 done; step 4 done for privacy/agent/marketplace (live):
 
-1. **TS proto codecs (done, partial coverage):** local protoc+ts-proto path via
+1. **TS proto codecs (DONE, full coverage):** local protoc+ts-proto path via
    `cmd/clawd/scripts/gen-proto.sh` (buf-free fallback; `forceLong=string`,
-   `importSuffix=.js`). Generated for privacy, agent, marketplace, oracle.
-   Remaining: modelregistry, reputation, messaging, governance, clawchain.
+   `importSuffix=.js`). Generated + registered for ALL 9 custom modules —
+   privacy, agent, marketplace, oracle, modelregistry, reputation, messaging,
+   governance, clawchain (53 type urls).
 2. **Shared registry + helper (done):** `src/lib/registry.ts` derives type-url
    entries per module (`moduleTypes`), `src/lib/signing.ts` exposes
    `connectClawchainSigningClient`. Every command must connect through it.
 3. **clawd build fixed (done):** the pre-existing `gpu-provider-setup.test.ts`
    `never`-return mock typing is fixed; `tsc` is green (was exit 2).
-4. **Live flows (done for 3 modules):** privacy shield + full shield→unshield ZK
-   round-trip; agent register-agent; marketplace list-skill — all code 0
-   (evidence in [blockchain-liveness-evidence.md](blockchain-liveness-evidence.md)
-   Layer 4). Oracle commit-reveal and CosmWasm/DEX/IBC remain.
+4. **Live flows (done):** privacy shield + full shield→unshield ZK round-trip
+   (now with NO manual VK swap — see Gap A); agent register-agent; marketplace
+   list-skill; **oracle commit-reveal** (set-feeder→prevote→vote→tallied rate);
+   **CosmWasm** store→instantiate→query→execute (hackatom) — all code 0 (evidence
+   in [blockchain-liveness-evidence.md](blockchain-liveness-evidence.md) Layers
+   4–5). **DEX:** local Astroport builds store (prebuilt `artifacts/` need the
+   `neutron` cap the chain lacks); full pool+swap orchestration remains. **IBC:**
+   needs the two-chain + relayer harness; not run on the single node.
 5. **Non-mocked encode tests (done):** `src/lib/registry.test.ts` round-trips
    real msgs through an actual `Registry`, asserts the bare registry throws
    (regression guard), and excludes Response types. 636 clawd tests pass.
@@ -285,6 +300,8 @@ Two client-payload bugs that only live testing could surface (both fixed):
 `MsgShield.amount` is uint64→string (client passed BigInt); `MsgShield.coins` is
 a denom marker (`""`/`uclaw`), not a coin string (client packed `"1000uclaw"`).
 
-**Next:** generate the remaining modules' codecs; drive the oracle commit-reveal
-and CosmWasm/DEX/IBC flows; emit pk+vk together in the privacy dev key-gen (Gap A)
-so the round-trip needs no manual VK swap.
+**Next:** the full DEX pool+swap (use the local Astroport builds, not the
+neutron-targeted `artifacts/`); an IBC transfer via the two-chain + relayer
+harness; and regenerating the oracle descriptor to fix the proto-source vs
+`.pb.go` package mismatch (`clawchain.oracle.v1beta1` vs `terra.oracle.v1beta1`)
+and add the missing `cosmos.msg.v1.service` annotation (Gap B).

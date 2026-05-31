@@ -92,6 +92,56 @@ generates a Groth16 proof whose `merkle_root` matched the on-chain root
 (`21d851…`), and the chain verified the proof on-chain before releasing funds.
 Reproduce via `cmd/clawd/scripts/roundtrip-shield.ts` + `roundtrip-unshield.ts`.
 
+### Full custom-module codec coverage
+
+All 9 custom modules' `Msg` services are now generated and registered in clawd's
+cosmjs registry (53 type urls): privacy, agent, marketplace, oracle, modelregistry,
+reputation, messaging, governance, clawchain. Regenerate with
+`cmd/clawd/scripts/gen-proto.sh`. One sharp edge found live: the **oracle** msgs
+register on-chain under `terra.oracle.v1beta1.*` (the `.pb.go` is generated from
+`terra/oracle/v1beta1/tx.proto`), not the `clawchain.oracle.v1beta1` its proto
+source file declares — the registry must use the `terra.*` type urls or tx parsing
+fails with "unable to resolve type URL".
+
+### Oracle commit-reveal (multi-step), captured live
+
+| Step | Result | Evidence |
+|---|---|---|
+| set-feeder (`MsgDelegateFeedConsent`) | code 0 | height 1449 |
+| prevote (commit `SHA256(salt:rates:valoper)[:20]`) | code 0 | height 1450, tx `7A8F34FB…` |
+| vote (reveal salt+rates, next vote period) | code 0 | height 1454, tx `4684FD24…` |
+| aggregated rate tallied | — | `denoms/uusd/exchange_rate` = `1.5` |
+
+Vote period = 6 blocks; salt must be 1–4 chars (keeper rule). Driver:
+`cmd/clawd/scripts/live-oracle-check.ts`.
+
+## Layer 5 — CosmWasm & DEX (x/wasm)
+
+CosmWasm full lifecycle, real CLI txs on the live node (chain CLI; clawd lacks
+`@cosmjs/cosmwasm-stargate` and these are standard `cosmwasm.wasm.v1.*` types):
+
+| Step | Result | Evidence |
+|---|---|---|
+| store (hackatom) | code 0 | code_id 2, tx `B5C5B9CE…` |
+| instantiate | code 0 | contract `claw1wug8…`, tx `B36E526E…` |
+| query (smart `{"verifier":{}}`) | OK | returns dev address — state readable |
+| execute (`{"release":{}}`) | code 0 | tx `CA316AB2…`, `action=release` emitted |
+
+**DEX (Astroport fork):** the prebuilt `artifacts/*.wasm` require the `neutron`
+capability, which ClawChain does NOT enable (its caps =
+`wasmkeeper.BuiltInCapabilities()` + `token_factory`), so those won't store. The
+**locally-built** `contracts/dex/target/wasm32-unknown-unknown/release/*.wasm` are
+capability-compatible and store cleanly (verified: `astroport_factory`,
+`astroport_pair`, `astroport_xastro_token`, `astroport_native_coin_registry` all
+code 0). The remaining full swap (instantiate coin-registry + factory → create
+pair → provide liquidity → swap) is a multi-contract orchestration, not yet driven
+end-to-end. **Action:** use the local builds (not `artifacts/`) for DEX deploy, or
+rebuild Astroport without the `neutron` feature.
+
+**IBC:** transfer needs two chains + a relayer (the `contracts/dex/e2e/docker`
+two-chain harness or `scripts/ibc-two-chain-test.sh`); not exercised on this
+single-node network.
+
 ## Known limitations (not chain-breaking)
 
 - **privacy proving key**: the on-chain VKs (`.local-node/keys/*_vk.bin`) now
