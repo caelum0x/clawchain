@@ -1,3 +1,9 @@
+import { lazy, Suspense } from 'react'
+import { ErrorBoundary } from './ErrorBoundary'
+
+// Lazy-load the WebGL hero so the three.js bundle never blocks first paint.
+const AgentNetwork = lazy(() => import('./AgentNetwork'))
+
 const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
 
 const LINKS = {
@@ -38,6 +44,11 @@ function App() {
           <div className="hero-orb hero-orb-2" />
           <div className="hero-orb hero-orb-3" />
           <div className="hero-grid" />
+          <ErrorBoundary>
+            <Suspense fallback={null}>
+              <AgentNetwork />
+            </Suspense>
+          </ErrorBoundary>
         </div>
         <div className="hero-content section">
           <div className="hero-badge">
