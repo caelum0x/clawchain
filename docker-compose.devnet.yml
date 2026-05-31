@@ -1,0 +1,36 @@
+##
+## Local devnet compose profile.
+##
+## Runs the same verified scripts used by the host workflow inside a disposable
+## tool container. This is intended for developer/CI smoke, not persistence.
+##
+## Usage:
+##   docker compose -f docker-compose.devnet.yml --profile devnet up --build --abort-on-container-exit --exit-code-from devnet-smoke
+##   docker compose -f docker-compose.devnet.yml --profile devnet down --volumes --remove-orphans
+##
+
+services:
+  devnet-smoke:
+    image: node:22-bookworm
+    profiles:
+      - devnet
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+      - devnet-go-cache:/go
+      - devnet-npm-cache:/root/.npm
+    environment:
+      GOCACHE: /go/cache
+      GOPATH: /go
+    command:
+      - bash
+      - -lc
+      - |
+        set -euo pipefail
+        apt-get update
+        apt-get install -y --no-install-recommends golang make gcc git curl jq ca-certificates
+        bash scripts/devnet-ci.sh
+
+volumes:
+  devnet-go-cache:
+  devnet-npm-cache:

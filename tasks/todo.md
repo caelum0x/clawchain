@@ -1,5 +1,23 @@
 # Task Plan
 
+## Devnet Docker/CI Completion 2026-05-31
+
+- [x] Inspect Docker compose, CI, Makefile, and existing devnet scripts for integration points.
+- [x] Add a CI-style devnet gate that resets, boots, smokes, and tears down the devnet.
+- [x] Add a Docker compose devnet profile that runs the same gate in a disposable tool container.
+- [x] Add GitHub Actions devnet smoke workflow.
+- [x] Update Makefile targets and the devnet launch plan so completed Docker/CI work is no longer listed as active.
+- [x] Run syntax/config/live verification and commit changes.
+
+### Review
+
+- Added `scripts/devnet-ci.sh` as the reusable host/CI gate around `scripts/devnet-reset.sh`, `scripts/local-dev.sh --devnet`, and `scripts/devnet-smoke.sh`.
+- Added `docker-compose.devnet.yml` with a `devnet` profile that runs the same gate inside a disposable Node 22/Debian tool container with Go, make, gcc, git, curl, jq, and cached Go/npm directories.
+- Added `.github/workflows/devnet-smoke.yml` to run the ephemeral devnet smoke on `main` pushes and pull requests.
+- Added Makefile targets `devnet-ci` and `devnet-compose`.
+- Verified the live host gate with 7 passed / 0 failed and validated compose config plus Makefile dry-runs.
+- Remaining devnet work is optional seeded demo state, optional 2-chain IBC devnet mode, and expanding Docker from smoke gate to full UI/faucet/explorer stack parity if needed.
+
 ## Devnet Launch Implementation 2026-05-31
 
 - [x] Inspect existing local dev, Docker compose, live driver, DEX, IBC, and Makefile hooks.

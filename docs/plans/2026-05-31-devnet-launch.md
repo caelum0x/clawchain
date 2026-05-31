@@ -1,6 +1,6 @@
 # Devnet Launch Plan
 
-_Status: 2026-05-31. Local single-node devnet is implemented and verified; Docker profile and CI wiring remain._
+_Status: 2026-05-31. Local single-node devnet, Docker devnet profile, and CI smoke wiring are implemented and verified._
 
 ## Goal
 
@@ -29,28 +29,35 @@ iteration speed and parity with the chain module set.
 - Make targets:
   - `make devnet-up`
   - `make devnet-smoke`
+  - `make devnet-ci`
+  - `make devnet-compose`
   - `make devnet-reset`
+- `scripts/devnet-ci.sh`
+  - Resets the devnet, boots `scripts/local-dev.sh --devnet`, runs
+    `scripts/devnet-smoke.sh`, and tears the node down on exit.
+- `docker-compose.devnet.yml`
+  - Runs the same CI-style devnet gate inside a disposable Docker profile.
+- `.github/workflows/devnet-smoke.yml`
+  - Runs the ephemeral devnet smoke gate on `main` pushes and pull requests.
 
 Latest live verification:
 
 ```bash
-bash scripts/devnet-reset.sh && bash scripts/local-dev.sh --devnet && bash scripts/devnet-smoke.sh
+bash scripts/devnet-ci.sh
 ```
 
 Result: 7 passed / 0 failed.
 
 ## Active Remaining Work
 
-- Add a Docker `devnet` profile that starts chain, faucet, explorer, and web with
-  devnet defaults.
-- Add a CI ephemeral devnet job that boots devnet, runs `scripts/devnet-smoke.sh`,
-  and tears down.
 - Add optional seeded demo state for heavier UI demos:
   agent, skill, privacy note, tokenfactory denom, and DEX fixture.
 - Decide whether to commit fixed dev mnemonics beyond the existing reproducible
   `dev-account` mnemonic.
 - Add optional 2-chain IBC devnet mode using `scripts/ibc-two-chain-test.sh` as the
   base.
+- Expand the Docker profile from the current smoke gate into a full UI stack
+  profile if/when faucet, explorer, and web need one-command Docker parity.
 
 ## Target Shape
 
@@ -69,8 +76,9 @@ Result: 7 passed / 0 failed.
 - `scripts/local-dev.sh --devnet` boots a producing local chain.
 - `scripts/devnet-smoke.sh` passes against a fresh devnet.
 - `scripts/devnet-reset.sh` returns the devnet to a clean slate.
-- Docker profile brings the local stack up with devnet defaults.
-- CI devnet job runs the live drivers and is green.
+- `scripts/devnet-ci.sh` boots a clean devnet, runs live drivers, and tears down.
+- Docker profile validates and runs the same devnet CI gate.
+- CI devnet job is wired to the live devnet gate.
 
 ## References
 
