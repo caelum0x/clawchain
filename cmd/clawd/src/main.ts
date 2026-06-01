@@ -65,6 +65,20 @@ import {
   runModelTokenServeOnce,
   runModelTokenStartJob,
 } from "./commands/model-token.js";
+import {
+  runModelVaultBuy,
+  runModelVaultClaim,
+  runModelVaultConfig,
+  runModelVaultDistribute,
+  runModelVaultFund,
+  runModelVaultPool,
+  runModelVaultPoolInfo,
+  runModelVaultQuote,
+  runModelVaultSell,
+  runModelVaultStake,
+  runModelVaultStakeInfo,
+  runModelVaultUnstake,
+} from "./commands/model-vault.js";
 import { runReputationQuery, runReputationLeaderboard, runReputationRate, runReputationEndorse } from "./commands/reputation.js";
 import {
   runGovernanceProposals,
@@ -2114,6 +2128,149 @@ modelTokenCmd
       dryRun: opts.dryRun,
       json: opts.json,
     });
+  });
+
+// ---------------------------------------------------------------------------
+// clawd model-vault
+// ---------------------------------------------------------------------------
+const modelVaultCmd = program
+  .command("model-vault")
+  .description("ModelVault bonding-curve market + dividend pool for AI model tokens");
+
+modelVaultCmd
+  .command("fund")
+  .description("Owner seeds the vault with reserve and/or model-token liquidity")
+  .requiredOption("--contract <address>", "ModelVault contract address")
+  .requiredOption("--amount <amount>", "amount to attach")
+  .requiredOption("--denom <denom>", "denom to attach (reserve_denom or model_denom)")
+  .option("--json", "output JSON")
+  .action(async (opts) => {
+    await runModelVaultFund({
+      contract: opts.contract,
+      amount: opts.amount,
+      denom: opts.denom,
+      json: opts.json,
+    });
+  });
+
+modelVaultCmd
+  .command("buy")
+  .description("Buy model tokens off the bonding curve (attaches reserve_denom)")
+  .requiredOption("--contract <address>", "ModelVault contract address")
+  .requiredOption("--amount <amount>", "reserve amount to spend")
+  .option("--json", "output JSON")
+  .action(async (opts) => {
+    await runModelVaultBuy({ contract: opts.contract, amount: opts.amount, json: opts.json });
+  });
+
+modelVaultCmd
+  .command("sell")
+  .description("Sell model tokens back to the bonding curve (attaches model_denom)")
+  .requiredOption("--contract <address>", "ModelVault contract address")
+  .requiredOption("--amount <amount>", "model-token amount to sell")
+  .option("--json", "output JSON")
+  .action(async (opts) => {
+    await runModelVaultSell({ contract: opts.contract, amount: opts.amount, json: opts.json });
+  });
+
+modelVaultCmd
+  .command("stake")
+  .description("Stake model tokens into the dividend pool (attaches model_denom)")
+  .requiredOption("--contract <address>", "ModelVault contract address")
+  .requiredOption("--amount <amount>", "model-token amount to stake")
+  .option("--json", "output JSON")
+  .action(async (opts) => {
+    await runModelVaultStake({ contract: opts.contract, amount: opts.amount, json: opts.json });
+  });
+
+modelVaultCmd
+  .command("unstake")
+  .description("Unstake previously staked model tokens")
+  .requiredOption("--contract <address>", "ModelVault contract address")
+  .requiredOption("--amount <amount>", "model-token amount to unstake")
+  .option("--json", "output JSON")
+  .action(async (opts) => {
+    await runModelVaultUnstake({ contract: opts.contract, amount: opts.amount, json: opts.json });
+  });
+
+modelVaultCmd
+  .command("claim")
+  .description("Claim accrued reserve-denom dividends")
+  .requiredOption("--contract <address>", "ModelVault contract address")
+  .option("--json", "output JSON")
+  .action(async (opts) => {
+    await runModelVaultClaim({ contract: opts.contract, json: opts.json });
+  });
+
+modelVaultCmd
+  .command("distribute")
+  .description("Distribute reserve-denom revenue to stakers pro-rata (attaches reserve_denom)")
+  .requiredOption("--contract <address>", "ModelVault contract address")
+  .requiredOption("--amount <amount>", "reserve amount to distribute")
+  .option("--json", "output JSON")
+  .action(async (opts) => {
+    await runModelVaultDistribute({
+      contract: opts.contract,
+      amount: opts.amount,
+      json: opts.json,
+    });
+  });
+
+modelVaultCmd
+  .command("quote")
+  .description("Quote a hypothetical buy/sell against the curve (no signing)")
+  .requiredOption("--contract <address>", "ModelVault contract address")
+  .requiredOption("--side <side>", 'trade side: "buy" or "sell"')
+  .requiredOption("--amount <amount>", "input amount to quote")
+  .option("--json", "output JSON")
+  .action(async (opts) => {
+    await runModelVaultQuote({
+      contract: opts.contract,
+      side: opts.side,
+      amount: opts.amount,
+      json: opts.json,
+    });
+  });
+
+modelVaultCmd
+  .command("stake-info")
+  .description("Query a staker's position and live claimable dividends")
+  .requiredOption("--contract <address>", "ModelVault contract address")
+  .requiredOption("--address <address>", "staker address to inspect")
+  .option("--json", "output JSON")
+  .action(async (opts) => {
+    await runModelVaultStakeInfo({
+      contract: opts.contract,
+      address: opts.address,
+      json: opts.json,
+    });
+  });
+
+modelVaultCmd
+  .command("pool-info")
+  .description("Query global dividend-pool state (total staked + reward index)")
+  .requiredOption("--contract <address>", "ModelVault contract address")
+  .option("--json", "output JSON")
+  .action(async (opts) => {
+    await runModelVaultPoolInfo({ contract: opts.contract, json: opts.json });
+  });
+
+modelVaultCmd
+  .command("config")
+  .description("Query the vault configuration (denoms, owner, fee)")
+  .requiredOption("--contract <address>", "ModelVault contract address")
+  .option("--json", "output JSON")
+  .action(async (opts) => {
+    await runModelVaultConfig({ contract: opts.contract, json: opts.json });
+  });
+
+modelVaultCmd
+  .command("pool")
+  .description("Query the bonding-curve pool balances (reserve + inventory)")
+  .requiredOption("--contract <address>", "ModelVault contract address")
+  .option("--json", "output JSON")
+  .action(async (opts) => {
+    await runModelVaultPool({ contract: opts.contract, json: opts.json });
   });
 
 // ---------------------------------------------------------------------------
