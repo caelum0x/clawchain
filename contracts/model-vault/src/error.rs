@@ -49,4 +49,23 @@ pub enum ContractError {
 
     #[error("model_denom and reserve_denom must differ (both were {denom})")]
     SameDenom { denom: String },
+
+    #[error("nothing staked: stake {denom} first (current stake is zero)")]
+    NothingStaked { denom: String },
+
+    #[error("cannot unstake {requested} {denom}: only {staked} staked")]
+    InsufficientStake {
+        denom: String,
+        staked: Uint128,
+        requested: Uint128,
+    },
+
+    #[error("no rewards to claim (pending is zero)")]
+    NothingToClaim {},
+
+    #[error("cannot distribute revenue with zero total staked; funds would be stranded")]
+    NoStakers {},
+
+    #[error("fee_bps must be <= {max} (10000 = 100%), got {got}")]
+    FeeTooHigh { max: u16, got: u16 },
 }
