@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import useDocTitle from "../hooks/useDocTitle.ts";
 import ExportMenu from "../components/ExportMenu.tsx";
 import StakeEarnPanel from "../components/StakeEarnPanel.tsx";
+import ModelFundamentals from "../components/ModelFundamentals.tsx";
 import { shortAddr } from "../lib/chain.ts";
 import { getConnectedAddress } from "../lib/walletconnect.ts";
 import {
@@ -298,6 +299,14 @@ export default function ModelExchange() {
                 style={{ padding: "6px 10px", flex: 1, minWidth: 280 }}
               />
             </div>
+            {selectedToken && (
+              <ModelFundamentals
+                modelId={selectedToken.modelId}
+                modelSymbol={selectedToken.symbol}
+                vaultAddress={vaultAddress.trim() || undefined}
+                externalPriceClaw={selectedToken.priceClaw}
+              />
+            )}
             {vaultAddress.trim() && selectedToken ? (
               <StakeEarnPanel
                 vaultAddress={vaultAddress.trim()}

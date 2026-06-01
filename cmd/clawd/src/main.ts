@@ -79,6 +79,10 @@ import {
   runModelVaultStakeInfo,
   runModelVaultUnstake,
 } from "./commands/model-vault.js";
+import {
+  runModelIndexCompute,
+  runModelIndexPublish,
+} from "./commands/model-index.js";
 import { runReputationQuery, runReputationLeaderboard, runReputationRate, runReputationEndorse } from "./commands/reputation.js";
 import {
   runGovernanceProposals,
@@ -2271,6 +2275,37 @@ modelVaultCmd
   .option("--json", "output JSON")
   .action(async (opts) => {
     await runModelVaultPool({ contract: opts.contract, json: opts.json });
+  });
+
+// ---------------------------------------------------------------------------
+// clawd model-index
+// ---------------------------------------------------------------------------
+
+const modelIndexCmd = program
+  .command("model-index")
+  .description("Oracle model index — compute & publish per-model fundamentals (P3)");
+
+modelIndexCmd
+  .command("compute")
+  .description("Compute a model's fundamentals index from on-chain modelregistry data")
+  .requiredOption("--model-id <id>", "model registry ID")
+  .option("--json", "output JSON")
+  .action(async (opts) => {
+    await runModelIndexCompute({ modelId: opts.modelId, json: opts.json });
+  });
+
+modelIndexCmd
+  .command("publish")
+  .description("Publish the computed index as an oracle commit-reveal vote (prevote + vote)")
+  .requiredOption("--model-id <id>", "model registry ID")
+  .requiredOption("--validator <address>", "validator operator address (clawvaloper1...)")
+  .option("--json", "output JSON")
+  .action(async (opts) => {
+    await runModelIndexPublish({
+      modelId: opts.modelId,
+      validator: opts.validator,
+      json: opts.json,
+    });
   });
 
 // ---------------------------------------------------------------------------

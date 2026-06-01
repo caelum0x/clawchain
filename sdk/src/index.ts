@@ -87,6 +87,34 @@ export type {
   InjectedCosmosWallet,
 } from "./wagmi.js";
 
+// ModelVault CosmWasm contract client (bonding-curve market + dividend pool)
+export { ModelVaultClient, createModelVaultClient } from "./model-vault.js";
+export type {
+  ModelVaultClientOptions,
+  ModelVaultBackend,
+  VaultConfig,
+  VaultPool,
+  VaultPoolInfo,
+  VaultStakeInfo,
+  Quote,
+  TradeSide,
+} from "./model-vault.js";
+
+// wagmi-style ModelVault actions (route through the wagmi adapter)
+export {
+  readModelVaultConfig,
+  readModelVaultPool,
+  readModelVaultPoolInfo,
+  readModelVaultQuote,
+  readModelVaultStakeInfo,
+  writeModelVaultBuy,
+  writeModelVaultSell,
+  writeModelVaultStake,
+  writeModelVaultUnstake,
+  writeModelVaultClaim,
+  writeModelVaultDistributeRevenue,
+} from "./wagmi-model-vault.js";
+
 export type {
   ClawWalletConnectConfig,
   WalletConnectSession,
