@@ -290,9 +290,22 @@ and/or the DEX, and an oracle index as a published "fundamental." This gives uti
   Stake & Earn panel implemented and offline-verified (35 + 11 + 17 tests). Remaining:
   live store-instantiate + on-chain curve/revenue acceptance.**
 - **P3 — Oracle model index:** publish per-model fundamentals; reference in the vault/UI.
+  **Built (offline): `clawd model-index compute|publish` derives a weighted composite
+  index from x/modelregistry (job volume, completion rate, latency, rating, provider
+  count) and publishes it through the oracle commit-reveal path under a synthetic
+  `idx:model:<id>` denom; the web `ModelFundamentals` panel surfaces the same fundamentals
+  on the AI Model Exchange page. Remaining: a chain-side aggregation query so the index
+  isn't recomputed client-side, and live oracle-vote acceptance.**
 - **P4 — Harden:** provider attestation + dispute/slash for inference settlement; an
   `x/modeltoken` module if the CosmWasm vault outgrows contract limits; web dashboard
   "AI stock exchange" page; wagmi hooks so a React dApp can trade model tokens.
+  **Partially built (offline): wagmi-style hooks (`sdk/src/wagmi-model-vault.ts`), the web
+  "AI Stock Exchange" markets-overview page (`web/src/pages/ModelMarkets.tsx`), a typed
+  `ModelVaultClient` + `ModelMarket` aggregate in `@clawchain/sdk`, `clawd model-vault
+  watch`/`arb` curve-vs-DEX tooling, and a holder portfolio surface (SDK `ModelPortfolio`,
+  `clawd model-vault portfolio`, web Portfolio page). Remaining: the trust-boundary
+  hardening — provider usage attestation + dispute/slash on inference settlement — and the
+  optional `x/modeltoken` module migration. These are the genuinely chain-side P4 items.**
 
 ## Acceptance (per phase)
 
