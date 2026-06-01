@@ -110,6 +110,16 @@ export type {
   ModelVaultStoreResult,
 } from "./model-vault-deploy.js";
 
+// ModelLaunch orchestrator (issuance create-denom/mint -> vault store/instantiate/fund)
+export { ModelLaunch, createModelLaunch } from "./model-launch.js";
+export type {
+  ModelLaunchTokenBackend,
+  ModelLaunchOptions,
+  ModelLaunchOrchestratorOptions,
+  ModelLaunchResult,
+  ModelLaunchTxHashes,
+} from "./model-launch.js";
+
 // Higher-level model-market aggregate (composes the ModelVault client + DEX)
 export { ModelMarket, createModelMarket } from "./model-market.js";
 export type {

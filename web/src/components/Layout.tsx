@@ -92,6 +92,9 @@ export default function Layout({ children }: { children: ReactNode }) {
           <NavLink to="/vault-inspector" onClick={closeMenu} className={({ isActive }) => isActive ? "active" : ""}>
             Vault Inspector
           </NavLink>
+          <NavLink to="/launch-model" onClick={closeMenu} className={({ isActive }) => isActive ? "active" : ""}>
+            Launch Model
+          </NavLink>
           <NavLink to="/inference" onClick={closeMenu} className={({ isActive }) => isActive ? "active" : ""}>
             AI Inference
           </NavLink>

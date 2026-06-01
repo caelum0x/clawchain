@@ -59,6 +59,7 @@ import {
   runModelTokenCatalog,
   runModelTokenInferenceSetup,
   runModelTokenIssue,
+  runModelTokenLaunch,
   runModelTokenCompleteJob,
   runModelTokenRedeem,
   runModelTokenServeLoop,
@@ -2002,6 +2003,78 @@ modelTokenCmd
       baseDenom: opts.baseDenom,
       baseAmount: opts.baseAmount,
       modelAmount: opts.modelAmount,
+      json: opts.json,
+    });
+  });
+
+modelTokenCmd
+  .command("launch")
+  .description("Issue a model token AND deploy its ModelVault in one signed flow")
+  .option("--model <id>", "model slug or OpenRouter model ID, e.g. anthropic/claude-opus-4.8")
+  .option("--preset <id>", "real model preset from `model-token catalog`, e.g. claude-opus-4.8")
+  .requiredOption("--supply <amount>", "initial model-token supply to mint")
+  .option("--symbol <subdenom>", "tokenfactory subdenom; defaults to normalized --model")
+  .option("--name <name>", "model registry display name")
+  .option("--description <text>", "model registry description")
+  .option("--framework <framework>", "model framework (pytorch, tensorflow, onnx, gguf, safetensors, jax, other)", "other")
+  .option("--architecture <text>", "model architecture metadata")
+  .option("--parameter-count <text>", "parameter count metadata")
+  .option("--license <text>", "license metadata")
+  .option("--tags <csv>", "comma-separated model tags")
+  .option("--storage-type <type>", "model storage type", "remote")
+  .option("--storage-uri <uri>", "model storage URI")
+  .option("--checksum-sha256 <hex>", "model artifact checksum")
+  .option("--size-bytes <n>", "model artifact size in bytes", "0")
+  .option("--access-type <type>", "model access type (free, per_query, subscription, one_time)", "per_query")
+  .option("--price-per-query-uclaw <amount>", "modelregistry price per query in uclaw", "0")
+  .option("--price-one-time-uclaw <amount>", "modelregistry one-time price in uclaw", "0")
+  .option("--dex-factory <address>", "Astroport factory contract to create TOKEN/CLAW pair")
+  .option("--base-denom <denom>", "base asset denom for DEX pair; defaults to configured chain denom")
+  .option("--base-amount <amount>", "base asset amount for initial liquidity")
+  .option("--model-amount <amount>", "model-token amount for initial liquidity")
+  .option("--wasm <path>", "optimized ModelVault wasm to store first (parses code_id)")
+  .option("--code-id <n>", "reuse an already-uploaded ModelVault code id (skips the store step)")
+  .option("--reserve-denom <denom>", "bonding-curve quote asset; defaults to --base-denom or chain denom")
+  .option("--vault-owner <address>", "vault owner (defaults to the deploying signer)")
+  .option("--fee-bps <n>", "vault swap fee in basis points", "30")
+  .option("--label <s>", "instantiate label", "model-vault")
+  .option("--admin <address>", "contract admin (defaults to the deploying signer)")
+  .option("--seed-reserve <amount>", "reserve-denom amount to fund the vault after instantiate")
+  .option("--seed-inventory <amount>", "model-denom amount to fund the vault after instantiate")
+  .option("--json", "output JSON")
+  .action(async (opts) => {
+    await runModelTokenLaunch({
+      model: opts.model,
+      preset: opts.preset,
+      symbol: opts.symbol,
+      supply: opts.supply,
+      name: opts.name,
+      description: opts.description,
+      framework: opts.framework,
+      architecture: opts.architecture,
+      parameterCount: opts.parameterCount,
+      license: opts.license,
+      tags: opts.tags,
+      storageType: opts.storageType,
+      storageUri: opts.storageUri,
+      checksumSha256: opts.checksumSha256,
+      sizeBytes: opts.sizeBytes,
+      accessType: opts.accessType,
+      pricePerQueryUclaw: opts.pricePerQueryUclaw,
+      priceOneTimeUclaw: opts.priceOneTimeUclaw,
+      dexFactory: opts.dexFactory,
+      baseDenom: opts.baseDenom,
+      baseAmount: opts.baseAmount,
+      modelAmount: opts.modelAmount,
+      wasm: opts.wasm,
+      codeId: opts.codeId,
+      reserveDenom: opts.reserveDenom,
+      vaultOwner: opts.vaultOwner,
+      feeBps: opts.feeBps,
+      label: opts.label,
+      admin: opts.admin,
+      seedReserve: opts.seedReserve,
+      seedInventory: opts.seedInventory,
       json: opts.json,
     });
   });

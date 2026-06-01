@@ -6,6 +6,7 @@
  *   tokenfactory Burn + modelregistry SubmitInferenceJob for token redemption.
  */
 
+import { readFileSync } from "node:fs";
 import { toUtf8 } from "@cosmjs/encoding";
 import { DirectSecp256k1HdWallet } from "@cosmjs/proto-signing";
 import { calculateFee, GasPrice } from "@cosmjs/stargate";
@@ -13,6 +14,12 @@ import { loadClawdConfig } from "../lib/config.js";
 import { formatClaw, shortAddr } from "../lib/format.js";
 import { loadMnemonic, mnemonicFileExists } from "../lib/mnemonic.js";
 import { connectClawchainSigningClient } from "../lib/signing.js";
+import {
+  buildFundMsg,
+  buildInstantiateMsg,
+  buildStoreCodeMsg,
+  buildVaultInstantiateMsg,
+} from "./model-vault.js";
 
 type Coin = { denom: string; amount: string };
 type TxEvent = {
@@ -86,6 +93,29 @@ export type ModelTokenIssueOptions = {
   baseAmount?: string;
   modelAmount?: string;
   json?: boolean;
+};
+
+/**
+ * `model-token launch` = `model-token issue` (subset) + `model-vault deploy`
+ * in one signed flow. The issue half reuses the issue option set (preset,
+ * symbol, supply, registry metadata, optional DEX seed); the deploy half adds
+ * the vault flags (--wasm/--code-id/--fee-bps/--seed-reserve/--seed-inventory).
+ */
+export type ModelTokenLaunchOptions = ModelTokenIssueOptions & {
+  /** Optimized wasm artifact to store first (parses code_id from store tx). */
+  wasm?: string;
+  /** Pre-uploaded code id; skips the store step when provided. */
+  codeId?: string;
+  /** Bonding-curve quote asset; defaults to the issue --base-denom or chain denom. */
+  reserveDenom?: string;
+  vaultOwner?: string;
+  feeBps?: string;
+  label?: string;
+  admin?: string;
+  /** Reserve-denom amount to fund the vault after instantiate (optional). */
+  seedReserve?: string;
+  /** Model-denom amount to fund the vault after instantiate (optional). */
+  seedInventory?: string;
 };
 
 export type ModelTokenRedeemOptions = {
@@ -669,6 +699,247 @@ export async function runModelTokenIssue(opts: ModelTokenIssueOptions): Promise<
     }
   } catch (err) {
     console.error(`Model token issue failed: ${String(err)}`);
+    process.exit(1);
+  } finally {
+    signingClient.disconnect();
+  }
+}
+
+/** fee_bps must be an integer in [0, 10000] (0%..100%); mirrors model-vault deploy. */
+function requireFeeBps(label: string, value: string | undefined): number {
+  if (value === undefined || !/^[0-9]+$/.test(value)) {
+    throw new Error(`${label} must be a non-negative integer.`);
+  }
+  const bps = Number(value);
+  if (bps > 10_000) {
+    throw new Error(`${label} must be between 0 and 10000 basis points.`);
+  }
+  return bps;
+}
+
+function loadWasmBytes(path: string): Uint8Array {
+  try {
+    return new Uint8Array(readFileSync(path));
+  } catch (err) {
+    throw new Error(`Failed to read wasm artifact "${path}": ${String(err)}`);
+  }
+}
+
+/**
+ * `clawd model-token launch` — issue a model token AND deploy its ModelVault in
+ * a single signed flow, reusing one signing-client connection end to end:
+ *   1. RegisterModel + CreateDenom + Mint (the issue half; honors --preset).
+ *   2. [optional] Astroport create_pair (+ provide_liquidity) when --dex-factory.
+ *   3. Store the wasm (or reuse --code-id) -> instantiate the vault for the
+ *      freshly minted model_denom -> [optional] fund {} with seed reserve/inventory.
+ * Prints a consolidated summary: model_denom, code_id, vault address, and every
+ * tx hash. Supports --json. Reuses the issue message builders here plus the
+ * deploy helpers imported from model-vault.ts (no duplicated logic).
+ */
+export async function runModelTokenLaunch(opts: ModelTokenLaunchOptions): Promise<void> {
+  opts = applyIssuePreset(opts);
+  const model = requireNonEmpty("--model", opts.model);
+  const supply = requirePositiveAmount("--supply", opts.supply);
+  const subdenom = normalizeModelTokenSubdenom(model, opts.symbol);
+
+  // Validate the deploy half up front so we fail before broadcasting anything.
+  if (!opts.wasm && !opts.codeId) {
+    throw new Error("Provide --wasm <path> to store, or --code-id <n> to reuse an uploaded code.");
+  }
+  if (opts.codeId !== undefined && !/^[0-9]+$/.test(opts.codeId)) {
+    throw new Error("--code-id must be a non-negative integer.");
+  }
+  const feeBps = requireFeeBps("--fee-bps", opts.feeBps ?? "30");
+  const label = opts.label?.trim() || "model-vault";
+  const seedReserve = opts.seedReserve?.trim()
+    ? requirePositiveAmount("--seed-reserve", opts.seedReserve)
+    : undefined;
+  const seedInventory = opts.seedInventory?.trim()
+    ? requirePositiveAmount("--seed-inventory", opts.seedInventory)
+    : undefined;
+
+  const { account, signingClient, denom: defaultDenom } = await ensureSigner();
+  const modelDenom = `factory/${account.address}/${subdenom}`;
+  const baseDenom = opts.baseDenom ?? defaultDenom;
+  const reserveDenom = opts.reserveDenom?.trim() || baseDenom;
+  const admin = opts.admin?.trim() || account.address;
+  const vaultOwner = opts.vaultOwner?.trim() || undefined;
+
+  const report: Record<string, unknown> = {
+    action: "ModelTokenLaunch",
+    model,
+    preset: opts.preset ?? null,
+    openrouter_model: findModelTokenPreset(opts.preset)?.openrouterModel ?? (model.includes("/") ? model : null),
+    subdenom,
+    model_denom: modelDenom,
+    reserve_denom: reserveDenom,
+    fee_bps: feeBps,
+    issuer: account.address,
+    vault_owner: vaultOwner ?? account.address,
+    admin,
+    label,
+  };
+
+  if (!opts.json) {
+    console.log(`Launching model token + vault for ${model}...`);
+    console.log(`  Issuer:      ${shortAddr(account.address)}`);
+    console.log(`  Model Denom: ${modelDenom}`);
+    console.log(`  Reserve:     ${reserveDenom}`);
+    console.log(`  Supply:      ${supply}`);
+    console.log(`  Fee:         ${feeBps} bps`);
+    console.log();
+  }
+
+  try {
+    // --- 1. Issue the model token: register + create-denom + mint. ---
+    const issueMsgs = [
+      buildRegisterModelMsg(account.address, opts),
+      buildCreateDenomMsg(account.address, subdenom),
+      buildMintMsg(account.address, modelDenom, supply),
+    ];
+    const issueRes = await signingClient.signAndBroadcast(account.address, issueMsgs, "auto");
+    if (issueRes.code !== 0) {
+      throw new Error(`issue tx failed (code=${issueRes.code}): ${issueRes.rawLog}`);
+    }
+    report.issue_tx_hash = issueRes.transactionHash;
+    report.model_id = findEventAttribute(issueRes.events, "register_model", "model_id") ?? null;
+
+    if (!opts.json) {
+      console.log("Model token issued.");
+      console.log(`  TxHash:  ${issueRes.transactionHash}`);
+      if (report.model_id) console.log(`  ModelID: ${String(report.model_id)}`);
+      console.log();
+    }
+
+    // --- 2. Optional Astroport pair + liquidity (same path as `issue`). ---
+    if (opts.dexFactory) {
+      const createPairMsg = buildCreatePairExecuteMsg(account.address, opts.dexFactory, baseDenom, modelDenom);
+      const pairRes = await signingClient.signAndBroadcast(account.address, [createPairMsg], "auto");
+      if (pairRes.code !== 0) {
+        throw new Error(`DEX pair creation failed (code=${pairRes.code}): ${pairRes.rawLog}`);
+      }
+      const pairAddress =
+        findEventAttribute(pairRes.events, "wasm", "pair_contract_addr") ??
+        findEventAttribute(pairRes.events, "wasm", "contract_addr") ??
+        null;
+      report.dex_pair_tx_hash = pairRes.transactionHash;
+      report.dex_pair = pairAddress;
+
+      if (!opts.json) {
+        console.log("DEX pair creation submitted.");
+        console.log(`  TxHash:  ${pairRes.transactionHash}`);
+        if (pairAddress) console.log(`  Pair:    ${pairAddress}`);
+        console.log();
+      }
+
+      if (opts.baseAmount || opts.modelAmount) {
+        if (!pairAddress) {
+          throw new Error("Cannot seed liquidity because the DEX pair address was not found in tx events.");
+        }
+        const liquidityMsg = buildProvideLiquidityExecuteMsg(
+          account.address,
+          pairAddress,
+          { denom: baseDenom, amount: requirePositiveAmount("--base-amount", opts.baseAmount) },
+          { denom: modelDenom, amount: requirePositiveAmount("--model-amount", opts.modelAmount) },
+        );
+        const liquidityRes = await signingClient.signAndBroadcast(account.address, [liquidityMsg], "auto");
+        if (liquidityRes.code !== 0) {
+          throw new Error(`DEX liquidity seeding failed (code=${liquidityRes.code}): ${liquidityRes.rawLog}`);
+        }
+        report.dex_liquidity_tx_hash = liquidityRes.transactionHash;
+
+        if (!opts.json) {
+          console.log("DEX liquidity seeded.");
+          console.log(`  TxHash:  ${liquidityRes.transactionHash}`);
+          console.log();
+        }
+      }
+    }
+
+    // --- 3. Store the wasm (optional; skipped when --code-id is supplied). ---
+    let codeId = opts.codeId;
+    if (opts.wasm) {
+      const wasmBytes = loadWasmBytes(opts.wasm);
+      const storeMsg = buildStoreCodeMsg(account.address, wasmBytes);
+      const storeRes = await signingClient.signAndBroadcast(account.address, [storeMsg], "auto");
+      if (storeRes.code !== 0) {
+        throw new Error(`store tx failed (code=${storeRes.code}): ${storeRes.rawLog}`);
+      }
+      const parsedCodeId = findEventAttribute(storeRes.events, "store_code", "code_id");
+      if (!parsedCodeId) {
+        throw new Error("Could not parse code_id from the store_code event.");
+      }
+      codeId = parsedCodeId;
+      report.store_tx_hash = storeRes.transactionHash;
+
+      if (!opts.json) {
+        console.log("Wasm stored.");
+        console.log(`  TxHash:  ${storeRes.transactionHash}`);
+        console.log(`  CodeID:  ${codeId}`);
+        console.log();
+      }
+    }
+    if (!codeId) {
+      throw new Error("No code_id available to instantiate (store failed?).");
+    }
+    report.code_id = codeId;
+
+    // --- 4. Instantiate the vault for the freshly minted model_denom. ---
+    const initMsg = buildVaultInstantiateMsg({ modelDenom, reserveDenom, owner: vaultOwner, feeBps });
+    const instantiateMsg = buildInstantiateMsg(account.address, codeId, initMsg, label, admin);
+    const instRes = await signingClient.signAndBroadcast(account.address, [instantiateMsg], "auto");
+    if (instRes.code !== 0) {
+      throw new Error(`instantiate tx failed (code=${instRes.code}): ${instRes.rawLog}`);
+    }
+    const vault = findEventAttribute(instRes.events, "instantiate", "_contract_address");
+    if (!vault) {
+      throw new Error("Could not parse _contract_address from the instantiate event.");
+    }
+    report.instantiate_tx_hash = instRes.transactionHash;
+    report.vault = vault;
+
+    if (!opts.json) {
+      console.log("Vault instantiated.");
+      console.log(`  TxHash:  ${instRes.transactionHash}`);
+      console.log(`  Vault:   ${vault}`);
+      console.log();
+    }
+
+    // --- 5. Optionally fund the vault with reserve and/or model tokens. ---
+    if (seedReserve || seedInventory) {
+      const funds: Coin[] = [];
+      if (seedReserve) funds.push({ denom: reserveDenom, amount: seedReserve });
+      if (seedInventory) funds.push({ denom: modelDenom, amount: seedInventory });
+      // CosmWasm requires funds sorted by denom.
+      funds.sort((a, b) => a.denom.localeCompare(b.denom));
+
+      const fundMsg = buildFundMsg(account.address, vault, funds);
+      const fundRes = await signingClient.signAndBroadcast(account.address, [fundMsg], "auto");
+      if (fundRes.code !== 0) {
+        throw new Error(`fund tx failed (code=${fundRes.code}): ${fundRes.rawLog}`);
+      }
+      report.fund_tx_hash = fundRes.transactionHash;
+      report.funds = funds;
+
+      if (!opts.json) {
+        console.log("Vault funded.");
+        for (const f of funds) console.log(`  ${f.amount} ${f.denom}`);
+        console.log(`  TxHash:  ${fundRes.transactionHash}`);
+        console.log();
+      }
+    }
+
+    if (opts.json) {
+      process.stdout.write(JSON.stringify(report, null, 2) + "\n");
+      return;
+    }
+
+    console.log("Launch complete.");
+    console.log(`  Model Denom: ${modelDenom}`);
+    console.log(`  Code ID:     ${codeId}`);
+    console.log(`  Vault:       ${vault}`);
+  } catch (err) {
+    console.error(`Model token launch failed: ${String(err)}`);
     process.exit(1);
   } finally {
     signingClient.disconnect();
