@@ -47,6 +47,15 @@ clawd model-vault deploy \
 # -> prints store tx (code_id), instantiate tx (vault address), and fund tx.
 ```
 
+Or do issuance **and** vault deploy in one signed flow:
+
+```bash
+clawd model-token launch --preset claude-opus-4.8 --supply 1000000 \
+  --wasm contracts/model-vault/artifacts/model_vault.wasm \
+  --seed-reserve 1000000 --seed-inventory 500000 [--dex-factory <addr>] --json
+# -> consolidated summary: model_denom, code_id, vault address, and every tx hash.
+```
+
 ### 3. Trade on the curve
 
 ```bash
@@ -55,6 +64,8 @@ clawd model-vault sell --contract <vault> --amount 150000          # send model 
 clawd model-vault quote --contract <vault> --side buy --amount 200000   # dry quote, no state change
 clawd model-vault pool --contract <vault>                          # reserve / inventory (spot = reserve/inventory)
 clawd model-vault watch --contract <vault> --interval-ms 5000      # supervised live price monitor
+clawd model-vault history --contract <vault> --samples 12 --csv    # sampled price series + stats (CSV/JSON)
+clawd model-vault alert --contract <vault> --threshold 1.5 --direction above   # fire when spot crosses a level
 ```
 
 Keep the curve and the DEX pair aligned with the arbitrage helper (dry-run by default):
@@ -95,6 +106,7 @@ clawd model-token serve-loop --max-cycles 1
 ```bash
 clawd model-index compute --model-id <id> --json   # job volume, completion rate, latency, rating, providers
 clawd model-index publish --model-id <id> --validator <clawvaloper1...>   # oracle commit-reveal vote
+clawd model-index leaderboard --top 10 --json      # rank all registered models by composite index
 ```
 
 ## SDK usage (`@clawchain/sdk`)
@@ -133,7 +145,11 @@ React dApps are in `sdk/src/wagmi-model-vault.ts`.
 - **Model Portfolio** (`/model-portfolio`) — a holder's stakes + claimable dividends across
   vaults (vault list persisted to localStorage).
 - **Vault Inspector** (`/vault-inspector`) — deep read-only view of any vault by address,
-  with a quote calculator and the Stake & Earn panel embedded.
+  with a quote calculator, an embedded Stake & Earn panel, and a live session price sparkline.
+- **Launch Model** (`/launch-model`) — guided wizard that generates the exact `clawd`
+  issue/deploy command for a new model token.
+- **Leaderboard** (`/leaderboard`) — all model tokens ranked by their composite
+  fundamentals index.
 
 ## Verification
 

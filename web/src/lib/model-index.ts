@@ -238,6 +238,86 @@ export function formatRating(rating: number, ratingCount: number): string {
   return `${rating.toFixed(1)} ★`;
 }
 
+// ---------------------------------------------------------------------------
+// Composite fundamentals index (0..1)
+// ---------------------------------------------------------------------------
+
+/**
+ * Composite per-model fundamentals index in [0,1]. This is the web counterpart
+ * of `computeIndexScore` in cmd/clawd/src/commands/model-index.ts and MUST keep
+ * the SAME weights and factor curves so a model scores identically whether the
+ * score is read off the CLI or rendered here:
+ *
+ *   volume      0.35  completedJobs / (completedJobs + 50)   (saturating)
+ *   completion  0.20  completionRate (0..1)
+ *   rating      0.20  ratingScore / 5
+ *   providers   0.15  providerCount / 5                      (saturate at ~5)
+ *   latency     0.10  60 / (60 + avgLatencySeconds), neutral 0.5 when unknown
+ *
+ * Inputs are the on-chain fundamentals the clawd command derives from
+ * x/modelregistry; the formula is duplicated (not imported) only because clawd
+ * is a separate Node CLI package — the weights are documented in both places so
+ * they stay in lockstep.
+ */
+export function computeIndexScore(args: {
+  completedJobs: number;
+  completionRate: number;
+  avgLatencySeconds: number;
+  ratingScore: number;
+  providerCount: number;
+}): number {
+  const volumeFactor = args.completedJobs / (args.completedJobs + 50);
+  const completionFactor = clampUnit(args.completionRate);
+  const ratingFactor = clampUnit(args.ratingScore / 5);
+  const providerFactor = clampUnit(args.providerCount / 5);
+  const latencyFactor =
+    args.avgLatencySeconds > 0 ? 60 / (60 + args.avgLatencySeconds) : 0.5;
+
+  const score =
+    0.35 * volumeFactor +
+    0.2 * completionFactor +
+    0.2 * ratingFactor +
+    0.15 * providerFactor +
+    0.1 * latencyFactor;
+
+  return round4(clampUnit(score));
+}
+
+/**
+ * Compute the composite index score directly from a shaped {@link ModelFundamentals}.
+ * Bridges the web fundamentals surface (jobs counts, latency in ms, 0-5 rating)
+ * onto {@link computeIndexScore}'s on-chain input shape: completion rate is
+ * derived from completed/total jobs and latency is converted ms -> seconds.
+ */
+export function indexScoreFromFundamentals(f: ModelFundamentals): number {
+  const completionRate =
+    f.totalJobs > 0 ? f.completedJobs / f.totalJobs : 0;
+  return computeIndexScore({
+    completedJobs: f.completedJobs,
+    completionRate,
+    avgLatencySeconds: f.avgLatencyMs > 0 ? f.avgLatencyMs / 1000 : 0,
+    ratingScore: f.rating,
+    providerCount: f.providerCount,
+  });
+}
+
+function clampUnit(x: number): number {
+  if (!Number.isFinite(x)) return 0;
+  if (x < 0) return 0;
+  if (x > 1) return 1;
+  return x;
+}
+
+function round4(x: number): number {
+  return Math.round(x * 10_000) / 10_000;
+}
+
+/** Format a 0..1 index score as a percent string, e.g. "73.4%". */
+export function formatIndexScore(score: number): string {
+  if (!Number.isFinite(score) || score < 0) return "0.0%";
+  return `${(score * 100).toFixed(1)}%`;
+}
+
 /**
  * Compare a token's external (DEX) price against its bonding-curve spot price.
  * Returns a simple indicator the panel renders as a premium/discount signal.

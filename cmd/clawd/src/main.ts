@@ -89,6 +89,7 @@ import {
 import {
   runModelIndexCompute,
   runModelIndexPublish,
+  runModelIndexLeaderboard,
 } from "./commands/model-index.js";
 import { runReputationQuery, runReputationLeaderboard, runReputationRate, runReputationEndorse } from "./commands/reputation.js";
 import {
@@ -2508,6 +2509,20 @@ modelIndexCmd
     await runModelIndexPublish({
       modelId: opts.modelId,
       validator: opts.validator,
+      json: opts.json,
+    });
+  });
+
+modelIndexCmd
+  .command("leaderboard")
+  .description("Rank models by their computed fundamentals index (all registered models by default)")
+  .option("--models <ids>", "comma-separated model ids to rank (default: all registered)")
+  .option("--top <n>", "keep only the top N ranked models (default: all)")
+  .option("--json", "output JSON")
+  .action(async (opts) => {
+    await runModelIndexLeaderboard({
+      models: opts.models,
+      top: opts.top,
       json: opts.json,
     });
   });

@@ -27,6 +27,7 @@ const ModelExchange = lazy(() => import("./pages/ModelExchange.tsx"));
 const ModelMarkets = lazy(() => import("./pages/ModelMarkets.tsx"));
 const ModelPortfolio = lazy(() => import("./pages/ModelPortfolio.tsx"));
 const VaultInspector = lazy(() => import("./pages/VaultInspector.tsx"));
+const ModelLeaderboard = lazy(() => import("./pages/ModelLeaderboard.tsx"));
 const LaunchModel = lazy(() => import("./pages/LaunchModel.tsx"));
 const Inference = lazy(() => import("./pages/Inference.tsx"));
 const Messaging = lazy(() => import("./pages/Messaging.tsx"));
@@ -94,6 +95,7 @@ export default function App() {
             <Route path="/model-markets" element={<ModelMarkets />} />
             <Route path="/model-portfolio" element={<ModelPortfolio />} />
             <Route path="/vault-inspector" element={<VaultInspector />} />
+            <Route path="/model-leaderboard" element={<ModelLeaderboard />} />
             <Route path="/launch-model" element={<LaunchModel />} />
             <Route path="/inference" element={<Inference />} />
             <Route path="/messaging" element={<Messaging />} />

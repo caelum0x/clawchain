@@ -150,6 +150,18 @@ export type {
   CrossDirection,
 } from "./model-analytics.js";
 
+// Pure model-ranking / leaderboard helpers (composite index score + ranking)
+export {
+  computeIndexScore,
+  scoreSignals,
+  rankModels,
+} from "./model-leaderboard.js";
+export type {
+  ModelFundamentals,
+  ModelScoreSignals,
+  ModelRank,
+} from "./model-leaderboard.js";
+
 // wagmi-style ModelVault actions (route through the wagmi adapter)
 export {
   readModelVaultConfig,

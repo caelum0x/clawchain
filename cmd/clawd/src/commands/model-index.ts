@@ -31,7 +31,7 @@ import { GasPrice } from "@cosmjs/stargate";
 import { DirectSecp256k1HdWallet } from "@cosmjs/proto-signing";
 import { loadClawdConfig } from "../lib/config.js";
 import { loadMnemonic, mnemonicFileExists } from "../lib/mnemonic.js";
-import { shortAddr } from "../lib/format.js";
+import { shortAddr, table } from "../lib/format.js";
 import { connectClawchainSigningClient } from "../lib/signing.js";
 
 // ---------------------------------------------------------------------------
@@ -48,6 +48,19 @@ export type ModelIndexPublishOptions = {
   validator: string;
   json?: boolean;
 };
+
+export type ModelIndexLeaderboardOptions = {
+  /** Comma-separated explicit model ids; when omitted, all registered models are enumerated. */
+  models?: string;
+  /** Keep only the top N ranked models (default: all). */
+  top?: string;
+  json?: boolean;
+};
+
+/** One row of the leaderboard: a computed index, or a per-model failure note. */
+export type ModelIndexLeaderboardEntry =
+  | { ok: true; index: ModelIndex }
+  | { ok: false; modelId: string; error: string };
 
 // ---------------------------------------------------------------------------
 // Shapes returned by the modelregistry REST surface. The grpc-gateway emits
@@ -501,6 +514,154 @@ export async function runModelIndexPublish(opts: ModelIndexPublishOptions): Prom
     }
   } catch (err) {
     console.error(`model-index publish failed: ${String(err)}`);
+    process.exit(1);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// clawd model-index leaderboard
+// ---------------------------------------------------------------------------
+
+/** Parse a `--models a,b,c` list into validated, de-duped, order-preserving ids. */
+function parseModelIdList(raw: string): string[] {
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  for (const part of raw.split(",")) {
+    const id = part.trim();
+    if (!id) continue;
+    requireNonNegativeInteger("--models entry", id);
+    if (seen.has(id)) continue;
+    seen.add(id);
+    ids.push(id);
+  }
+  if (ids.length === 0) {
+    throw new Error("--models was provided but contained no valid ids.");
+  }
+  return ids;
+}
+
+/**
+ * Enumerate every registered model id from x/modelregistry. Mirrors the read in
+ * `runModelList` (GET /clawchain/modelregistry/v1/models) so the leaderboard
+ * sees the same universe of models the `model list` command does.
+ */
+async function listAllModelIds(): Promise<string[]> {
+  const url = `${restBase()}/clawchain/modelregistry/v1/models`;
+  const data = await fetchJson<{ models?: ModelRecordJson[] }>(url);
+  const models = data.models ?? [];
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  for (const m of models) {
+    const id = m.id == null ? "" : String(m.id).trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    ids.push(id);
+  }
+  return ids;
+}
+
+/** Optional positive-integer cap for `--top`. */
+function parseTop(raw: string | undefined): number | undefined {
+  if (raw == null) return undefined;
+  if (!/^[0-9]+$/.test(raw) || Number(raw) <= 0) {
+    throw new Error("--top must be a positive integer.");
+  }
+  return Number(raw);
+}
+
+/**
+ * Compute the composite fundamentals index for a set of models and print a
+ * ranked table. Reuses {@link computeModelIndex} (and therefore the exact same
+ * weights as `model-index compute`) for every row — no scoring is redefined
+ * here. Per-model compute failures are reported inline and skipped rather than
+ * aborting the whole run.
+ */
+export async function runModelIndexLeaderboard(
+  opts: ModelIndexLeaderboardOptions,
+): Promise<void> {
+  try {
+    const top = parseTop(opts.top);
+    const modelIds = opts.models
+      ? parseModelIdList(opts.models)
+      : await listAllModelIds();
+
+    if (modelIds.length === 0) {
+      if (opts.json) {
+        process.stdout.write(
+          JSON.stringify({ leaderboard: [], failures: [] }, null, 2) + "\n",
+        );
+        return;
+      }
+      console.log("No models found to rank.");
+      return;
+    }
+
+    // Compute each model's index independently; isolate failures per model.
+    const entries: ModelIndexLeaderboardEntry[] = [];
+    for (const modelId of modelIds) {
+      try {
+        const index = await computeModelIndex(modelId);
+        entries.push({ ok: true, index });
+      } catch (err) {
+        entries.push({ ok: false, modelId, error: String(err) });
+      }
+    }
+
+    const ranked = entries
+      .filter((e): e is { ok: true; index: ModelIndex } => e.ok)
+      .map((e) => e.index)
+      // Descending by composite index; modelId as a stable tiebreaker.
+      .sort(
+        (a, b) =>
+          b.indexScore - a.indexScore ||
+          Number(a.modelId) - Number(b.modelId),
+      );
+    const failures = entries.filter(
+      (e): e is { ok: false; modelId: string; error: string } => !e.ok,
+    );
+
+    const shown = top != null ? ranked.slice(0, top) : ranked;
+
+    if (opts.json) {
+      const report = {
+        leaderboard: shown.map((index, i) => ({ rank: i + 1, ...index })),
+        failures: failures.map((f) => ({ model_id: f.modelId, error: f.error })),
+      };
+      process.stdout.write(JSON.stringify(report, null, 2) + "\n");
+      return;
+    }
+
+    console.log(
+      `Model Fundamentals Leaderboard — ${shown.length} of ${ranked.length} ranked` +
+        (top != null ? ` (top ${top})` : "") +
+        "\n",
+    );
+
+    if (shown.length === 0) {
+      console.log("No models could be scored.");
+    } else {
+      const headers = ["Rank", "ID", "Name", "Score", "Jobs", "Rating", "Providers"];
+      const rows = shown.map((index, i) => [
+        String(i + 1),
+        index.modelId,
+        index.name,
+        index.indexScore.toFixed(4),
+        `${index.completedJobs}/${index.totalJobs}`,
+        `${index.ratingScore}/5`,
+        String(index.providerCount),
+      ]);
+      console.log(table(headers, rows));
+    }
+
+    if (failures.length > 0) {
+      console.log(`\nSkipped ${failures.length} model(s):`);
+      for (const f of failures) {
+        console.log(`  #${f.modelId}: ${f.error}`);
+      }
+    }
+    console.log();
+  } catch (err) {
+    console.error(`model-index leaderboard failed: ${String(err)}`);
     process.exit(1);
   }
 }
