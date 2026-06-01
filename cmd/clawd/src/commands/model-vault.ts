@@ -140,6 +140,14 @@ export type ModelVaultPortfolioOptions = {
   json?: boolean;
 };
 
+export type ModelVaultCompareOptions = {
+  /** Comma-separated vault contract addresses. */
+  contracts?: string;
+  /** Repeated --contract flags collected by Commander. */
+  contract?: string[];
+  json?: boolean;
+};
+
 export type ModelVaultDeployOptions = {
   modelDenom: string;
   reserveDenom?: string;
@@ -781,6 +789,150 @@ export async function runModelVaultPortfolio(opts: ModelVaultPortfolioOptions): 
     }
   } catch (err) {
     console.error(`model-vault portfolio failed: ${String(err)}`);
+    process.exit(1);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// compare: side-by-side bonding-curve snapshot of several vaults. For each
+// vault query config{} + pool{} + pool_info{} in parallel (via snapshotCurve +
+// a Config query), then rank by spot price. Per-vault failures are reported
+// inline and skipped, never aborting the comparison.
+// ---------------------------------------------------------------------------
+
+type CompareVaultRow = {
+  contract: string;
+  model_denom: string;
+  spotPrice: number;
+  reserve: string;
+  inventory: string;
+  totalStaked: string;
+};
+
+type CompareVaultError = {
+  contract: string;
+  error: string;
+};
+
+/**
+ * `clawd model-vault compare` — snapshot several vaults side by side. For each
+ * --contract / --contracts entry, query config{} + pool{} + pool_info{} in
+ * parallel and compute the bonding-curve spot price (reusing snapshotCurve and
+ * its curveSpotPrice math). Prints a per-vault table plus a summary line naming
+ * the cheapest/dearest vault by spot and the spread between them in basis
+ * points. Per-vault query failures are reported inline and skipped.
+ */
+export async function runModelVaultCompare(opts: ModelVaultCompareOptions): Promise<void> {
+  try {
+    const contracts = parseVaultList(opts.contracts, opts.contract);
+    if (contracts.length === 0) {
+      throw new Error(
+        "No contracts supplied. Pass --contracts <a,b,c> or repeat --contract <addr>.",
+      );
+    }
+
+    // Query each vault independently; one failure must not abort the rest.
+    const settled = await Promise.all(
+      contracts.map(async (contract): Promise<CompareVaultRow | CompareVaultError> => {
+        try {
+          const [snap, config] = await Promise.all([
+            snapshotCurve(contract),
+            smartQuery(contract, buildConfigQuery()) as Promise<ConfigShape>,
+          ]);
+          return {
+            contract,
+            model_denom: config.model_denom?.trim() || "?",
+            spotPrice: snap.spotPrice,
+            reserve: snap.reserve,
+            inventory: snap.inventory,
+            totalStaked: snap.totalStaked,
+          };
+        } catch (err) {
+          return { contract, error: String(err) };
+        }
+      }),
+    );
+
+    const rows = settled.filter((r): r is CompareVaultRow => !("error" in r));
+    const errors = settled.filter((r): r is CompareVaultError => "error" in r);
+
+    // Summary: cheapest/dearest by spot among vaults with a positive spot price.
+    const priced = rows.filter((r) => r.spotPrice > 0);
+    let cheapest: CompareVaultRow | undefined;
+    let dearest: CompareVaultRow | undefined;
+    let spreadBps = 0;
+    for (const row of priced) {
+      if (!cheapest || row.spotPrice < cheapest.spotPrice) cheapest = row;
+      if (!dearest || row.spotPrice > dearest.spotPrice) dearest = row;
+    }
+    if (cheapest && dearest && cheapest.spotPrice > 0) {
+      spreadBps = Math.round(
+        ((dearest.spotPrice - cheapest.spotPrice) / cheapest.spotPrice) * 10_000,
+      );
+    }
+
+    if (opts.json) {
+      const report = {
+        vaults: rows,
+        errors,
+        summary: {
+          vaults_queried: contracts.length,
+          vaults_priced: priced.length,
+          cheapest: cheapest
+            ? { contract: cheapest.contract, spot_price: cheapest.spotPrice }
+            : null,
+          dearest: dearest
+            ? { contract: dearest.contract, spot_price: dearest.spotPrice }
+            : null,
+          spread_bps: spreadBps,
+        },
+      };
+      process.stdout.write(JSON.stringify(report, null, 2) + "\n");
+      return;
+    }
+
+    console.log("ModelVault comparison");
+    console.log(`  Vaults queried: ${contracts.length}\n`);
+
+    if (rows.length > 0) {
+      const tableRows = rows.map((r) => [
+        shortAddr(r.contract),
+        r.model_denom,
+        String(round6(r.spotPrice)),
+        r.reserve,
+        r.inventory,
+        r.totalStaked,
+      ]);
+      console.log(
+        table(
+          ["Vault", "Model Denom", "Spot Price", "Reserve", "Inventory", "Total Staked"],
+          tableRows,
+        ),
+      );
+      console.log();
+    } else {
+      console.log("No vaults returned a snapshot.\n");
+    }
+
+    console.log("Summary:");
+    if (priced.length >= 1 && cheapest && dearest) {
+      console.log(`  Cheapest: ${shortAddr(cheapest.contract)} @ ${round6(cheapest.spotPrice)}`);
+      console.log(`  Dearest:  ${shortAddr(dearest.contract)} @ ${round6(dearest.spotPrice)}`);
+      console.log(`  Spread:   ${spreadBps} bps`);
+    } else {
+      console.log("  No priced vaults to rank (all spot prices were zero or unavailable).");
+    }
+    console.log();
+
+    if (errors.length > 0) {
+      console.log(`Skipped ${errors.length} vault(s) due to query errors:`);
+      for (const e of errors) {
+        console.log(`  ${shortAddr(e.contract)}: ${e.error}`);
+      }
+      console.log();
+    }
+  } catch (err) {
+    console.error(`model-vault compare failed: ${String(err)}`);
     process.exit(1);
   }
 }

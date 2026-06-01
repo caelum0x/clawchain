@@ -84,6 +84,7 @@ import {
   runModelVaultAlert,
   runModelVaultArb,
   runModelVaultPortfolio,
+  runModelVaultCompare,
   runModelVaultDeploy,
 } from "./commands/model-vault.js";
 import {
@@ -2448,6 +2449,25 @@ modelVaultCmd
       address: opts.address,
       vaults: opts.vaults,
       vault: opts.vault,
+      json: opts.json,
+    });
+  });
+
+modelVaultCmd
+  .command("compare")
+  .description("Side-by-side bonding-curve snapshot (spot price, reserves, stake) across vaults")
+  .option("--contracts <a,b,c>", "comma-separated vault contract addresses")
+  .option(
+    "--contract <address>",
+    "vault contract address (repeatable)",
+    (value: string, prev: string[] = []) => [...prev, value],
+    [] as string[],
+  )
+  .option("--json", "output JSON")
+  .action(async (opts) => {
+    await runModelVaultCompare({
+      contracts: opts.contracts,
+      contract: opts.contract,
       json: opts.json,
     });
   });

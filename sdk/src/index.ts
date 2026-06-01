@@ -138,6 +138,16 @@ export type {
   ModelPortfolioOptions,
 } from "./model-portfolio.js";
 
+// Side-by-side model-comparison aggregate (composes many ModelMarket snapshots)
+export { ModelComparison, createModelComparison } from "./model-comparison.js";
+export type {
+  ModelComparisonResult,
+  ModelComparisonRow,
+  ModelComparisonAggregates,
+  ModelComparisonError,
+  ModelComparisonEntry,
+} from "./model-comparison.js";
+
 // Pure market-analytics helpers (fold sampled curve spot prices into stats)
 export {
   summarizeSeries,
