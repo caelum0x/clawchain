@@ -99,6 +99,7 @@ clawd model-vault portfolio --address <addr> --vaults <vaultA>,<vaultB>,<vaultC>
 clawd model-token redeem --model-id <id> --amount 100 --input "your prompt"
 # burns model tokens + opens an inference job; a registered provider serves it:
 clawd model-token serve-loop --max-cycles 1
+clawd model-token job-status --job-id <id> --watch   # track a redeemed job until completed/failed
 ```
 
 ### 6. Publish model fundamentals (P3)
@@ -148,8 +149,12 @@ React dApps are in `sdk/src/wagmi-model-vault.ts`.
   with a quote calculator, an embedded Stake & Earn panel, and a live session price sparkline.
 - **Launch Model** (`/launch-model`) — guided wizard that generates the exact `clawd`
   issue/deploy command for a new model token.
-- **Leaderboard** (`/leaderboard`) — all model tokens ranked by their composite
+- **Leaderboard** (`/model-leaderboard`) — all model tokens ranked by their composite
   fundamentals index.
+- **Watchlist** (`/watchlist`) — pin model tokens and compare them side by side.
+- **Trade Simulator** (`/trade-simulator`) — model a buy/sell or target-price move on the curve.
+- **Redeem for Inference** (`/redeem-inference`) — generate the redeem command and track the
+  inference job to completion (the P1 utility loop).
 
 ## Verification
 
