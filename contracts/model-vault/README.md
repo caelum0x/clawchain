@@ -67,3 +67,18 @@ cargo build --target wasm32-unknown-unknown --release
 local testnet, issues a model token, funds the vault, buys with CLAW, and sells back,
 printing PASS/FAIL. It requires a running local multinode testnet and `clawd` /
 `clawchaind` on PATH.
+
+## Deploying on-chain (wasm packaging)
+
+A raw `cargo build --target wasm32-unknown-unknown --release` artifact is **not**
+chain-loadable: modern rustc emits post-MVP wasm (bulk-memory/sign-ext) that the
+chain's wasmvm rejects (`bulk memory support is not enabled` / deserialization error).
+Produce a chain-loadable, MVP-compatible artifact with the CosmWasm optimizer:
+
+```bash
+docker run --rm -v "$PWD":/code -w /code/contracts/model-vault cosmwasm/optimizer:0.16.0
+# -> contracts/model-vault/artifacts/model_vault.wasm  (deploy this)
+```
+
+The contract logic is fully verified offline via cw-multi-test (`cargo test`); the
+optimizer is only a packaging step for on-chain deployment.

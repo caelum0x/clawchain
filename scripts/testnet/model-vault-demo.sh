@@ -47,8 +47,19 @@ need curl
 curl -fsS "$NODE_URL/status" >/dev/null 2>&1 || fail "no testnet at $NODE_URL (run scripts/testnet/local-multinode.sh up 4)"
 
 # Build the wasm if it isn't there yet.
+#
+# IMPORTANT (wasm packaging): a raw `cargo build --target wasm32-unknown-unknown
+# --release` artifact is NOT chain-loadable here — modern rustc emits post-MVP wasm
+# (bulk-memory/sign-ext) that the chain's wasmvm rejects ("bulk memory support is not
+# enabled" / deserialization error). Produce a chain-loadable, MVP-compatible artifact
+# with the CosmWasm optimizer, then point WASM at it:
+#   docker run --rm -v "$PWD":/code -w /code/contracts/model-vault \
+#     cosmwasm/optimizer:0.16.0
+#   WASM=contracts/model-vault/artifacts/model_vault.wasm bash scripts/testnet/model-vault-demo.sh
+# The contract logic itself is fully verified offline via cw-multi-test (cargo test).
 if [ ! -f "$WASM" ]; then
   echo "== wasm not found, building (cargo build --target wasm32-unknown-unknown --release) =="
+  echo "   NOTE: raw cargo wasm may not deploy — use cosmwasm/optimizer for a chain-loadable artifact." >&2
   ( cd "$REPO_ROOT/contracts/model-vault" && cargo build --target wasm32-unknown-unknown --release ) \
     || fail "cargo wasm build failed and no prebuilt artifact at $WASM"
 fi
@@ -81,8 +92,10 @@ submit() { # submit <description> <tx args...>
   local desc="$1"; shift
   local out hash
   out="$("$BINARY" "$@" "${TXFLAGS[@]}" 2>&1)" || { echo "$out" >&2; fail "$desc broadcast failed"; }
-  hash="$(jq -r '.txhash' <<<"$out" 2>/dev/null)"
-  [ -n "$hash" ] && [ "$hash" != "null" ] || { echo "$out" >&2; fail "$desc: no txhash"; }
+  # `--gas auto` prints "gas estimate: N" to stderr, so $out is not pure JSON; pull the
+  # txhash out directly rather than feeding the whole blob to jq.
+  hash="$(printf '%s' "$out" | grep -oE '"txhash":"[A-Fa-f0-9]+"' | head -1 | cut -d'"' -f4)"
+  [ -n "$hash" ] || { echo "$out" >&2; fail "$desc: no txhash"; }
   wait_tx "$hash"
   echo "$hash"
 }
@@ -102,7 +115,8 @@ MODEL_DENOM="factory/$ISSUER/$SUBDENOM"
 echo "   model_denom=$MODEL_DENOM"
 
 echo "== 2. mint model tokens to issuer =="
-submit "mint" tx tokenfactory mint "$((SEED_INVENTORY * 2))$MODEL_DENOM" --from "$KEY_NAME" >/dev/null
+# tokenfactory mint takes [amount] [denom] as TWO positional args (not combined).
+submit "mint" tx tokenfactory mint "$((SEED_INVENTORY * 2))" "$MODEL_DENOM" --from "$KEY_NAME" >/dev/null
 
 echo "== 3. store model-vault wasm =="
 STORE_HASH="$(submit "store" tx wasm store "$WASM" --from "$KEY_NAME")"
