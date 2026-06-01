@@ -55,6 +55,16 @@ import {
 } from "./commands/agent-multi.js";
 import { runGpuList, runGpuLease, runGpuSubmitJob, runGpuJobs, runGpuStatus, runGpuLeases, runGpuProviders, runGpuJobStatus } from "./commands/gpu.js";
 import { runModelList, runModelQuery, runModelRegister, runModelProviders, runModelInference } from "./commands/model.js";
+import {
+  runModelTokenCatalog,
+  runModelTokenInferenceSetup,
+  runModelTokenIssue,
+  runModelTokenCompleteJob,
+  runModelTokenRedeem,
+  runModelTokenServeLoop,
+  runModelTokenServeOnce,
+  runModelTokenStartJob,
+} from "./commands/model-token.js";
 import { runReputationQuery, runReputationLeaderboard, runReputationRate, runReputationEndorse } from "./commands/reputation.js";
 import {
   runGovernanceProposals,
@@ -1904,6 +1914,205 @@ modelCmd
       modelId: opts.modelId,
       input: opts.input,
       maxFee: opts.maxFee,
+    });
+  });
+
+// ---------------------------------------------------------------------------
+// clawd model-token
+// ---------------------------------------------------------------------------
+const modelTokenCmd = program.command("model-token").description("Tokenized AI-model assets");
+
+modelTokenCmd
+  .command("catalog")
+  .description("List real model-token presets backed by OpenRouter model IDs")
+  .option("--json", "output JSON")
+  .action(async (opts) => {
+    await runModelTokenCatalog({ json: opts.json });
+  });
+
+modelTokenCmd
+  .command("issue")
+  .description("Register a model, create its tokenfactory denom, mint supply, and optionally seed a DEX pool")
+  .option("--model <id>", "model slug or OpenRouter model ID, e.g. anthropic/claude-opus-4.8")
+  .option("--preset <id>", "real model preset from `model-token catalog`, e.g. claude-opus-4.8")
+  .requiredOption("--supply <amount>", "initial model-token supply to mint")
+  .option("--symbol <subdenom>", "tokenfactory subdenom; defaults to normalized --model")
+  .option("--name <name>", "model registry display name")
+  .option("--description <text>", "model registry description")
+  .option("--framework <framework>", "model framework (pytorch, tensorflow, onnx, gguf, safetensors, jax, other)", "other")
+  .option("--architecture <text>", "model architecture metadata")
+  .option("--parameter-count <text>", "parameter count metadata")
+  .option("--license <text>", "license metadata")
+  .option("--tags <csv>", "comma-separated model tags")
+  .option("--storage-type <type>", "model storage type", "remote")
+  .option("--storage-uri <uri>", "model storage URI")
+  .option("--checksum-sha256 <hex>", "model artifact checksum")
+  .option("--size-bytes <n>", "model artifact size in bytes", "0")
+  .option("--access-type <type>", "model access type (free, per_query, subscription, one_time)", "per_query")
+  .option("--price-per-query-uclaw <amount>", "modelregistry price per query in uclaw", "0")
+  .option("--price-one-time-uclaw <amount>", "modelregistry one-time price in uclaw", "0")
+  .option("--dex-factory <address>", "Astroport factory contract to create TOKEN/CLAW pair")
+  .option("--base-denom <denom>", "base asset denom for DEX pair; defaults to configured chain denom")
+  .option("--base-amount <amount>", "base asset amount for initial liquidity")
+  .option("--model-amount <amount>", "model-token amount for initial liquidity")
+  .option("--json", "output JSON")
+  .action(async (opts) => {
+    await runModelTokenIssue({
+      model: opts.model,
+      preset: opts.preset,
+      symbol: opts.symbol,
+      supply: opts.supply,
+      name: opts.name,
+      description: opts.description,
+      framework: opts.framework,
+      architecture: opts.architecture,
+      parameterCount: opts.parameterCount,
+      license: opts.license,
+      tags: opts.tags,
+      storageType: opts.storageType,
+      storageUri: opts.storageUri,
+      checksumSha256: opts.checksumSha256,
+      sizeBytes: opts.sizeBytes,
+      accessType: opts.accessType,
+      pricePerQueryUclaw: opts.pricePerQueryUclaw,
+      priceOneTimeUclaw: opts.priceOneTimeUclaw,
+      dexFactory: opts.dexFactory,
+      baseDenom: opts.baseDenom,
+      baseAmount: opts.baseAmount,
+      modelAmount: opts.modelAmount,
+      json: opts.json,
+    });
+  });
+
+modelTokenCmd
+  .command("redeem")
+  .description("Burn model tokens and submit an inference job")
+  .requiredOption("--model-id <id>", "on-chain modelregistry model ID")
+  .requiredOption("--amount <amount>", "model-token amount to burn")
+  .requiredOption("--input <text>", "prompt/input for the inference job")
+  .option("--denom <denom>", "full tokenfactory denom to burn")
+  .option("--model <slug>", "model slug used to derive denom when --denom is omitted")
+  .option("--symbol <subdenom>", "tokenfactory subdenom used with --model")
+  .option("--model-version <version>", "model version to request", "0")
+  .option("--max-tokens <n>", "maximum output tokens", "512")
+  .option("--temperature <value>", "sampling temperature", "0.7")
+  .option("--payment-uclaw <amount>", "uclaw payment attached to the inference job", "0")
+  .option("--json", "output JSON")
+  .action(async (opts) => {
+    await runModelTokenRedeem({
+      modelId: opts.modelId,
+      modelVersion: opts.modelVersion,
+      amount: opts.amount,
+      input: opts.input,
+      denom: opts.denom,
+      model: opts.model,
+      symbol: opts.symbol,
+      maxTokens: opts.maxTokens,
+      temperature: opts.temperature,
+      paymentUclaw: opts.paymentUclaw,
+      json: opts.json,
+    });
+  });
+
+modelTokenCmd
+  .command("inference-setup")
+  .description("Set model inference pricing and optionally register the owner as provider")
+  .requiredOption("--model-id <id>", "on-chain modelregistry model ID")
+  .option("--price-per-token-uclaw <amount>", "uclaw charged per output token", "0")
+  .option("--price-per-query-uclaw <amount>", "flat uclaw charged per query", "0")
+  .option("--min-payment-uclaw <amount>", "minimum uclaw payment accepted for jobs", "0")
+  .option("--max-tokens <n>", "maximum output tokens accepted for jobs", "512")
+  .option("--register-provider", "also register this wallet as an online inference provider")
+  .option("--endpoint <uri>", "provider endpoint metadata", "clawchain://local-provider")
+  .option("--max-concurrent <n>", "provider max concurrent jobs", "1")
+  .option("--json", "output JSON")
+  .action(async (opts) => {
+    await runModelTokenInferenceSetup({
+      modelId: opts.modelId,
+      pricePerTokenUclaw: opts.pricePerTokenUclaw,
+      pricePerQueryUclaw: opts.pricePerQueryUclaw,
+      minPaymentUclaw: opts.minPaymentUclaw,
+      maxTokens: opts.maxTokens,
+      registerProvider: opts.registerProvider,
+      endpoint: opts.endpoint,
+      maxConcurrent: opts.maxConcurrent,
+      json: opts.json,
+    });
+  });
+
+modelTokenCmd
+  .command("start-job")
+  .description("Provider marks a model-token inference job as running")
+  .requiredOption("--job-id <id>", "inference job ID")
+  .option("--json", "output JSON")
+  .action(async (opts) => {
+    await runModelTokenStartJob({
+      jobId: opts.jobId,
+      json: opts.json,
+    });
+  });
+
+modelTokenCmd
+  .command("complete-job")
+  .description("Provider completes a model-token inference job with output")
+  .requiredOption("--job-id <id>", "inference job ID")
+  .requiredOption("--output <text>", "inference result/output to store on-chain")
+  .requiredOption("--tokens-used <n>", "output tokens used for settlement")
+  .option("--json", "output JSON")
+  .action(async (opts) => {
+    await runModelTokenCompleteJob({
+      jobId: opts.jobId,
+      output: opts.output,
+      tokensUsed: opts.tokensUsed,
+      json: opts.json,
+    });
+  });
+
+modelTokenCmd
+  .command("serve-once")
+  .description("Provider queries assigned jobs, starts pending jobs, and completes them once")
+  .option("--model-id <id>", "only serve jobs for one model")
+  .option("--status <status>", "job status to query: active, pending, running, completed, failed, all", "active")
+  .option("--max-jobs <n>", "maximum jobs to serve", "1")
+  .option("--output <template>", "completion output template; supports {job_id}, {model_id}, {requester}, {input}")
+  .option("--openrouter-model <id>", "execute job input through OpenRouter using OPENROUTER_API_KEY")
+  .option("--dry-run", "show matched assigned jobs without submitting txs")
+  .option("--json", "output JSON")
+  .action(async (opts) => {
+    await runModelTokenServeOnce({
+      modelId: opts.modelId,
+      status: opts.status,
+      maxJobs: opts.maxJobs,
+      output: opts.output,
+      openrouterModel: opts.openrouterModel,
+      dryRun: opts.dryRun,
+      json: opts.json,
+    });
+  });
+
+modelTokenCmd
+  .command("serve-loop")
+  .description("Run the model-token provider job server repeatedly until stopped")
+  .option("--model-id <id>", "only serve jobs for one model")
+  .option("--status <status>", "job status to query: active, pending, running, completed, failed, all", "active")
+  .option("--max-jobs <n>", "maximum jobs to serve per cycle", "1")
+  .option("--interval-ms <n>", "milliseconds to wait between cycles", "5000")
+  .option("--max-cycles <n>", "stop after this many cycles; 0 means run until stopped", "0")
+  .option("--output <template>", "completion output template; supports {job_id}, {model_id}, {requester}, {input}")
+  .option("--openrouter-model <id>", "execute job input through OpenRouter using OPENROUTER_API_KEY")
+  .option("--dry-run", "show matched assigned jobs without submitting txs")
+  .option("--json", "output JSON per cycle")
+  .action(async (opts) => {
+    await runModelTokenServeLoop({
+      modelId: opts.modelId,
+      status: opts.status,
+      maxJobs: opts.maxJobs,
+      intervalMs: opts.intervalMs,
+      maxCycles: opts.maxCycles,
+      output: opts.output,
+      openrouterModel: opts.openrouterModel,
+      dryRun: opts.dryRun,
+      json: opts.json,
     });
   });
 

@@ -48,6 +48,11 @@ MODULE_DIRS=(
   "proto/clawchain/messaging/v1"
   "proto/clawchain/governance/v1"
   "proto/clawchain/clawchain/v1"
+  # Osmosis-compatible tokenfactory msgs (CreateDenom/Mint/Burn/...). clawd needs
+  # these to issue + mint AI-model tokens via x/tokenfactory. Package is
+  # `osmosis.tokenfactory.v1beta1`; the generated dir lands under
+  # generated/proto/osmosis/... (tracked — not caught by the clawchain/ gitignore).
+  "proto/osmosis/tokenfactory/v1beta1"
 )
 
 rm -rf "$OUT"

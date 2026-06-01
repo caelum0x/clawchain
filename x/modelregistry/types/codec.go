@@ -9,23 +9,37 @@ import (
 
 func RegisterCodec(cdc *codec.LegacyAmino) {
 	cdc.RegisterConcrete(&MsgRegisterModel{}, "clawchain/modelregistry/MsgRegisterModel", nil)
+	cdc.RegisterConcrete(&MsgUpdateModel{}, "clawchain/modelregistry/MsgUpdateModel", nil)
 	cdc.RegisterConcrete(&MsgPublishVersion{}, "clawchain/modelregistry/MsgPublishVersion", nil)
 	cdc.RegisterConcrete(&MsgDelistModel{}, "clawchain/modelregistry/MsgDelistModel", nil)
 	cdc.RegisterConcrete(&MsgPurchaseAccess{}, "clawchain/modelregistry/MsgPurchaseAccess", nil)
-	cdc.RegisterConcrete(&MsgRateModel{}, "clawchain/modelregistry/MsgRateModel", nil)
-	cdc.RegisterConcrete(&MsgSubmitInferenceJob{}, "clawchain/modelregistry/MsgSubmitInferenceJob", nil)
 	cdc.RegisterConcrete(&MsgRenewSubscription{}, "clawchain/modelregistry/MsgRenewSubscription", nil)
+	cdc.RegisterConcrete(&MsgRateModel{}, "clawchain/modelregistry/MsgRateModel", nil)
+	cdc.RegisterConcrete(&MsgRegisterInferenceProvider{}, "clawchain/modelregistry/MsgRegisterInferenceProvider", nil)
+	cdc.RegisterConcrete(&MsgSetInferencePricing{}, "clawchain/modelregistry/MsgSetInferencePricing", nil)
+	cdc.RegisterConcrete(&MsgSubmitInferenceJob{}, "clawchain/modelregistry/MsgSubmitInferenceJob", nil)
+	cdc.RegisterConcrete(&MsgStartInferenceJob{}, "clawchain/modelregistry/MsgStartInferenceJob", nil)
+	cdc.RegisterConcrete(&MsgCompleteInferenceJob{}, "clawchain/modelregistry/MsgCompleteInferenceJob", nil)
+	cdc.RegisterConcrete(&MsgFailInferenceJob{}, "clawchain/modelregistry/MsgFailInferenceJob", nil)
+	cdc.RegisterConcrete(&MsgProviderHeartbeat{}, "clawchain/modelregistry/MsgProviderHeartbeat", nil)
 }
 
 func RegisterInterfaces(registry cdctypes.InterfaceRegistry) {
 	registry.RegisterImplementations((*sdk.Msg)(nil),
 		&MsgRegisterModel{},
+		&MsgUpdateModel{},
 		&MsgPublishVersion{},
 		&MsgDelistModel{},
 		&MsgPurchaseAccess{},
-		&MsgRateModel{},
-		&MsgSubmitInferenceJob{},
 		&MsgRenewSubscription{},
+		&MsgRateModel{},
+		&MsgRegisterInferenceProvider{},
+		&MsgSetInferencePricing{},
+		&MsgSubmitInferenceJob{},
+		&MsgStartInferenceJob{},
+		&MsgCompleteInferenceJob{},
+		&MsgFailInferenceJob{},
+		&MsgProviderHeartbeat{},
 	)
 	msgservice.RegisterMsgServiceDesc(registry, &Msg_serviceDesc)
 }

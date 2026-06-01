@@ -1,6 +1,135 @@
 # AI Model Tokens on ClawChain — Tokenizing AI Models Like Stocks
 
-_Plan / design. Status: 2026-06-01. Owner: TBD. NOT financial advice; testnet-only until legal review._
+_Plan / design + P0/P1 CLI slice. Status: 2026-06-01. Owner: TBD. NOT financial advice; testnet-only until legal review._
+
+## Implementation status (2026-06-01)
+
+P0 has a live-accepted `clawd` implementation slice:
+
+- `clawd model-token issue --model <slug> --supply <amount>` registers model metadata in
+  `x/modelregistry`, creates `factory/<issuer>/<subdenom>` through `x/tokenfactory`,
+  and mints the initial model-token supply to the issuer in one signed transaction.
+  The CLI normalizes model IDs to tokenfactory-safe subdenoms using lowercase
+  alphanumerics, `_`, and `/`.
+- `clawd model-token catalog` lists real OpenRouter-backed presets, starting with
+  `anthropic/claude-opus-4.8` and `qwen/qwen3.7-max`; `clawd model-token issue
+  --preset <id>` fills real model metadata and stores `openrouter:<model-id>` in
+  modelregistry.
+- Optional DEX seeding is built into the same command: `--dex-factory <addr>` submits an
+  Astroport `create_pair` for `CLAW/model-token`, and `--base-amount` +
+  `--model-amount` seeds initial native-token liquidity when the pair address is emitted.
+- The command uses the shared `clawd` custom protobuf registry so
+  `/clawchain.modelregistry.v1.*`, `/osmosis.tokenfactory.v1beta1.*`, and
+  `/cosmwasm.wasm.v1.MsgExecuteContract` messages are actually encodable by CosmJS.
+- The chain-side `x/modelregistry` app module now mounts its msg/query services through
+  the app's service registrar shape used by the other modules; this fixed the live
+  `no message handler found for *types.MsgRegisterModel` acceptance blocker.
+- Focused tests cover subdenom normalization, modelregistry/tokenfactory message shapes,
+  Astroport create-pair/liquidity execute messages, event extraction, CLI JSON output,
+  and the issue + optional DEX transaction sequence.
+- P1 has a first holder-capable redemption bridge:
+  `clawd model-token redeem --model-id <id> --amount <n> --input <prompt>` burns an
+  AI model token through `MsgBurn` and submits `MsgSubmitInferenceJob` in the
+  same signed transaction. The token denom can be passed with `--denom` or derived from
+  `--model/--symbol`.
+- `clawd model-token inference-setup --model-id <id>` sets model inference pricing
+  through `MsgSetInferencePricing` and can register the owner wallet as an online
+  inference provider with `MsgRegisterInferenceProvider`. This makes a newly issued
+  model token immediately redeemable on a dev/test chain once the owner knows the
+  model ID.
+- `clawd model-token start-job --job-id <id>` and
+  `clawd model-token complete-job --job-id <id> --output <text> --tokens-used <n>`
+  let the assigned provider drive the modelregistry job lifecycle through running and
+  completed states. These provider lifecycle transactions use explicit gas fees derived
+  from configured gas price after live acceptance showed auto gas could under-estimate
+  `MsgStartInferenceJob`.
+- `clawd model-token serve-once` is the first provider automation loop: it queries
+  assigned active jobs, starts pending jobs, completes pending/running jobs, supports
+  deterministic output templates for testnet workflows, and can call OpenRouter with
+  `--openrouter-model` when `OPENROUTER_API_KEY` is configured.
+- `clawd model-token serve-loop` turns that one-shot path into a supervised provider
+  loop with `--interval-ms` and `--max-cycles`; `--max-cycles 0` keeps serving until
+  the operator stops it.
+- `x/tokenfactory` now supports holder self-burn for registered factory denoms while
+  preserving admin burn behavior. This lets non-admin holders redeem their own model
+  tokens without giving them authority to burn another account's balance.
+- Full holder UX still belongs in the planned ModelVault/vault-mediated flow, where
+  token budgeting, revenue accounting, and provider settlement can be enforced in one
+  place.
+- `scripts/testnet/model-token-holder-redeem.sh` captures the live P1 workflow:
+  fund owner/holder, issue model token, set inference pricing/provider readiness,
+  transfer model tokens to a non-admin holder, holder self-burns, provider runs
+  `serve-loop`, and final on-chain job status is asserted as `completed`.
+
+Verification:
+
+```bash
+cd cmd/clawd && npm test -- --run src/commands/__tests__/model-token.test.ts src/lib/registry.test.ts src/commands/__tests__/model.test.ts
+cd cmd/clawd && npm test
+cd cmd/clawd && npm run build
+cd cmd/clawd && node dist/main.js model-token catalog --json
+cd cmd/clawd && node dist/main.js model-token issue --help
+cd cmd/clawd && node dist/main.js model-token redeem --help
+cd cmd/clawd && node dist/main.js model-token start-job --help
+cd cmd/clawd && node dist/main.js model-token complete-job --help
+cd cmd/clawd && node dist/main.js model-token serve-once --help
+cd cmd/clawd && node dist/main.js model-token serve-loop --help
+bash -n scripts/testnet/model-token-holder-redeem.sh
+bash -n scripts/testnet/model-token-real-models.sh
+go test -count=1 ./x/modelregistry/... ./x/tokenfactory/...
+go build -o build/clawchaind ./cmd/clawchaind/
+```
+
+Live P0 acceptance passed on a fresh 4-validator local testnet with deployed DEX
+contracts:
+
+- Issued model `opus-4-6-live-1780270277` as denom
+  `factory/claw1r5v5srda7xfth3hn2s26txvrcrntldju3ufu0h/opus_4_6_live_1780270277`.
+- Seeded pair `claw1fzm6gzyccl8jvdv3qq6hp9vs6ylaruervs4m06c7k0ntzn2f8faqmw95md`
+  with 10,000 `uclaw` + 10,000 model tokens.
+- Swapped 1,000 `uclaw` through the pair, returning 907 model tokens; swap tx
+  `DBA0DB4DBAB998524CA2D95779D5BC3EA21DB717F2981D94AEFC36FF99763DCB` landed at
+  height 208 with code 0.
+
+Live tx hashes: issue
+`B7A03A62DDB1878A1D4539740360390E22FE16C7A72427A6B0D037B30A70038E`, pair
+`4ABA3D5728F0433649456C37BA98D5861B206445AFF1E08521C1D22652BAF333`, liquidity
+`C5CF37C27635F7E8E58392A46BD9D46082EA3A2571F260D0A6CDCA5DC0392E53`.
+
+Live P1 holder-redemption completion workflow also passed on the local 4-validator
+testnet:
+
+- Owner `claw15yk64u7zc9g9k2yr2wmzeva5qgwxps6yv9pgpk` issued model
+  `holder-redeem-1780272590` as denom
+  `factory/claw15yk64u7zc9g9k2yr2wmzeva5qgwxps6yv9pgpk/holder_redeem_1780272590`.
+- The owner configured zero-minimum inference pricing and registered as provider
+  `clawchain://owner-provider`.
+- Non-admin holder `claw19rl4cm2hmr8afy4kldpxz3fka4jguq0akhr68a` received 100 model
+  token base units, self-burned them with `clawd model-token redeem`, and created
+  inference job `1`.
+- The registered provider ran `clawd model-token serve-loop --max-cycles 1`, which started and
+  completed job `1`; the workflow queried `modelregistry inference-job 1` and asserted
+  final status `completed`.
+- Tx hashes: issue `783864C479AEA32DDB8DEA7088C0BF6E8AF2FD0833D038E0FC451C2E4B86D91F`,
+  setup `57C45282EA5AE7E57A31E0BA1466818F1522E623EF52AB7347D6432F9C7DCA9F`,
+  transfer `F1A5BE7DC86E65912FE8D10EB68532A8B9D23F207406182F3B292BBBBEF2E73D`,
+  redeem `08780A8AB017CC6B7F0581E2F758C366126AD630B7C81A95E9B9460B9F401740`,
+  start `8EBAC54E6A42B920E26637F9117328FBA1A73DF57827C4452E9084162127D9C3`,
+  complete `CAB3F55D61C06A7D00A763E1BF10D95F80687206ADAC5154583099E3E90B2F06`.
+
+Live real-model registration workflow also passed on the local 4-validator testnet:
+
+- OpenRouter's public models endpoint returned both `anthropic/claude-opus-4.8` and
+  `qwen/qwen3.7-max` as present before chain registration.
+- Issued Claude Opus 4.8 as denom
+  `factory/claw15yk64u7zc9g9k2yr2wmzeva5qgwxps6yv9pgpk/claude_opus_4_8` with
+  modelregistry storage URI `openrouter:anthropic/claude-opus-4.8`.
+- Issued Qwen3.7 Max as denom
+  `factory/claw15yk64u7zc9g9k2yr2wmzeva5qgwxps6yv9pgpk/qwen3_7_max` with
+  modelregistry storage URI `openrouter:qwen/qwen3.7-max`.
+- Tx hashes: fund `1BE6FDD52191755BEA747118339A9CCBBE6597ED7410C190CB3F5521E9447BD4`,
+  Claude issue `91F431355034EF63DE51CFA9A65115A3184BE08DA2FE86146A23D7E97E07E733`,
+  Qwen issue `F168F2398AC3EB58F78F5AE6F8A246ABC2351F7D4FA773F9F236C99F127C4F78`.
 
 ## The idea (the pun made literal)
 
@@ -112,10 +241,15 @@ and/or the DEX, and an oracle index as a published "fundamental." This gives uti
   SDK `ModelToken` + `clawd model-token` commands that: RegisterModel → create-denom +
   mint the model token → seed a DEX `TOKEN/CLAW` pool → buy/sell on the DEX. Proves the
   "AI model as a tradeable token" surface using only proven primitives (tokenfactory +
-  Astroport + modelregistry). **First deliverable.**
+  Astroport + modelregistry). **CLI issue + optional DEX seed slice implemented and
+  live swap acceptance passed on local 4-validator testnet.**
 - **P1 — Redeem for inference:** wire `redeem` → SubmitInferenceJob → OpenClaw/OpenRouter
   provider → CompleteInferenceJob, burning the spent tokens. Closes the utility loop end
-  to end (token → real Claude/GPT/Llama output).
+  to end (token → real Claude/GPT/Llama output). **CLI bridge implemented: holder
+  self-burn + SubmitInferenceJob in one tx, provider start/complete commands, and
+  `serve-once`/`serve-loop` provider automation with optional OpenRouter execution, with
+  a live testnet workflow asserting final job status `completed`. Remaining P1 work is
+  vault UX/accounting and a production supervisor/daemon wrapper.**
 - **P2 — ModelVault bonding curve (CosmWasm):** reserve-backed mint/burn pricing +
   revenue pool + pro-rata holder claims. Deterministic liquidity + dividends.
 - **P3 — Oracle model index:** publish per-model fundamentals; reference in the vault/UI.
@@ -126,8 +260,8 @@ and/or the DEX, and an oracle index as a published "fundamental." This gives uti
 ## Acceptance (per phase)
 
 - **P0:** `clawd model-token issue --model opus-4-6 --supply N` creates a live
-  `factory/<iss>/opus-4-6` denom, seeds a DEX pool, and a swap CLAW→OPUS46 returns code 0
-  on the local testnet.
+  `factory/<iss>/opus_4_6` denom, seeds a DEX pool, and a swap CLAW→OPUS46 returns code 0
+  on the local testnet. **Passed 2026-06-01.**
 - **P1:** redeeming OPUS46 burns tokens and returns a real model completion (live, gated
   by `OPENROUTER_API_KEY`), with the inference job marked Complete on-chain.
 - **P2:** buy/sell against the vault reserve moves price on the curve; a holder claims a

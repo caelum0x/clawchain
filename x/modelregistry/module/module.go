@@ -12,6 +12,7 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/types/module"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
+	"google.golang.org/grpc"
 
 	"clawchain/x/modelregistry/keeper"
 	"clawchain/x/modelregistry/types"
@@ -65,13 +66,15 @@ func (AppModule) RegisterInterfaces(registry codectypes.InterfaceRegistry) {
 	types.RegisterInterfaces(registry)
 }
 
-func (am AppModule) RegisterServices(cfg module.Configurator) error {
-	types.RegisterMsgServer(cfg.MsgServer(), keeper.NewMsgServerImpl(am.keeper))
-	types.RegisterQueryServer(cfg.QueryServer(), keeper.NewQueryServerImpl(am.keeper))
+func (am AppModule) RegisterServices(registrar grpc.ServiceRegistrar) error {
+	types.RegisterMsgServer(registrar, keeper.NewMsgServerImpl(am.keeper))
+	types.RegisterQueryServer(registrar, keeper.NewQueryServerImpl(am.keeper))
 
-	m := keeper.NewMigrator(am.keeper)
-	if err := cfg.RegisterMigration(types.ModuleName, 1, m.Migrate1to2); err != nil {
-		return fmt.Errorf("failed to migrate x/%s from version 1 to 2: %w", types.ModuleName, err)
+	if cfg, ok := registrar.(module.Configurator); ok {
+		m := keeper.NewMigrator(am.keeper)
+		if err := cfg.RegisterMigration(types.ModuleName, 1, m.Migrate1to2); err != nil {
+			return fmt.Errorf("failed to migrate x/%s from version 1 to 2: %w", types.ModuleName, err)
+		}
 	}
 
 	return nil

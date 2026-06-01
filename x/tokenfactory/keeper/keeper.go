@@ -154,17 +154,17 @@ func (k Keeper) MintTo(ctx context.Context, sender string, coin sdk.Coin, mintTo
 	return nil
 }
 
-// BurnFrom burns coins. The sender must be the denom admin.
-// If burn_from_address is empty, burns from the sender's account.
+// BurnFrom burns coins. The denom admin may burn from any account, and token
+// holders may burn their own balance. If burn_from_address is empty, burns from
+// the sender's account.
 func (k Keeper) BurnFrom(ctx context.Context, sender string, coin sdk.Coin, burnFrom string) error {
-	// Verify sender is admin.
-	if err := k.assertAdmin(ctx, sender, coin.Denom); err != nil {
-		return err
-	}
-
 	// If burnFrom is empty, burn from sender.
 	if burnFrom == "" {
 		burnFrom = sender
+	}
+
+	if err := k.assertCanBurn(ctx, sender, coin.Denom, burnFrom); err != nil {
+		return err
 	}
 
 	burnFromAddr, err := sdk.AccAddressFromBech32(burnFrom)
@@ -194,6 +194,17 @@ func (k Keeper) BurnFrom(ctx context.Context, sender string, coin sdk.Coin, burn
 	)
 
 	return nil
+}
+
+func (k Keeper) assertCanBurn(ctx context.Context, sender, denom, burnFrom string) error {
+	admin, err := k.DenomAdmins.Get(ctx, denom)
+	if err != nil {
+		return errorsmod.Wrapf(types.ErrDenomNotFound, "denom %s is not registered in tokenfactory", denom)
+	}
+	if admin == sender || sender == burnFrom {
+		return nil
+	}
+	return errorsmod.Wrapf(types.ErrUnauthorized, "sender %s cannot burn %s from %s (admin: %s)", sender, denom, burnFrom, admin)
 }
 
 // SetBeforeSendHook stores a cosmwasm contract address as the before-send hook

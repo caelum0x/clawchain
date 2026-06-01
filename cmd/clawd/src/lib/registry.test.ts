@@ -102,6 +102,7 @@ describe("clawchain registry", () => {
     expect(urls).toContain("/clawchain.governance.v1.MsgSubmitProposal");
     expect(urls).toContain("/clawchain.governance.v1.MsgVote");
     expect(urls).toContain("/clawchain.clawchain.v1.MsgUpdateParams");
+    expect(urls).toContain("/cosmwasm.wasm.v1.MsgExecuteContract");
   });
 
   it("round-trips a cross-module message (MsgListSkill) through the registry", () => {

@@ -1,5 +1,125 @@
 # Task Plan
 
+## AI Model Token Real OpenRouter Models 2026-06-01
+
+- [x] Verify current OpenRouter model IDs for Claude Opus 4.8 and Qwen3.7 Max.
+- [x] Add real `clawd model-token catalog` presets for `anthropic/claude-opus-4.8` and `qwen/qwen3.7-max`.
+- [x] Let `clawd model-token issue --preset <id>` register modelregistry metadata with `openrouter:<model-id>` storage URIs.
+- [x] Add a reusable testnet workflow that verifies OpenRouter's public model list and issues both real model tokens on-chain.
+- [x] Live-verify both real model tokens on a fresh 4-validator local testnet.
+
+### Review
+
+- OpenRouter public models endpoint returned both `anthropic/claude-opus-4.8` and `qwen/qwen3.7-max` as present.
+- Added `MODEL_TOKEN_PRESETS` for Claude Opus 4.8 and Qwen3.7 Max with real OpenRouter IDs, token symbols, tags, context size, release metadata, and price metadata.
+- Added `clawd model-token catalog` and `clawd model-token issue --preset <id>` so operators can issue real model-backed tokenfactory denoms without manually copying metadata.
+- Added `scripts/testnet/model-token-real-models.sh` to verify OpenRouter's public model list, fund an issuer, issue both presets, and assert modelregistry contains `openrouter:anthropic/claude-opus-4.8` and `openrouter:qwen/qwen3.7-max`.
+- Live workflow passed on local 4-validator testnet. Claude denom: `factory/claw15yk64u7zc9g9k2yr2wmzeva5qgwxps6yv9pgpk/claude_opus_4_8`; Qwen denom: `factory/claw15yk64u7zc9g9k2yr2wmzeva5qgwxps6yv9pgpk/qwen3_7_max`.
+- Live tx evidence: fund `1BE6FDD52191755BEA747118339A9CCBBE6597ED7410C190CB3F5521E9447BD4`, Claude issue `91F431355034EF63DE51CFA9A65115A3184BE08DA2FE86146A23D7E97E07E733`, Qwen issue `F168F2398AC3EB58F78F5AE6F8A246ABC2351F7D4FA773F9F236C99F127C4F78`.
+- `OPENROUTER_API_KEY` was not present locally, so paid completion smoke testing through OpenRouter was skipped; the public model-list verification and on-chain model registrations were completed.
+
+## AI Model Token Provider Serve Loop 2026-06-01
+
+- [x] Inspect the current `serve-once` provider automation and live holder workflow.
+- [x] Add `clawd model-token serve-loop` for repeated provider job serving.
+- [x] Support bounded loop controls for workflows/tests and unbounded operator mode for long-running providers.
+- [x] Update the holder-redemption workflow to exercise `serve-loop --max-cycles 1`.
+- [x] Verify focused tests, CLI build/help, shell syntax, and live 4-validator workflow.
+
+### Review
+
+- Added `runModelTokenServeLoop`, reusing the proven `serve-once` path with `--interval-ms` and `--max-cycles`; `--max-cycles 0` runs until stopped.
+- Wired `clawd model-token serve-loop` with the same model/status/output/OpenRouter controls as `serve-once`, plus loop controls.
+- Added tests for two bounded loop cycles and invalid loop controls.
+- Updated `scripts/testnet/model-token-holder-redeem.sh` to use `serve-loop --max-cycles 1 --interval-ms 0`, so the live workflow proves the supervised loop entry point.
+- Live workflow passed on local 4-validator testnet with model `holder-redeem-1780272590`, model ID `1`, denom `factory/claw15yk64u7zc9g9k2yr2wmzeva5qgwxps6yv9pgpk/holder_redeem_1780272590`, job `1`, and final status `completed`.
+- Live tx evidence: issue `783864C479AEA32DDB8DEA7088C0BF6E8AF2FD0833D038E0FC451C2E4B86D91F`, setup `57C45282EA5AE7E57A31E0BA1466818F1522E623EF52AB7347D6432F9C7DCA9F`, transfer `F1A5BE7DC86E65912FE8D10EB68532A8B9D23F207406182F3B292BBBBEF2E73D`, redeem `08780A8AB017CC6B7F0581E2F758C366126AD630B7C81A95E9B9460B9F401740`, start `8EBAC54E6A42B920E26637F9117328FBA1A73DF57827C4452E9084162127D9C3`, complete `CAB3F55D61C06A7D00A763E1BF10D95F80687206ADAC5154583099E3E90B2F06`.
+- Verified `cd cmd/clawd && npm test -- --run src/commands/__tests__/model-token.test.ts` (22 passed / 0 failed), `cd cmd/clawd && npm run build`, `node cmd/clawd/dist/main.js model-token serve-loop --help`, and `bash -n scripts/testnet/model-token-holder-redeem.sh`.
+
+## AI Model Token Provider Serve Once 2026-06-01
+
+- [x] Inspect modelregistry inference-job query filters and current `clawd` provider lifecycle commands.
+- [x] Add `clawd model-token serve-once` to query assigned jobs and automatically start/complete them.
+- [x] Add optional OpenRouter-backed execution path behind `--openrouter-model` and `OPENROUTER_API_KEY`.
+- [x] Update the holder-redemption workflow to use `serve-once` instead of separate manual start/complete commands.
+- [x] Verify focused tests, TypeScript build, help output, shell syntax, and live 4-validator workflow.
+
+### Review
+
+- `serve-once` queries `/clawchain/modelregistry/v1/inference/jobs`, filters jobs assigned to the provider wallet, and serves `pending`/`running` jobs by default.
+- Pending jobs are started with `MsgStartInferenceJob`; pending or running jobs are completed with `MsgCompleteInferenceJob`.
+- The command supports `--model-id`, `--status`, `--max-jobs`, `--output` templates, `--dry-run`, JSON output, and `--openrouter-model` for real OpenRouter execution when `OPENROUTER_API_KEY` is present.
+- Updated `scripts/testnet/model-token-holder-redeem.sh` so the live workflow now proves the automated provider path: holder redeem creates a job, owner/provider runs `serve-once`, and the final queried job status must be `completed`.
+- Live workflow passed on local 4-validator testnet with model `holder-redeem-1780272325`, model ID `1`, denom `factory/claw15yk64u7zc9g9k2yr2wmzeva5qgwxps6yv9pgpk/holder_redeem_1780272325`, job `1`, and final status `completed`.
+- Live tx evidence: issue `C0126559852D43898171AE8636A6293148737CE74244C61B806BA8CB9141E3FE`, setup `57C45282EA5AE7E57A31E0BA1466818F1522E623EF52AB7347D6432F9C7DCA9F`, transfer `F4DC527CF6AA550CD3E20F9D47B62CCE06179AE0C15B917069BF9536F231ED45`, redeem `69C0BA484F224721D70B127F214A05B281D392D92E8C6ACEC6F311B80B7DEC25`, start `8EBAC54E6A42B920E26637F9117328FBA1A73DF57827C4452E9084162127D9C3`, complete `CAB3F55D61C06A7D00A763E1BF10D95F80687206ADAC5154583099E3E90B2F06`.
+- Verified `cd cmd/clawd && npm test -- --run src/commands/__tests__/model-token.test.ts` (20 passed / 0 failed), `cd cmd/clawd && npm run build`, `node cmd/clawd/dist/main.js model-token serve-once --help`, and `bash -n scripts/testnet/model-token-holder-redeem.sh`.
+
+## AI Model Token P1 Provider Completion 2026-06-01
+
+- [x] Inspect modelregistry provider job lifecycle message shapes.
+- [x] Add `clawd model-token start-job` and `clawd model-token complete-job`.
+- [x] Cover provider lifecycle builders, transaction sequencing, JSON output, and explicit fee handling in CLI tests.
+- [x] Extend the holder-redemption workflow through provider start/complete and final completed job status.
+- [x] Live-verify the completed holder redemption workflow on a fresh 4-validator local testnet.
+
+### Review
+
+- Added `/clawchain.modelregistry.v1.MsgStartInferenceJob` and `/clawchain.modelregistry.v1.MsgCompleteInferenceJob` builders plus CLI runners.
+- Provider lifecycle transactions now use an explicit 200,000 gas fee calculated from configured gas price after live acceptance exposed CosmJS auto-gas under-estimation for `start-job`.
+- Extended `scripts/testnet/model-token-holder-redeem.sh` so the owner/provider starts and completes the holder-created job, queries final job state, and fails unless `job.status == completed`.
+- Live workflow passed on local 4-validator testnet with model `holder-redeem-1780271955`, model ID `1`, denom `factory/claw15yk64u7zc9g9k2yr2wmzeva5qgwxps6yv9pgpk/holder_redeem_1780271955`, holder `claw19rl4cm2hmr8afy4kldpxz3fka4jguq0akhr68a`, job `1`, and final status `completed`.
+- Live tx evidence: issue `B7E5BB90EF4929089A8E8DE52F0DF69B682AA2EA9A0913F073D60360E2B6BDD7`, setup `57C45282EA5AE7E57A31E0BA1466818F1522E623EF52AB7347D6432F9C7DCA9F`, transfer `C778E6A53294EAA04132C499D8F2813C6B68E6BAC908E467451DC595F181FB57`, redeem `656CA5A305396250D26E0F6BC8804D1BA505526E6BDE09404A81DB3F701E624C`, start `8EBAC54E6A42B920E26637F9117328FBA1A73DF57827C4452E9084162127D9C3`, complete `60BA192A1CE5297657BD53B3D999D88C68C16A49FD90786D33C66606A9F8F352`.
+- Verified `cd cmd/clawd && npm test -- --run src/commands/__tests__/model-token.test.ts` (18 passed / 0 failed), `cd cmd/clawd && npm run build`, `cd cmd/clawd && npm test` (655 passed / 0 failed), `go test -count=1 ./x/modelregistry/... ./x/tokenfactory/...`, `go build -o build/clawchaind ./cmd/clawchaind/`, `bash -n scripts/testnet/model-token-holder-redeem.sh`, `node cmd/clawd/dist/main.js model-token start-job --help`, and `node cmd/clawd/dist/main.js model-token complete-job --help`.
+
+## AI Model Token P1 Redeem CLI 2026-06-01
+
+- [x] Inspect modelregistry inference-job and tokenfactory burn message shapes.
+- [x] Add `clawd model-token redeem` to burn model tokens and submit an inference job.
+- [x] Add focused tests for redeem message construction, sequencing, JSON output, and validation.
+- [x] Verify TypeScript build/tests and update the AI model-token plan with P1 slice status.
+- [x] Add tokenfactory holder self-burn support so non-admin holders can redeem their own model tokens.
+- [x] Verify tokenfactory holder self-burn with focused Go tests and update docs.
+- [x] Add inference setup CLI support for model pricing/provider readiness.
+- [x] Add and live-verify a reusable holder-redemption testnet workflow.
+
+### Review
+
+- `MsgSubmitInferenceJob` uses `requester`, `model_id`, `model_version`, `input`, `max_tokens`, `temperature`, and `payment`.
+- `MsgBurn` uses `sender`, `amount`, and `burn_from_address`; updated tokenfactory semantics now preserve admin burn behavior while also allowing a holder to burn from their own address.
+- Added `clawd model-token redeem --model-id <id> --amount <n> --input <prompt>`, deriving the model token denom from `--model/--symbol` or accepting a full `--denom`.
+- Added builders for `/osmosis.tokenfactory.v1beta1.MsgBurn` and `/clawchain.modelregistry.v1.MsgSubmitInferenceJob`, then submit them atomically in one signed transaction.
+- Extended `cmd/clawd/src/commands/__tests__/model-token.test.ts` to cover burn/job message shapes, transaction ordering, JSON output, and missing-denom validation.
+- Verified `cd cmd/clawd && npm test -- --run src/commands/__tests__/model-token.test.ts` (12 passed / 0 failed), `cd cmd/clawd && npm run build`, `cd cmd/clawd && npm test` (649 passed / 0 failed), `cd cmd/clawd && node dist/main.js model-token redeem --help`, and `git diff --check`.
+- Updated `x/tokenfactory/keeper.BurnFrom` with holder self-burn authorization and kept unauthorized third-party burns rejected.
+- Added focused keeper tests for non-admin self-burn and unauthorized third-party burn.
+- Verified `go test -count=1 ./x/tokenfactory/...`, `go test -count=1 ./x/modelregistry/... ./x/tokenfactory/...`, and `go build -o build/clawchaind ./cmd/clawchaind/`.
+- Added `clawd model-token inference-setup --model-id <id>` to set `MsgSetInferencePricing` and optionally register the owner as an online inference provider with `MsgRegisterInferenceProvider`.
+- Added `scripts/testnet/model-token-holder-redeem.sh`, a reusable live workflow that funds owner/holder wallets, issues a model token, configures inference, transfers tokens to a non-admin holder, redeems by holder self-burn, and verifies the created inference job.
+- Live workflow passed on local 4-validator testnet with model `holder-redeem-1780271343`, model ID `2`, denom `factory/claw15yk64u7zc9g9k2yr2wmzeva5qgwxps6yv9pgpk/holder_redeem_1780271343`, holder `claw19rl4cm2hmr8afy4kldpxz3fka4jguq0akhr68a`, and inference job `2`.
+- Live workflow tx evidence: issue `FC8107BE7DB6AD2DAB69A9CD8CD64936BEAFB53907FE5903CEF529BE225A4693`, setup `55D4DE81D17DB2761D2C830D9AA7CDB9B68CE03BCC991E1B046CF15EC296B417`, transfer `E74D604032A95CA6D2DBC4191ADC5AF6F93BF14494D86E27AD205B2961F707D7`, redeem `78D810CB44FF1D29AA3C0203D5C2FD8516EAB019487C8E1B6B16BA57E4FDED5A`.
+
+## AI Model Token P0 CLI 2026-06-01
+
+- [x] Inspect the AI model token, devnet, DEX, explorer, testnet, mainnet, and vendored integration plans.
+- [x] Check the current `clawd` model, DEX, signing registry, and tokenfactory generated-code surfaces.
+- [x] Add `clawd model-token issue` to register a model, create and mint its tokenfactory denom, and optionally seed a DEX pool.
+- [x] Add focused command/unit coverage for message construction, event extraction, and CLI output.
+- [x] Fix live chain/client blockers found during acceptance.
+- [x] Verify TypeScript/Go build/tests, live issue/liquidity/swap, and update the plan docs with implementation status.
+
+### Review
+
+- Added `cmd/clawd/src/commands/model-token.ts` with `runModelTokenIssue`, composing `MsgRegisterModel`, `MsgCreateDenom`, `MsgMint`, and optional Astroport `create_pair` / `provide_liquidity` CosmWasm executes.
+- Wired the top-level `clawd model-token issue` command with model metadata, token supply, DEX factory, and initial liquidity options.
+- Updated `cmd/clawd/src/commands/model.ts` to use the shared custom-module signing registry and current modelregistry message shapes for register/inference paths.
+- Fixed `x/modelregistry` service registration so `MsgRegisterModel` is actually mounted in the app gRPC message router, and registered all current modelregistry msg types in Amino/interface codec setup.
+- Extended the shared `clawd` registry with tokenfactory and CosmWasm execute codecs, and moved DEX transaction signing onto that shared registry.
+- Tightened model-token subdenom normalization to tokenfactory's accepted `[A-Za-z0-9/_]` shape.
+- Added `cmd/clawd/src/commands/__tests__/model-token.test.ts` covering subdenom normalization, message construction, event extraction, issue sequencing, optional DEX seeding, JSON output, and validation.
+- Live-verified on a fresh 4-validator local testnet with deployed DEX contracts: issued `factory/claw1r5v5srda7xfth3hn2s26txvrcrntldju3ufu0h/opus_4_6_live_1780270277`, created pair `claw1fzm6gzyccl8jvdv3qq6hp9vs6ylaruervs4m06c7k0ntzn2f8faqmw95md`, seeded 10,000 `uclaw` + 10,000 model token liquidity, and swapped 1,000 `uclaw` for 907 model tokens.
+- Live tx evidence: issue `B7A03A62DDB1878A1D4539740360390E22FE16C7A72427A6B0D037B30A70038E`, pair `4ABA3D5728F0433649456C37BA98D5861B206445AFF1E08521C1D22652BAF333`, liquidity `C5CF37C27635F7E8E58392A46BD9D46082EA3A2571F260D0A6CDCA5DC0392E53`, swap `DBA0DB4DBAB998524CA2D95779D5BC3EA21DB717F2981D94AEFC36FF99763DCB` at height 208 with code 0.
+- Verified `cd cmd/clawd && npm test -- --run src/commands/__tests__/model-token.test.ts src/lib/registry.test.ts src/commands/__tests__/model.test.ts` (25 passed / 0 failed), `cd cmd/clawd && npm test` (645 passed / 0 failed), `cd cmd/clawd && npm run build`, `go test -count=1 ./x/modelregistry/... ./x/tokenfactory/...`, `go build -o build/clawchaind ./cmd/clawchaind/`, and `cd cmd/clawd && node dist/main.js model-token issue --help`.
+
 ## Vendored Integration V1 Events 2026-06-01
 
 - [x] Inspect the existing SDK WebSocket subscription APIs and viem adapter surface.

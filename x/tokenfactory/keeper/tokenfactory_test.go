@@ -159,16 +159,27 @@ func TestBurnFrom(t *testing.T) {
 	require.Equal(t, types.ModuleName, bk.lastBurnModule)
 }
 
-func TestBurnFromUnauthorized(t *testing.T) {
+func TestBurnFromSelfBurnByNonAdmin(t *testing.T) {
+	k, ctx, _ := setupTokenFactoryKeeper(t)
+
+	denom, err := k.CreateDenom(ctx, testCreator, "selfburn")
+	require.NoError(t, err)
+
+	coin := sdk.NewInt64Coin(denom, 100)
+	err = k.BurnFrom(ctx, testCreator2, coin, testCreator2)
+	require.NoError(t, err)
+}
+
+func TestBurnFromUnauthorizedOtherAccount(t *testing.T) {
 	k, ctx, _ := setupTokenFactoryKeeper(t)
 
 	denom, err := k.CreateDenom(ctx, testCreator, "noburn")
 	require.NoError(t, err)
 
 	coin := sdk.NewInt64Coin(denom, 100)
-	err = k.BurnFrom(ctx, testCreator2, coin, testCreator2)
+	err = k.BurnFrom(ctx, testCreator2, coin, testCreator)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "not the admin")
+	require.Contains(t, err.Error(), "cannot burn")
 }
 
 // ---- SetBeforeSendHook tests -----------------------------------------------

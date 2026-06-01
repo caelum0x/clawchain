@@ -9,6 +9,7 @@
 
 import { GeneratedType, Registry } from "@cosmjs/proto-signing";
 import { defaultRegistryTypes } from "@cosmjs/stargate";
+import { MsgExecuteContract } from "cosmjs-types/cosmwasm/wasm/v1/tx.js";
 
 import * as privacyTx from "../generated/proto/clawchain/privacy/v1/tx.js";
 import * as agentTx from "../generated/proto/clawchain/agent/v1/tx.js";
@@ -19,6 +20,7 @@ import * as reputationTx from "../generated/proto/clawchain/reputation/v1/tx.js"
 import * as messagingTx from "../generated/proto/clawchain/messaging/v1/tx.js";
 import * as governanceTx from "../generated/proto/clawchain/governance/v1/tx.js";
 import * as clawchainTx from "../generated/proto/clawchain/clawchain/v1/tx.js";
+import * as tokenfactoryTx from "../generated/proto/osmosis/tokenfactory/v1beta1/tx.js";
 
 /**
  * ts-proto v2 emits codecs backed by `@bufbuild/protobuf` wire types. These are
@@ -94,6 +96,23 @@ export const clawchainCoreTypes: ReadonlyArray<[string, GeneratedType]> =
   moduleTypes("clawchain.clawchain.v1", clawchainTx);
 
 /**
+ * Tokenfactory module (`x/tokenfactory`) message codecs.
+ *
+ * The proto deliberately uses the Osmosis-compatible package
+ * `osmosis.tokenfactory.v1beta1` (see proto/osmosis/tokenfactory/v1beta1/tx.proto):
+ * the Astroport DEX and app/wasm_tokenfactory.go both key off the
+ * `/osmosis.tokenfactory.v1beta1.Msg*` type URLs. Registering these lets clawd
+ * create + mint factory denoms (e.g. AI model tokens `factory/<issuer>/<modelid>`).
+ */
+export const tokenfactoryTypes: ReadonlyArray<[string, GeneratedType]> =
+  moduleTypes("osmosis.tokenfactory.v1beta1", tokenfactoryTx);
+
+/** CosmWasm execute message codec used by DEX pair/liquidity flows. */
+export const cosmwasmTypes: ReadonlyArray<[string, GeneratedType]> = [
+  ["/cosmwasm.wasm.v1.MsgExecuteContract", asGeneratedType(MsgExecuteContract)],
+];
+
+/**
  * All clawchain custom-module message codecs, ready to register. Covers every
  * custom module's `Msg` service (privacy, agent, marketplace, oracle,
  * modelregistry, reputation, messaging, governance, clawchain).
@@ -108,6 +127,8 @@ export const clawchainCustomTypes: ReadonlyArray<[string, GeneratedType]> = [
   ...clawchainMessagingTypes,
   ...clawchainGovernanceTypes,
   ...clawchainCoreTypes,
+  ...tokenfactoryTypes,
+  ...cosmwasmTypes,
 ];
 
 /**

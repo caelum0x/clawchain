@@ -5,16 +5,17 @@
  * Queries Astroport-style CosmWasm DEX contracts via REST smart-query
  * (JSON -> base64 -> /cosmwasm/wasm/v1/contract/{addr}/smart/{b64}).
  *
- * Transaction subcommands (swap, add-liquidity, remove-liquidity) use
- * SigningStargateClient with MsgExecuteContract built from the local mnemonic.
+ * Transaction subcommands (swap, add-liquidity, remove-liquidity) use the shared
+ * clawchain signing registry with MsgExecuteContract built from the local mnemonic.
  */
 
-import { GasPrice, SigningStargateClient } from "@cosmjs/stargate";
+import { GasPrice } from "@cosmjs/stargate";
 import { DirectSecp256k1HdWallet } from "@cosmjs/proto-signing";
 import { toUtf8 } from "@cosmjs/encoding";
 import { loadClawdConfig, writeClawdConfig } from "../lib/config.js";
 import { loadMnemonic, mnemonicFileExists } from "../lib/mnemonic.js";
 import { table, shortAddr, formatClaw } from "../lib/format.js";
+import { connectClawchainSigningClient } from "../lib/signing.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -68,7 +69,7 @@ async function ensureSigner() {
     throw new Error("Failed to derive wallet account.");
   }
 
-  const signingClient = await SigningStargateClient.connectWithSigner(rpcUrl, wallet, {
+  const signingClient = await connectClawchainSigningClient(rpcUrl, wallet, {
     gasPrice: GasPrice.fromString(gasPrice),
   });
 

@@ -3,11 +3,12 @@
  * for the model registry.
  */
 
-import { GasPrice, SigningStargateClient } from "@cosmjs/stargate";
+import { GasPrice } from "@cosmjs/stargate";
 import { DirectSecp256k1HdWallet } from "@cosmjs/proto-signing";
 import { loadClawdConfig } from "../lib/config.js";
 import { loadMnemonic, mnemonicFileExists } from "../lib/mnemonic.js";
 import { table, formatClaw, shortAddr, truncate } from "../lib/format.js";
+import { connectClawchainSigningClient } from "../lib/signing.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -43,7 +44,7 @@ async function ensureSigner() {
     throw new Error("Failed to derive wallet account.");
   }
 
-  const signingClient = await SigningStargateClient.connectWithSigner(rpcUrl, wallet, {
+  const signingClient = await connectClawchainSigningClient(rpcUrl, wallet, {
     gasPrice: GasPrice.fromString(gasPrice),
   });
 
@@ -182,13 +183,21 @@ export async function runModelRegister(opts: ModelRegisterOptions): Promise<void
   const msg = {
     typeUrl: "/clawchain.modelregistry.v1.MsgRegisterModel",
     value: {
-      creator: account.address,
+      owner: account.address,
       name: opts.name,
       description: opts.description ?? "",
-      modelType: opts.modelType ?? "",
+      framework: opts.modelType ?? "other",
+      architecture: "",
+      parameterCount: "",
+      license: "",
+      tags: [],
+      storageType: "remote",
+      storageUri: opts.endpoint ?? `clawchain:model:${opts.name}`,
+      checksumSha256: "",
+      sizeBytes: "0",
       accessType: opts.accessType ?? "free",
-      pricePerQuery: opts.pricePerQuery ?? "0",
-      endpoint: opts.endpoint ?? "",
+      pricePerQueryUclaw: opts.pricePerQuery ?? "0",
+      priceOneTimeUclaw: "0",
     },
   };
 
@@ -300,12 +309,15 @@ export async function runModelInference(opts: ModelInferenceOptions): Promise<vo
   console.log(`Submitting inference request to model #${opts.modelId}...`);
 
   const msg = {
-    typeUrl: "/clawchain.modelregistry.v1.MsgRequestInference",
+    typeUrl: "/clawchain.modelregistry.v1.MsgSubmitInferenceJob",
     value: {
-      creator: account.address,
+      requester: account.address,
       modelId: opts.modelId,
       input: opts.input,
-      maxFee: opts.maxFee ?? "0",
+      modelVersion: "1",
+      maxTokens: "1024",
+      temperature: "0.7",
+      payment: opts.maxFee ?? "0",
     },
   };
 
@@ -319,9 +331,9 @@ export async function runModelInference(opts: ModelInferenceOptions): Promise<vo
     // Extract request_id from events
     let requestId = "unknown";
     for (const event of res.events ?? []) {
-      if (event.type === "inference_requested") {
+      if (event.type === "submit_inference_job") {
         const attr = event.attributes.find(
-          (a: { key: string }) => a.key === "request_id",
+          (a: { key: string }) => a.key === "job_id",
         );
         if (attr) {
           requestId = typeof attr.value === "string" ? attr.value : new TextDecoder().decode(attr.value);
