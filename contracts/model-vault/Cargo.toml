@@ -1,0 +1,38 @@
+[package]
+name = "model-vault"
+version = "0.1.0"
+authors = ["ClawChain"]
+edition = "2021"
+description = "ModelVault: a constant-product bonding-curve market for an AI model token traded against a CLAW reserve. Trades native tokenfactory model-token coins vs the native reserve coin (uclaw)."
+license = "Apache-2.0"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+# use library feature to disable all instantiate/execute/query exports
+library = []
+
+[dependencies]
+cosmwasm-std = "2.2"
+cosmwasm-schema = "2.2"
+cw-storage-plus = "2.0"
+schemars = "0.8"
+serde = { version = "1.0", default-features = false, features = ["derive"] }
+thiserror = "1.0"
+
+[dev-dependencies]
+cw-multi-test = "2.3"
+
+# Standard CosmWasm release profile: produce a small, deterministic, deployable wasm.
+[profile.release]
+opt-level = "z"
+debug = false
+rpath = false
+lto = true
+debug-assertions = false
+codegen-units = 1
+panic = "abort"
+incremental = false
+overflow-checks = true
+strip = true
