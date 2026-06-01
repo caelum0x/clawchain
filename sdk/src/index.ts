@@ -120,6 +120,24 @@ export type {
   ModelLaunchTxHashes,
 } from "./model-launch.js";
 
+// InferenceRedeemer (burn a model token + open an inference job in one tx)
+export {
+  InferenceRedeemer,
+  createInferenceRedeemer,
+  DEFAULT_INFERENCE_MAX_TOKENS,
+  DEFAULT_INFERENCE_TEMPERATURE,
+  DEFAULT_INFERENCE_PAYMENT,
+} from "./inference-redeem.js";
+export type {
+  InferenceRedeemerBackend,
+  InferenceRedeemerOptions,
+  InferenceRedeemOptions,
+  InferenceRedeemResult,
+  InferenceRedeemRequest,
+  JobStatus,
+  RawInferenceJob,
+} from "./inference-redeem.js";
+
 // Higher-level model-market aggregate (composes the ModelVault client + DEX)
 export { ModelMarket, createModelMarket } from "./model-market.js";
 export type {

@@ -104,6 +104,9 @@ export default function Layout({ children }: { children: ReactNode }) {
           <NavLink to="/launch-model" onClick={closeMenu} className={({ isActive }) => isActive ? "active" : ""}>
             Launch Model
           </NavLink>
+          <NavLink to="/redeem-inference" onClick={closeMenu} className={({ isActive }) => isActive ? "active" : ""}>
+            Redeem for Inference
+          </NavLink>
           <NavLink to="/inference" onClick={closeMenu} className={({ isActive }) => isActive ? "active" : ""}>
             AI Inference
           </NavLink>

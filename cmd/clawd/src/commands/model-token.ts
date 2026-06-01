@@ -171,6 +171,14 @@ export type ModelTokenServeLoopOptions = ModelTokenServeOnceOptions & {
   maxCycles?: string;
 };
 
+export type ModelTokenJobStatusOptions = {
+  jobId: string;
+  watch?: boolean;
+  intervalMs?: string;
+  maxCycles?: string;
+  json?: boolean;
+};
+
 export type ModelTokenCatalogOptions = {
   json?: boolean;
 };
@@ -189,6 +197,20 @@ type InferenceJob = {
   maxTokens?: string;
   temperature?: string;
   payment?: string;
+  model_version?: string | number;
+  modelVersion?: string | number;
+  gas_used?: string | number;
+  gasUsed?: string | number;
+  tokens_used?: string | number;
+  tokensUsed?: string | number;
+  created_at?: string | number;
+  createdAt?: string | number;
+  started_at?: string | number;
+  startedAt?: string | number;
+  completed_at?: string | number;
+  completedAt?: string | number;
+  error_msg?: string;
+  errorMsg?: string;
 };
 
 function deriveRestFromRpc(rpcUrl: string): string {
@@ -1275,4 +1297,123 @@ export async function runModelTokenCatalog(opts: ModelTokenCatalogOptions): Prom
     console.log(`    Context:    ${preset.contextTokens} tokens`);
     console.log(`    Price:      $${preset.inputPriceUsdPerM}/M input, $${preset.outputPriceUsdPerM}/M output`);
   }
+}
+
+/** Terminal statuses for a redeemed inference job — stop watching once reached. */
+const TERMINAL_JOB_STATUSES = new Set(["completed", "failed"]);
+
+function isTerminalJobStatus(status: string): boolean {
+  return TERMINAL_JOB_STATUSES.has(status.toLowerCase());
+}
+
+/** Tokens-used field: chain records it as gas_used; tolerate tokens_used too. */
+function jobTokensUsed(job: InferenceJob): string {
+  const raw = job.gas_used ?? job.gasUsed ?? job.tokens_used ?? job.tokensUsed;
+  return raw === undefined || raw === null ? "" : String(raw);
+}
+
+/** Unix-seconds timestamp -> ISO string; "-" when unset/0/unparseable. */
+function formatJobTimestamp(value: string | number | undefined): string {
+  if (value === undefined || value === null || value === "") return "-";
+  const seconds = Number(value);
+  if (!Number.isFinite(seconds) || seconds <= 0) return "-";
+  return new Date(seconds * 1000).toISOString();
+}
+
+function printJobStatus(job: InferenceJob): void {
+  const status = jobStatus(job) || "-";
+  console.log(`Inference job #${jobId(job) || "-"}`);
+  console.log(`  Status:      ${status}`);
+  console.log(`  Model:       #${jobModelId(job) || "-"} v${String(job.model_version ?? job.modelVersion ?? "0")}`);
+  console.log(`  Requester:   ${job.requester ? shortAddr(job.requester) : "-"}`);
+  console.log(`  Provider:    ${job.provider ? shortAddr(job.provider) : "(unassigned)"}`);
+  console.log(`  Input:       ${job.input ?? "-"}`);
+  console.log(`  Output:      ${job.output?.trim() ? job.output : "(pending)"}`);
+  console.log(`  Tokens Used: ${jobTokensUsed(job) || "-"}`);
+  console.log(`  Payment:     ${job.payment ?? "-"}`);
+  console.log(`  Created:     ${formatJobTimestamp(job.created_at ?? job.createdAt)}`);
+  console.log(`  Started:     ${formatJobTimestamp(job.started_at ?? job.startedAt)}`);
+  console.log(`  Completed:   ${formatJobTimestamp(job.completed_at ?? job.completedAt)}`);
+  const errorMsg = job.error_msg ?? job.errorMsg;
+  if (errorMsg?.trim()) console.log(`  Error:       ${errorMsg}`);
+}
+
+/**
+ * `clawd model-token job-status` — read-only tracker for a redeemed inference
+ * job. Queries the modelregistry single-job REST endpoint and prints status,
+ * assigned provider, input/output, tokens used, and timestamps (snake/camel
+ * tolerant). With --watch it polls until the job reaches a terminal status
+ * (completed/failed), mirroring the serve-loop cadence; per-cycle errors are
+ * logged and the loop continues. No signing is performed.
+ */
+export async function runModelTokenJobStatus(opts: ModelTokenJobStatusOptions): Promise<void> {
+  const id = requirePositiveAmount("--job-id", opts.jobId);
+  const cfg = loadClawdConfig();
+  const rpcUrl = cfg.rpcUrl ?? "http://localhost:26657";
+  const restUrl = (cfg.restUrl ?? deriveRestFromRpc(rpcUrl)).replace(/\/+$/, "");
+  const url = `${restUrl}/clawchain/modelregistry/v1/inference/job/${encodeURIComponent(id)}`;
+
+  const fetchJob = async (): Promise<InferenceJob> => {
+    const data = await fetchJson<{ job?: InferenceJob }>(url);
+    const job = data.job ?? (data as InferenceJob);
+    if (!job || jobId(job) === "") {
+      throw new Error(`inference job ${id} not found.`);
+    }
+    return job;
+  };
+
+  // Single-shot read.
+  if (!opts.watch) {
+    try {
+      const job = await fetchJob();
+      if (opts.json) {
+        process.stdout.write(JSON.stringify(job, null, 2) + "\n");
+        return;
+      }
+      printJobStatus(job);
+    } catch (err) {
+      console.error(`Model token job-status failed: ${String(err)}`);
+      process.exit(1);
+    }
+    return;
+  }
+
+  // Watch mode: poll until terminal status (mirrors serve-loop cadence).
+  const intervalMs = Number(requireNonNegativeInteger("--interval-ms", opts.intervalMs ?? "4000"));
+  const maxCycles = Number(requireNonNegativeInteger("--max-cycles", opts.maxCycles ?? "0"));
+  let cycle = 0;
+
+  if (!opts.json) {
+    console.log(`Watching inference job #${id} until completed/failed...`);
+    console.log(`  Interval: ${intervalMs}ms`);
+    console.log(`  Cycles:   ${maxCycles === 0 ? "until terminal" : String(maxCycles)}`);
+    console.log();
+  }
+
+  while (maxCycles === 0 || cycle < maxCycles) {
+    cycle += 1;
+    try {
+      const job = await fetchJob();
+      const status = jobStatus(job);
+      if (opts.json) {
+        process.stdout.write(JSON.stringify({ cycle, job }, null, 2) + "\n");
+      } else {
+        console.log(`Cycle ${cycle}${maxCycles > 0 ? `/${maxCycles}` : ""}`);
+        printJobStatus(job);
+        console.log();
+      }
+      if (isTerminalJobStatus(status)) {
+        if (!opts.json) console.log(`Job #${id} reached terminal status "${status}".`);
+        return;
+      }
+    } catch (err) {
+      // Per-cycle errors are logged but do not abort the watch loop.
+      console.error(`Cycle ${cycle} query failed: ${String(err)}`);
+    }
+
+    if (maxCycles > 0 && cycle >= maxCycles) break;
+    if (intervalMs > 0) await sleep(intervalMs);
+  }
+
+  if (!opts.json) console.log(`Stopped watching job #${id} (max cycles reached without terminal status).`);
 }

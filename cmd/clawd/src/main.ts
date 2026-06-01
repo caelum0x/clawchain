@@ -61,6 +61,7 @@ import {
   runModelTokenIssue,
   runModelTokenLaunch,
   runModelTokenCompleteJob,
+  runModelTokenJobStatus,
   runModelTokenRedeem,
   runModelTokenServeLoop,
   runModelTokenServeOnce,
@@ -2212,6 +2213,24 @@ modelTokenCmd
       output: opts.output,
       openrouterModel: opts.openrouterModel,
       dryRun: opts.dryRun,
+      json: opts.json,
+    });
+  });
+
+modelTokenCmd
+  .command("job-status")
+  .description("Read/track a redeemed model-token inference job (read-only)")
+  .requiredOption("--job-id <id>", "inference job ID")
+  .option("--watch", "poll until the job reaches a terminal status (completed/failed)")
+  .option("--interval-ms <n>", "milliseconds to wait between watch cycles", "4000")
+  .option("--max-cycles <n>", "stop watching after this many cycles; 0 means until terminal", "0")
+  .option("--json", "output JSON")
+  .action(async (opts) => {
+    await runModelTokenJobStatus({
+      jobId: opts.jobId,
+      watch: opts.watch,
+      intervalMs: opts.intervalMs,
+      maxCycles: opts.maxCycles,
       json: opts.json,
     });
   });

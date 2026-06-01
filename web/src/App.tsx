@@ -31,6 +31,7 @@ const VaultInspector = lazy(() => import("./pages/VaultInspector.tsx"));
 const TradeSimulator = lazy(() => import("./pages/TradeSimulator.tsx"));
 const ModelLeaderboard = lazy(() => import("./pages/ModelLeaderboard.tsx"));
 const LaunchModel = lazy(() => import("./pages/LaunchModel.tsx"));
+const RedeemInference = lazy(() => import("./pages/RedeemInference.tsx"));
 const Inference = lazy(() => import("./pages/Inference.tsx"));
 const Messaging = lazy(() => import("./pages/Messaging.tsx"));
 const GPUCompute = lazy(() => import("./pages/GPUCompute.tsx"));
@@ -101,6 +102,7 @@ export default function App() {
             <Route path="/trade-simulator" element={<TradeSimulator />} />
             <Route path="/model-leaderboard" element={<ModelLeaderboard />} />
             <Route path="/launch-model" element={<LaunchModel />} />
+            <Route path="/redeem-inference" element={<RedeemInference />} />
             <Route path="/inference" element={<Inference />} />
             <Route path="/messaging" element={<Messaging />} />
             <Route path="/gpu" element={<GPUCompute />} />
