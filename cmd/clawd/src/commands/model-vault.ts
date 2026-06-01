@@ -88,6 +88,22 @@ export type ModelVaultContractQueryOptions = {
   json?: boolean;
 };
 
+export type ModelVaultWatchOptions = {
+  contract: string;
+  intervalMs?: string;
+  maxCycles?: string;
+  json?: boolean;
+};
+
+export type ModelVaultArbOptions = {
+  contract: string;
+  dexPair: string;
+  thresholdBps?: string;
+  maxTrade?: string;
+  execute?: boolean;
+  json?: boolean;
+};
+
 // ---------------------------------------------------------------------------
 // Validation helpers
 // ---------------------------------------------------------------------------
@@ -112,6 +128,17 @@ function normalizeSide(side: string | undefined): "buy" | "sell" {
     throw new Error('--side must be "buy" or "sell".');
   }
   return normalized;
+}
+
+function requireNonNegativeInteger(label: string, value: string | undefined): number {
+  if (value === undefined || !/^[0-9]+$/.test(value)) {
+    throw new Error(`${label} must be a non-negative integer.`);
+  }
+  return Number(value);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 // ---------------------------------------------------------------------------
@@ -455,11 +482,295 @@ export async function runModelVaultPool(opts: ModelVaultContractQueryOptions): P
 }
 
 // ---------------------------------------------------------------------------
+// Market tooling: curve/DEX price discovery (watch) + rebalancing (arb)
+// ---------------------------------------------------------------------------
+
+type CurvePoolShape = { reserve?: string; inventory?: string };
+type PoolInfoShape = { total_staked?: string; reward_index?: string; reward_per_token?: string };
+
+/** Spot price = reserve / inventory (reserve units per 1 model token). */
+function curveSpotPrice(pool: CurvePoolShape): number {
+  const reserve = Number(pool.reserve ?? 0);
+  const inventory = Number(pool.inventory ?? 0);
+  if (!Number.isFinite(reserve) || !Number.isFinite(inventory) || inventory <= 0) {
+    return 0;
+  }
+  return reserve / inventory;
+}
+
+function round6(x: number): number {
+  return Math.round(x * 1_000_000) / 1_000_000;
+}
+
+/**
+ * Read the curve's spot price + reserves + dividend-pool state in one shot,
+ * reusing the same smartQuery plumbing as the query runners.
+ */
+async function snapshotCurve(contract: string): Promise<{
+  reserve: string;
+  inventory: string;
+  spotPrice: number;
+  totalStaked: string;
+  rewardIndex: string;
+}> {
+  const [pool, poolInfo] = await Promise.all([
+    smartQuery(contract, buildPoolQuery()) as Promise<CurvePoolShape>,
+    smartQuery(contract, buildPoolInfoQuery()) as Promise<PoolInfoShape>,
+  ]);
+  return {
+    reserve: pool.reserve ?? "0",
+    inventory: pool.inventory ?? "0",
+    spotPrice: round6(curveSpotPrice(pool)),
+    totalStaked: poolInfo.total_staked ?? "0",
+    rewardIndex: poolInfo.reward_index ?? poolInfo.reward_per_token ?? "0",
+  };
+}
+
+/**
+ * `clawd model-vault watch` — supervised polling loop (serve-loop style) that
+ * prints the bonding-curve spot price, reserves, total staked, and reward index
+ * each cycle. `--max-cycles 0` (default) runs until interrupted.
+ */
+export async function runModelVaultWatch(opts: ModelVaultWatchOptions): Promise<void> {
+  const contract = requireNonEmpty("--contract", opts.contract);
+  const intervalMs = requireNonNegativeInteger("--interval-ms", opts.intervalMs ?? "5000");
+  const maxCycles = requireNonNegativeInteger("--max-cycles", opts.maxCycles ?? "0");
+  let cycle = 0;
+
+  if (!opts.json) {
+    console.log("Watching ModelVault bonding curve...");
+    console.log(`  Contract: ${shortAddr(contract)}`);
+    console.log(`  Interval: ${intervalMs}ms`);
+    console.log(`  Cycles:   ${maxCycles === 0 ? "until stopped" : String(maxCycles)}`);
+    console.log();
+  }
+
+  while (maxCycles === 0 || cycle < maxCycles) {
+    cycle += 1;
+    try {
+      const snap = await snapshotCurve(contract);
+      if (opts.json) {
+        process.stdout.write(JSON.stringify({ cycle, contract, ...snap }) + "\n");
+      } else {
+        console.log(`Cycle ${cycle}${maxCycles > 0 ? `/${maxCycles}` : ""}`);
+        console.log(`  Spot Price:    ${snap.spotPrice} (reserve/inventory)`);
+        console.log(`  Reserve:       ${snap.reserve}`);
+        console.log(`  Inventory:     ${snap.inventory}`);
+        console.log(`  Total Staked:  ${snap.totalStaked}`);
+        console.log(`  Reward Index:  ${snap.rewardIndex}`);
+        console.log();
+      }
+    } catch (err) {
+      // A single failed cycle should not kill a long-running watch.
+      console.error(`model-vault watch cycle ${cycle} failed: ${String(err)}`);
+    }
+
+    if (maxCycles > 0 && cycle >= maxCycles) break;
+    if (intervalMs > 0) await sleep(intervalMs);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// arb: compare curve spot price to the Astroport DEX pair price and emit the
+// rebalancing trade when they diverge beyond --threshold-bps.
+// ---------------------------------------------------------------------------
+
+type AstroAssetInfo = {
+  native_token?: { denom?: string };
+  token?: { contract_addr?: string };
+};
+type AstroAsset = { info?: AstroAssetInfo; amount?: string };
+type AstroPoolShape = { assets?: AstroAsset[] };
+
+function assetDenom(info: AstroAssetInfo | undefined): string {
+  return (info?.native_token?.denom ?? info?.token?.contract_addr ?? "").trim();
+}
+
+/**
+ * DEX price of the model token in reserve units, derived from the Astroport
+ * pair's pool reserves: reserveSide.amount / modelSide.amount. Matches the curve
+ * convention (reserve per 1 model token) so the two prices are directly
+ * comparable. Returns 0 when either leg is missing/empty.
+ */
+function dexPriceFromPool(
+  pool: AstroPoolShape,
+  modelDenom: string,
+  reserveDenom: string,
+): number {
+  const assets = pool.assets ?? [];
+  const modelAsset = assets.find((a) => assetDenom(a.info) === modelDenom);
+  const reserveAsset = assets.find((a) => assetDenom(a.info) === reserveDenom);
+  const modelAmt = Number(modelAsset?.amount ?? 0);
+  const reserveAmt = Number(reserveAsset?.amount ?? 0);
+  if (!Number.isFinite(modelAmt) || !Number.isFinite(reserveAmt) || modelAmt <= 0) {
+    return 0;
+  }
+  return reserveAmt / modelAmt;
+}
+
+/**
+ * `clawd model-vault arb` — compares the curve spot price to the DEX pair price
+ * and, when they diverge beyond --threshold-bps, emits the rebalancing trade:
+ * buy on the cheaper venue / sell on the dearer. Default DRY-RUN prints the
+ * suggested MsgExecuteContract(s); --execute signs + broadcasts the curve leg.
+ */
+export async function runModelVaultArb(opts: ModelVaultArbOptions): Promise<void> {
+  const contract = requireNonEmpty("--contract", opts.contract);
+  const dexPair = requireNonEmpty("--dex-pair", opts.dexPair);
+  const thresholdBps = requireNonNegativeInteger("--threshold-bps", opts.thresholdBps ?? "50");
+  const maxTrade = requirePositiveAmount("--max-trade", opts.maxTrade ?? "1000000");
+
+  try {
+    const config = await fetchConfig(getRestUrl(), contract);
+    const modelDenom = config.model_denom?.trim();
+    const reserveDenom = config.reserve_denom?.trim();
+    if (!modelDenom || !reserveDenom) {
+      throw new Error("Contract Config did not return model_denom + reserve_denom.");
+    }
+
+    const [curvePool, dexPool] = await Promise.all([
+      smartQuery(contract, buildPoolQuery()) as Promise<CurvePoolShape>,
+      smartQuery(dexPair, { pool: {} }) as Promise<AstroPoolShape>,
+    ]);
+
+    const curvePrice = round6(curveSpotPrice(curvePool));
+    const dexPrice = round6(dexPriceFromPool(dexPool, modelDenom, reserveDenom));
+
+    if (curvePrice <= 0 || dexPrice <= 0) {
+      throw new Error(
+        `Cannot price both venues (curve=${curvePrice}, dex=${dexPrice}). Check liquidity.`,
+      );
+    }
+
+    // Divergence relative to the cheaper venue, in basis points.
+    const cheaper = Math.min(curvePrice, dexPrice);
+    const divergenceBps = Math.round(((Math.abs(curvePrice - dexPrice)) / cheaper) * 10_000);
+    const actionable = divergenceBps >= thresholdBps;
+
+    // Rebalance: buy on the cheaper venue (model token is cheap there), sell on
+    // the dearer. The curve buy attaches reserve_denom; the curve sell attaches
+    // model_denom. We only own the curve leg as a signed message — the DEX leg
+    // is reported as guidance.
+    const curveIsCheaper = curvePrice < dexPrice;
+    const curveSide: "buy" | "sell" = curveIsCheaper ? "buy" : "sell";
+    const curveFundDenom = curveSide === "buy" ? reserveDenom : modelDenom;
+    const curveFunds: Coin[] = [{ denom: curveFundDenom, amount: maxTrade }];
+
+    const report = {
+      action: "ModelVaultArb",
+      contract,
+      dex_pair: dexPair,
+      model_denom: modelDenom,
+      reserve_denom: reserveDenom,
+      curve_price: curvePrice,
+      dex_price: dexPrice,
+      divergence_bps: divergenceBps,
+      threshold_bps: thresholdBps,
+      actionable,
+      // Guidance: buy on the cheaper venue, sell on the dearer.
+      buy_venue: curveIsCheaper ? "curve" : "dex",
+      sell_venue: curveIsCheaper ? "dex" : "curve",
+      max_trade: maxTrade,
+      curve_leg: {
+        side: curveSide,
+        fund_denom: curveFundDenom,
+        amount: maxTrade,
+      },
+      executed: false as boolean,
+      tx_hash: null as string | null,
+      dry_run: !opts.execute,
+    };
+
+    if (!actionable) {
+      if (opts.json) {
+        process.stdout.write(JSON.stringify(report, null, 2) + "\n");
+      } else {
+        console.log("No arbitrage: prices within threshold.");
+        console.log(`  Curve Price:     ${curvePrice}`);
+        console.log(`  DEX Price:       ${dexPrice}`);
+        console.log(`  Divergence:      ${divergenceBps} bps (threshold ${thresholdBps} bps)`);
+        console.log();
+      }
+      return;
+    }
+
+    // Build the curve-leg MsgExecuteContract (the leg this CLI can sign).
+    const buildCurveMsg = (sender: string) =>
+      curveSide === "buy"
+        ? buildBuyMsg(sender, contract, curveFunds)
+        : buildSellMsg(sender, contract, curveFunds);
+
+    if (!opts.execute) {
+      // DRY-RUN: print the suggested message without signing.
+      const suggested = buildCurveMsg(config.owner?.trim() || "<sender>");
+      const dryReport = {
+        ...report,
+        suggested_msgs: [
+          {
+            note: `Curve ${curveSide} leg (sign this with "clawd model-vault ${curveSide} --contract ${contract} --amount ${maxTrade}")`,
+            typeUrl: suggested.typeUrl,
+            value: {
+              ...suggested.value,
+              msg: JSON.parse(Buffer.from(suggested.value.msg).toString("utf8")),
+            },
+          },
+          {
+            note: `DEX ${curveSide === "buy" ? "sell" : "buy"} leg: rebalance on the Astroport pair ${dexPair} (see "clawd dex swap")`,
+          },
+        ],
+      };
+      if (opts.json) {
+        process.stdout.write(JSON.stringify(dryReport, null, 2) + "\n");
+      } else {
+        console.log("Arbitrage opportunity detected (DRY-RUN — pass --execute to broadcast).");
+        console.log(`  Curve Price:     ${curvePrice}`);
+        console.log(`  DEX Price:       ${dexPrice}`);
+        console.log(`  Divergence:      ${divergenceBps} bps (threshold ${thresholdBps} bps)`);
+        console.log(`  Cheaper venue:   ${curveIsCheaper ? "curve" : "dex"} -> buy here`);
+        console.log(`  Curve leg:       ${curveSide} ${maxTrade}${curveFundDenom}`);
+        console.log(`  DEX leg:         ${curveSide === "buy" ? "sell" : "buy"} on ${shortAddr(dexPair)}`);
+        console.log("\n  Suggested curve MsgExecuteContract:");
+        console.log(JSON.stringify(dryReport.suggested_msgs[0], null, 2));
+        console.log();
+      }
+      return;
+    }
+
+    // EXECUTE: sign + broadcast the curve leg via the shared signer.
+    const { account, signingClient } = await ensureSigner();
+    try {
+      const msg = buildCurveMsg(account.address);
+      const res = await signingClient.signAndBroadcast(account.address, [msg], "auto");
+      if (res.code !== 0) {
+        throw new Error(`Arb ${curveSide} tx failed (code=${res.code}): ${res.rawLog}`);
+      }
+      const execReport = { ...report, executed: true, tx_hash: res.transactionHash };
+      if (opts.json) {
+        process.stdout.write(JSON.stringify(execReport, null, 2) + "\n");
+      } else {
+        console.log(`Arbitrage curve leg broadcast (${curveSide}).`);
+        console.log(`  Contract:    ${shortAddr(contract)}`);
+        console.log(`  Sender:      ${shortAddr(account.address)}`);
+        console.log(`  Leg:         ${curveSide} ${maxTrade}${curveFundDenom}`);
+        console.log(`  TxHash:      ${res.transactionHash}`);
+        console.log(`  Reminder:    settle the DEX ${curveSide === "buy" ? "sell" : "buy"} leg on ${shortAddr(dexPair)}.`);
+        console.log();
+      }
+    } finally {
+      signingClient.disconnect();
+    }
+  } catch (err) {
+    console.error(`model-vault arb failed: ${String(err)}`);
+    process.exit(1);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Internal: resolve the contract's configured denoms via Config query so the
 // CLI attaches the correct denom for Buy/Sell/Stake/Distribute.
 // ---------------------------------------------------------------------------
 
-type ConfigShape = { model_denom?: string; reserve_denom?: string };
+type ConfigShape = { model_denom?: string; reserve_denom?: string; owner?: string };
 
 async function fetchConfig(restUrl: string, contract: string): Promise<ConfigShape> {
   const base64Query = Buffer.from(JSON.stringify(buildConfigQuery())).toString("base64");

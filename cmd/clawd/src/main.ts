@@ -78,6 +78,8 @@ import {
   runModelVaultStake,
   runModelVaultStakeInfo,
   runModelVaultUnstake,
+  runModelVaultWatch,
+  runModelVaultArb,
 } from "./commands/model-vault.js";
 import {
   runModelIndexCompute,
@@ -2275,6 +2277,42 @@ modelVaultCmd
   .option("--json", "output JSON")
   .action(async (opts) => {
     await runModelVaultPool({ contract: opts.contract, json: opts.json });
+  });
+
+modelVaultCmd
+  .command("watch")
+  .description("Poll the curve spot price, reserves, total staked, and reward index each cycle")
+  .requiredOption("--contract <address>", "ModelVault contract address")
+  .option("--interval-ms <ms>", "polling interval in milliseconds", "5000")
+  .option("--max-cycles <n>", "stop after N cycles (0 = until interrupted)", "0")
+  .option("--json", "output JSON")
+  .action(async (opts) => {
+    await runModelVaultWatch({
+      contract: opts.contract,
+      intervalMs: opts.intervalMs,
+      maxCycles: opts.maxCycles,
+      json: opts.json,
+    });
+  });
+
+modelVaultCmd
+  .command("arb")
+  .description("Compare curve spot price to a DEX pair and emit the rebalancing trade (dry-run by default)")
+  .requiredOption("--contract <address>", "ModelVault contract address")
+  .requiredOption("--dex-pair <address>", "Astroport pair contract address (TOKEN/CLAW)")
+  .option("--threshold-bps <n>", "minimum price divergence (basis points) to act", "50")
+  .option("--max-trade <amount>", "max curve-leg trade size", "1000000")
+  .option("--execute", "sign + broadcast the curve leg (default is dry-run)")
+  .option("--json", "output JSON")
+  .action(async (opts) => {
+    await runModelVaultArb({
+      contract: opts.contract,
+      dexPair: opts.dexPair,
+      thresholdBps: opts.thresholdBps,
+      maxTrade: opts.maxTrade,
+      execute: opts.execute,
+      json: opts.json,
+    });
   });
 
 // ---------------------------------------------------------------------------

@@ -83,6 +83,9 @@ export default function Layout({ children }: { children: ReactNode }) {
           <NavLink to="/model-exchange" onClick={closeMenu} className={({ isActive }) => isActive ? "active" : ""}>
             Model Exchange
           </NavLink>
+          <NavLink to="/model-markets" onClick={closeMenu} className={({ isActive }) => isActive ? "active" : ""}>
+            AI Stock Exchange
+          </NavLink>
           <NavLink to="/inference" onClick={closeMenu} className={({ isActive }) => isActive ? "active" : ""}>
             AI Inference
           </NavLink>

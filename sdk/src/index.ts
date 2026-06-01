@@ -100,6 +100,15 @@ export type {
   TradeSide,
 } from "./model-vault.js";
 
+// Higher-level model-market aggregate (composes the ModelVault client + DEX)
+export { ModelMarket, createModelMarket } from "./model-market.js";
+export type {
+  ModelMarketSnapshot,
+  ModelMarketQuote,
+  ModelMarketOptions,
+  DexPoolReader,
+} from "./model-market.js";
+
 // wagmi-style ModelVault actions (route through the wagmi adapter)
 export {
   readModelVaultConfig,
