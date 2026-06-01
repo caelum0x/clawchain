@@ -85,6 +85,7 @@ import {
   runModelVaultArb,
   runModelVaultPortfolio,
   runModelVaultCompare,
+  runModelVaultPlan,
   runModelVaultDeploy,
 } from "./commands/model-vault.js";
 import {
@@ -2468,6 +2469,24 @@ modelVaultCmd
     await runModelVaultCompare({
       contracts: opts.contracts,
       contract: opts.contract,
+      json: opts.json,
+    });
+  });
+
+modelVaultCmd
+  .command("plan")
+  .description("Suggest a trade to reach a target spot price (or estimate a buy/sell), validated against the on-chain quote")
+  .requiredOption("--contract <address>", "vault contract address")
+  .option("--target-price <p>", "target spot price to steer the curve toward")
+  .option("--buy <reserveIn>", "estimate a buy of this reserve-denom amount")
+  .option("--sell <tokensIn>", "estimate a sell of this model-token amount")
+  .option("--json", "output JSON")
+  .action(async (opts) => {
+    await runModelVaultPlan({
+      contract: opts.contract,
+      targetPrice: opts.targetPrice,
+      buy: opts.buy,
+      sell: opts.sell,
       json: opts.json,
     });
   });

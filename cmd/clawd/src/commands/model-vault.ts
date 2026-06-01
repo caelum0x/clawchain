@@ -84,6 +84,17 @@ export type ModelVaultQuoteOptions = {
   json?: boolean;
 };
 
+export type ModelVaultPlanOptions = {
+  contract: string;
+  /** Target spot price to steer the curve toward (mutually exclusive with buy/sell). */
+  targetPrice?: string;
+  /** Explicit reserve-denom amount to spend on a buy (mutually exclusive). */
+  buy?: string;
+  /** Explicit model-token amount to sell (mutually exclusive). */
+  sell?: string;
+  json?: boolean;
+};
+
 export type ModelVaultStakeInfoOptions = {
   contract: string;
   address: string;
@@ -933,6 +944,218 @@ export async function runModelVaultCompare(opts: ModelVaultCompareOptions): Prom
     }
   } catch (err) {
     console.error(`model-vault compare failed: ${String(err)}`);
+    process.exit(1);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// plan: suggest a trade to reach a target (or estimate an explicit buy/sell),
+// then validate the computed amountIn against the contract's own quote{}.
+//
+// CONSTANT-PRODUCT MATH (k = reserve * inventory, fee-free estimate):
+//   - Buy with dx reserve: tokensOut = inventory - k/(reserve+dx);
+//     new spot = (reserve+dx)/(inventory-tokensOut).
+//   - Sell with dt tokens: reserveOut = reserve - k/(inventory+dt);
+//     new spot = (reserve-reserveOut)/(inventory+dt).
+//   - To reach a TARGET spot p (k constant): newReserve = sqrt(k*p).
+//     dx = newReserve - reserve  -> buy when p>spot, sell when p<spot.
+// NOTE: the contract charges fees, so the on-chain quote{} amount_out (printed
+// alongside the fee-free estimate) is the authoritative, slightly-worse figure.
+// ---------------------------------------------------------------------------
+
+type QuoteShape = { amount_out?: string; denom_in?: string; denom_out?: string };
+
+/** Parse a positive float (target price). */
+function requirePositiveFloat(label: string, value: string | undefined): number {
+  const n = Number(value);
+  if (value === undefined || value.trim() === "" || !Number.isFinite(n) || n <= 0) {
+    throw new Error(`${label} must be a positive number.`);
+  }
+  return n;
+}
+
+type PlanComputation = {
+  side: "buy" | "sell";
+  amountIn: string;
+  estimatedOut: string;
+  projectedSpot: number;
+};
+
+/**
+ * Compute the fee-free constant-product plan. Exactly one of targetPrice / buy /
+ * sell drives the result; reserve and inventory are the current pool integers.
+ */
+export function computeVaultPlan(args: {
+  reserve: bigint;
+  inventory: bigint;
+  spot: number;
+  targetPrice?: number;
+  buy?: bigint;
+  sell?: bigint;
+}): PlanComputation {
+  const { reserve, inventory, spot } = args;
+  const reserveF = Number(reserve);
+  const inventoryF = Number(inventory);
+  const k = reserveF * inventoryF;
+
+  if (args.targetPrice !== undefined) {
+    if (reserve <= 0n || inventory <= 0n) {
+      throw new Error("Pool has no liquidity to plan a target-price trade.");
+    }
+    const target = args.targetPrice;
+    if (Math.abs(target - spot) < 1e-12) {
+      throw new Error(`Target price ${target} already equals current spot ${round6(spot)}.`);
+    }
+    const newReserve = Math.sqrt(k * target);
+    if (target > spot) {
+      // Buy: add dx reserve to push price up.
+      const dx = Math.max(0, Math.round(newReserve - reserveF));
+      if (dx <= 0) {
+        throw new Error("Computed buy amount rounded to zero; target too close to spot.");
+      }
+      const newInventory = k / (reserveF + dx);
+      const tokensOut = Math.max(0, Math.round(inventoryF - newInventory));
+      return {
+        side: "buy",
+        amountIn: String(dx),
+        estimatedOut: String(tokensOut),
+        projectedSpot: round6((reserveF + dx) / (inventoryF - tokensOut)),
+      };
+    }
+    // Sell: remove reserve by adding model tokens to push price down.
+    const newInventory = k / newReserve;
+    const dt = Math.max(0, Math.round(newInventory - inventoryF));
+    if (dt <= 0) {
+      throw new Error("Computed sell amount rounded to zero; target too close to spot.");
+    }
+    const reserveOut = Math.max(0, Math.round(reserveF - k / (inventoryF + dt)));
+    return {
+      side: "sell",
+      amountIn: String(dt),
+      estimatedOut: String(reserveOut),
+      projectedSpot: round6((reserveF - reserveOut) / (inventoryF + dt)),
+    };
+  }
+
+  if (args.buy !== undefined) {
+    if (reserve <= 0n || inventory <= 0n) {
+      throw new Error("Pool has no liquidity to estimate a buy.");
+    }
+    const dx = Number(args.buy);
+    const newInventory = k / (reserveF + dx);
+    const tokensOut = Math.max(0, Math.round(inventoryF - newInventory));
+    return {
+      side: "buy",
+      amountIn: args.buy.toString(),
+      estimatedOut: String(tokensOut),
+      projectedSpot: round6((reserveF + dx) / (inventoryF - tokensOut)),
+    };
+  }
+
+  if (args.sell !== undefined) {
+    if (reserve <= 0n || inventory <= 0n) {
+      throw new Error("Pool has no liquidity to estimate a sell.");
+    }
+    const dt = Number(args.sell);
+    const reserveOut = Math.max(0, Math.round(reserveF - k / (inventoryF + dt)));
+    return {
+      side: "sell",
+      amountIn: args.sell.toString(),
+      estimatedOut: String(reserveOut),
+      projectedSpot: round6((reserveF - reserveOut) / (inventoryF + dt)),
+    };
+  }
+
+  throw new Error("Provide exactly one of --target-price, --buy, or --sell.");
+}
+
+/**
+ * `clawd model-vault plan` — suggest a trade to reach a target spot price (or
+ * estimate an explicit --buy/--sell), then validate the computed amountIn with
+ * the contract's own quote{} so the fee-free estimate sits next to the exact
+ * on-chain amount_out. Prints current spot, side + amountIn, estimated vs quoted
+ * out, projected new spot, and price impact (bps). Supports --json.
+ */
+export async function runModelVaultPlan(opts: ModelVaultPlanOptions): Promise<void> {
+  const contract = requireNonEmpty("--contract", opts.contract);
+
+  // Exactly one of the three intent flags must be supplied.
+  const intents = [opts.targetPrice, opts.buy, opts.sell].filter((v) => v?.trim()).length;
+  if (intents !== 1) {
+    throw new Error("Provide exactly one of --target-price <p>, --buy <reserveIn>, or --sell <tokensIn>.");
+  }
+
+  const targetPrice = opts.targetPrice?.trim()
+    ? requirePositiveFloat("--target-price", opts.targetPrice)
+    : undefined;
+  const buy = opts.buy?.trim() ? BigInt(requirePositiveAmount("--buy", opts.buy)) : undefined;
+  const sell = opts.sell?.trim() ? BigInt(requirePositiveAmount("--sell", opts.sell)) : undefined;
+
+  try {
+    const pool = (await smartQuery(contract, buildPoolQuery())) as CurvePoolShape;
+    const reserve = BigInt(pool.reserve ?? "0");
+    const inventory = BigInt(pool.inventory ?? "0");
+    const spot = round6(curveSpotPrice(pool));
+
+    const plan = computeVaultPlan({ reserve, inventory, spot, targetPrice, buy, sell });
+
+    // Validate against the contract's own quote{} for the computed amountIn.
+    const quote = (await smartQuery(
+      contract,
+      buildQuoteQuery(plan.side, plan.amountIn),
+    )) as QuoteShape;
+    const quotedOut = quote.amount_out ?? "0";
+
+    // Price impact relative to the current spot, in basis points.
+    const priceImpactBps =
+      spot > 0 ? Math.round(((plan.projectedSpot - spot) / spot) * 10_000) : 0;
+
+    if (opts.json) {
+      const report = {
+        action: "ModelVaultPlan",
+        contract,
+        current_spot: spot,
+        reserve: reserve.toString(),
+        inventory: inventory.toString(),
+        target_price: targetPrice ?? null,
+        side: plan.side,
+        amount_in: plan.amountIn,
+        denom_in: quote.denom_in ?? null,
+        denom_out: quote.denom_out ?? null,
+        estimated_out: plan.estimatedOut,
+        quoted_out: quotedOut,
+        projected_spot: plan.projectedSpot,
+        price_impact_bps: priceImpactBps,
+        fee_note: "estimated_out ignores fees; quoted_out is the exact on-chain figure.",
+      };
+      process.stdout.write(JSON.stringify(report, null, 2) + "\n");
+      return;
+    }
+
+    console.log("ModelVault trade plan");
+    console.log(`  Contract:        ${shortAddr(contract)}`);
+    console.log(`  Current Spot:    ${spot} (reserve/inventory)`);
+    console.log(`  Reserve:         ${reserve.toString()}`);
+    console.log(`  Inventory:       ${inventory.toString()}`);
+    if (targetPrice !== undefined) console.log(`  Target Price:    ${targetPrice}`);
+    console.log();
+    console.log("Suggested trade:");
+    console.log(`  Side:            ${plan.side}`);
+    console.log(`  Amount In:       ${plan.amountIn}${quote.denom_in ? ` ${quote.denom_in}` : ""}`);
+    console.log(`  Estimated Out:   ${plan.estimatedOut} (fee-free)`);
+    console.log(`  Quoted Out:      ${quotedOut}${quote.denom_out ? ` ${quote.denom_out}` : ""} (on-chain, net of fees)`);
+    console.log(`  Projected Spot:  ${plan.projectedSpot}`);
+    console.log(`  Price Impact:    ${priceImpactBps} bps`);
+    console.log();
+    console.log(
+      `  Note: estimated_out is fee-free; the contract quote (${quotedOut}) reflects fees and is authoritative.`,
+    );
+    console.log(
+      `  Execute with: clawd model-vault ${plan.side} --contract ${contract} --amount ${plan.amountIn}`,
+    );
+    console.log();
+  } catch (err) {
+    console.error(`model-vault plan failed: ${String(err)}`);
     process.exit(1);
   }
 }

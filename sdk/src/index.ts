@@ -160,6 +160,20 @@ export type {
   CrossDirection,
 } from "./model-analytics.js";
 
+// Pure constant-product trade-planning helpers (size a trade before broadcast)
+export {
+  planBuy,
+  planSell,
+  planToTargetPrice,
+} from "./trade-planner.js";
+export type {
+  PlannerPool,
+  PlannerSide,
+  BuyPlan,
+  SellPlan,
+  TargetPricePlan,
+} from "./trade-planner.js";
+
 // Pure model-ranking / leaderboard helpers (composite index score + ranking)
 export {
   computeIndexScore,
