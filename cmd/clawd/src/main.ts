@@ -80,6 +80,7 @@ import {
   runModelVaultUnstake,
   runModelVaultWatch,
   runModelVaultArb,
+  runModelVaultPortfolio,
 } from "./commands/model-vault.js";
 import {
   runModelIndexCompute,
@@ -2311,6 +2312,27 @@ modelVaultCmd
       thresholdBps: opts.thresholdBps,
       maxTrade: opts.maxTrade,
       execute: opts.execute,
+      json: opts.json,
+    });
+  });
+
+modelVaultCmd
+  .command("portfolio")
+  .description("Aggregate one staker's positions (staked + claimable) across a list of vaults")
+  .option("--address <address>", "staker address to inspect (defaults to configured signer)")
+  .option("--vaults <a,b,c>", "comma-separated vault contract addresses")
+  .option(
+    "--vault <address>",
+    "vault contract address (repeatable)",
+    (value: string, prev: string[] = []) => [...prev, value],
+    [] as string[],
+  )
+  .option("--json", "output JSON")
+  .action(async (opts) => {
+    await runModelVaultPortfolio({
+      address: opts.address,
+      vaults: opts.vaults,
+      vault: opts.vault,
       json: opts.json,
     });
   });

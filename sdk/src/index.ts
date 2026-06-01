@@ -109,6 +109,15 @@ export type {
   DexPoolReader,
 } from "./model-market.js";
 
+// Cross-vault model-portfolio aggregate (composes per-vault ModelVault clients)
+export { ModelPortfolio, createModelPortfolio } from "./model-portfolio.js";
+export type {
+  ModelPortfolioSnapshot,
+  ModelPortfolioPosition,
+  ModelPortfolioError,
+  ModelPortfolioOptions,
+} from "./model-portfolio.js";
+
 // wagmi-style ModelVault actions (route through the wagmi adapter)
 export {
   readModelVaultConfig,

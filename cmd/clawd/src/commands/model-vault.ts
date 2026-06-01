@@ -16,7 +16,7 @@ import { toUtf8 } from "@cosmjs/encoding";
 import { DirectSecp256k1HdWallet } from "@cosmjs/proto-signing";
 import { GasPrice } from "@cosmjs/stargate";
 import { loadClawdConfig } from "../lib/config.js";
-import { shortAddr } from "../lib/format.js";
+import { shortAddr, table } from "../lib/format.js";
 import { loadMnemonic, mnemonicFileExists } from "../lib/mnemonic.js";
 import { connectClawchainSigningClient } from "../lib/signing.js";
 
@@ -101,6 +101,15 @@ export type ModelVaultArbOptions = {
   thresholdBps?: string;
   maxTrade?: string;
   execute?: boolean;
+  json?: boolean;
+};
+
+export type ModelVaultPortfolioOptions = {
+  address?: string;
+  /** Comma-separated vault contract addresses. */
+  vaults?: string;
+  /** Repeated --vault flags collected by Commander. */
+  vault?: string[];
   json?: boolean;
 };
 
@@ -256,6 +265,21 @@ async function ensureSigner() {
     account,
     signingClient,
   };
+}
+
+/**
+ * Resolve the configured signer's bech32 address without spinning up a signing
+ * client (portfolio is a read-only command). Returns null when no mnemonic is
+ * configured so the caller can surface a clear "--address required" error.
+ */
+async function resolveConfiguredAddress(): Promise<string | null> {
+  if (!mnemonicFileExists()) return null;
+  const mnemonic = loadMnemonic();
+  if (!mnemonic) return null;
+  const prefix = loadClawdConfig().prefix ?? "claw";
+  const wallet = await DirectSecp256k1HdWallet.fromMnemonic(mnemonic, { prefix });
+  const [account] = await wallet.getAccounts();
+  return account?.address ?? null;
 }
 
 function getRestUrl(): string {
@@ -479,6 +503,154 @@ export async function runModelVaultConfig(opts: ModelVaultContractQueryOptions):
 export async function runModelVaultPool(opts: ModelVaultContractQueryOptions): Promise<void> {
   const contract = requireNonEmpty("--contract", opts.contract);
   await queryAndReport("Pool", contract, buildPoolQuery(), opts);
+}
+
+// ---------------------------------------------------------------------------
+// portfolio: aggregate one staker's positions across an explicit list of vault
+// contracts (there is no on-chain model->vault registry yet, so the caller
+// supplies the vaults). Per-vault failures are reported inline and skipped.
+// ---------------------------------------------------------------------------
+
+type StakeInfoShape = { staked?: string; claimable?: string };
+
+type PortfolioVaultRow = {
+  contract: string;
+  model_denom: string;
+  reserve_denom: string;
+  staked: string;
+  claimable: string;
+};
+
+type PortfolioVaultError = {
+  contract: string;
+  error: string;
+};
+
+/** Parse --vaults "a,b,c" plus repeated --vault flags into a unique list. */
+export function parseVaultList(vaults: string | undefined, repeated: string[] | undefined): string[] {
+  const fromCsv = (vaults ?? "")
+    .split(",")
+    .map((v) => v.trim())
+    .filter((v) => v.length > 0);
+  const fromRepeated = (repeated ?? []).map((v) => v.trim()).filter((v) => v.length > 0);
+  return Array.from(new Set([...fromCsv, ...fromRepeated]));
+}
+
+/**
+ * `clawd model-vault portfolio` — for an explicit list of vault contracts,
+ * query stake_info{address} + config{} per vault (in parallel), then print a
+ * per-vault table plus totals: claimable grouped by reserve_denom and the
+ * number of vaults with a non-zero stake.
+ */
+export async function runModelVaultPortfolio(opts: ModelVaultPortfolioOptions): Promise<void> {
+  try {
+    const vaults = parseVaultList(opts.vaults, opts.vault);
+    if (vaults.length === 0) {
+      throw new Error(
+        'No vaults supplied. Pass --vaults <a,b,c> or repeat --vault <addr>.',
+      );
+    }
+
+    let address = opts.address?.trim();
+    if (!address) {
+      const configured = await resolveConfiguredAddress();
+      if (!configured) {
+        throw new Error('--address is required (no configured mnemonic to derive it from).');
+      }
+      address = configured;
+    }
+
+    // Query each vault independently; one failure must not abort the rest.
+    const settled = await Promise.all(
+      vaults.map(async (contract): Promise<PortfolioVaultRow | PortfolioVaultError> => {
+        try {
+          const [stake, config] = await Promise.all([
+            smartQuery(contract, buildStakeInfoQuery(address as string)) as Promise<StakeInfoShape>,
+            smartQuery(contract, buildConfigQuery()) as Promise<ConfigShape>,
+          ]);
+          return {
+            contract,
+            model_denom: config.model_denom?.trim() || "?",
+            reserve_denom: config.reserve_denom?.trim() || "?",
+            staked: stake.staked ?? "0",
+            claimable: stake.claimable ?? "0",
+          };
+        } catch (err) {
+          return { contract, error: String(err) };
+        }
+      }),
+    );
+
+    const rows = settled.filter((r): r is PortfolioVaultRow => !("error" in r));
+    const errors = settled.filter((r): r is PortfolioVaultError => "error" in r);
+
+    // Totals: claimable grouped by reserve_denom + count of non-zero stakes.
+    const claimableByReserve: Record<string, bigint> = {};
+    let vaultsWithStake = 0;
+    for (const row of rows) {
+      const claimable = BigInt(row.claimable || "0");
+      claimableByReserve[row.reserve_denom] =
+        (claimableByReserve[row.reserve_denom] ?? 0n) + claimable;
+      if (BigInt(row.staked || "0") > 0n) vaultsWithStake += 1;
+    }
+    const totalClaimable = Object.fromEntries(
+      Object.entries(claimableByReserve).map(([denom, amount]) => [denom, amount.toString()]),
+    );
+
+    if (opts.json) {
+      const report = {
+        address,
+        vaults: rows,
+        errors,
+        totals: {
+          claimable_by_reserve: totalClaimable,
+          vaults_with_stake: vaultsWithStake,
+          vaults_queried: vaults.length,
+        },
+      };
+      process.stdout.write(JSON.stringify(report, null, 2) + "\n");
+      return;
+    }
+
+    console.log(`ModelVault portfolio for ${shortAddr(address)}`);
+    console.log(`  Vaults queried: ${vaults.length}\n`);
+
+    if (rows.length > 0) {
+      const tableRows = rows.map((r) => [
+        shortAddr(r.contract),
+        r.model_denom,
+        r.staked,
+        `${r.claimable} ${r.reserve_denom}`,
+      ]);
+      console.log(table(["Contract", "Model Denom", "Staked", "Claimable"], tableRows));
+      console.log();
+    } else {
+      console.log("No vaults returned a position.\n");
+    }
+
+    console.log("Totals:");
+    const claimableEntries = Object.entries(totalClaimable);
+    if (claimableEntries.length === 0) {
+      console.log("  Claimable:          none");
+    } else {
+      for (const [denom, amount] of claimableEntries) {
+        console.log(`  Claimable (${denom}): ${amount}`);
+      }
+    }
+    console.log(`  Vaults with stake:  ${vaultsWithStake}`);
+    console.log();
+
+    if (errors.length > 0) {
+      console.log(`Skipped ${errors.length} vault(s) due to query errors:`);
+      for (const e of errors) {
+        console.log(`  ${shortAddr(e.contract)}: ${e.error}`);
+      }
+      console.log();
+    }
+  } catch (err) {
+    console.error(`model-vault portfolio failed: ${String(err)}`);
+    process.exit(1);
+  }
 }
 
 // ---------------------------------------------------------------------------

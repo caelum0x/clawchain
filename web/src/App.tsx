@@ -25,6 +25,7 @@ const Tasks = lazy(() => import("./pages/Tasks.tsx"));
 const Models = lazy(() => import("./pages/Models.tsx"));
 const ModelExchange = lazy(() => import("./pages/ModelExchange.tsx"));
 const ModelMarkets = lazy(() => import("./pages/ModelMarkets.tsx"));
+const ModelPortfolio = lazy(() => import("./pages/ModelPortfolio.tsx"));
 const Inference = lazy(() => import("./pages/Inference.tsx"));
 const Messaging = lazy(() => import("./pages/Messaging.tsx"));
 const GPUCompute = lazy(() => import("./pages/GPUCompute.tsx"));
@@ -89,6 +90,7 @@ export default function App() {
             <Route path="/models" element={<Models />} />
             <Route path="/model-exchange" element={<ModelExchange />} />
             <Route path="/model-markets" element={<ModelMarkets />} />
+            <Route path="/model-portfolio" element={<ModelPortfolio />} />
             <Route path="/inference" element={<Inference />} />
             <Route path="/messaging" element={<Messaging />} />
             <Route path="/gpu" element={<GPUCompute />} />
