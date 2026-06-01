@@ -1,4 +1,4 @@
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -92,8 +92,10 @@ describe("ModelExchange", () => {
     const rows = screen.getAllByTestId("model-token-row");
     expect(rows).toHaveLength(2);
 
-    // Issued token shows symbol and price.
-    expect(screen.getByText("OPUS_4_8")).toBeInTheDocument();
+    // Issued token shows symbol and price. Scope to the row: the symbol now also
+    // appears in the Fundamentals panel for the selected model, so a global getByText
+    // would match multiple nodes.
+    expect(within(rows[0]).getByText("OPUS_4_8")).toBeInTheDocument();
     expect(screen.getByText("2.500000")).toBeInTheDocument();
 
     // Non-minted token shows "Not minted" and N/A price.
