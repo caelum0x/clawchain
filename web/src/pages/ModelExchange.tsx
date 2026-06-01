@@ -2,7 +2,9 @@ import { useEffect, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import useDocTitle from "../hooks/useDocTitle.ts";
 import ExportMenu from "../components/ExportMenu.tsx";
+import StakeEarnPanel from "../components/StakeEarnPanel.tsx";
 import { shortAddr } from "../lib/chain.ts";
+import { getConnectedAddress } from "../lib/walletconnect.ts";
 import {
   getModelTokens,
   formatTokenSupply,
@@ -17,6 +19,9 @@ export default function ModelExchange() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [onlyMinted, setOnlyMinted] = useState(false);
+  const [vaultAddress, setVaultAddress] = useState("");
+  const [selectedDenom, setSelectedDenom] = useState<string | null>(null);
+  const connectedAddress = getConnectedAddress();
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -51,6 +56,10 @@ export default function ModelExchange() {
 
   const mintedCount = tokens.filter((t) => t.hasToken).length;
   const pricedCount = tokens.filter((t) => t.priceClaw != null).length;
+
+  const mintedTokens = tokens.filter((t) => t.hasToken);
+  const selectedToken =
+    mintedTokens.find((t) => t.denom === selectedDenom) ?? mintedTokens[0] ?? null;
 
   const exportData = filtered.map((t) => ({
     modelId: t.modelId,
@@ -239,6 +248,71 @@ export default function ModelExchange() {
           </table>
         </div>
       )}
+
+      {/* Stake & Earn — dividend pool (ModelVault) */}
+      <div className="card" data-testid="stake-earn-section" style={{ marginTop: 24 }}>
+        <h2>Stake &amp; Earn (Dividend Pool)</h2>
+        <p style={{ fontSize: 13, color: "var(--text2)", marginBottom: 12 }}>
+          Each issued model can deploy a <strong>ModelVault</strong> contract: a
+          bonding-curve market plus a Synthetix-style dividend pool. Select an issued
+          model and its vault contract to view staking stats and preview stake / unstake /
+          claim messages.
+        </p>
+        {mintedTokens.length === 0 ? (
+          <div className="empty" data-testid="stake-earn-no-tokens">
+            No issued model tokens yet &mdash; issue one to enable its dividend pool.
+          </div>
+        ) : (
+          <>
+            <div
+              style={{
+                display: "flex",
+                gap: 12,
+                alignItems: "center",
+                flexWrap: "wrap",
+                marginBottom: 8,
+              }}
+            >
+              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>
+                Model
+                <select
+                  value={selectedToken?.denom ?? ""}
+                  onChange={(e) => setSelectedDenom(e.target.value)}
+                  data-testid="stake-model-select"
+                  style={{ padding: "6px 10px" }}
+                >
+                  {mintedTokens.map((t) => (
+                    <option key={t.denom} value={t.denom}>
+                      {t.symbol} ({t.name || `Model #${t.modelId}`})
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <input
+                value={vaultAddress}
+                onChange={(e) => setVaultAddress(e.target.value)}
+                placeholder="ModelVault contract address (claw1...)"
+                aria-label="ModelVault contract address"
+                data-testid="stake-vault-input"
+                className="mono"
+                style={{ padding: "6px 10px", flex: 1, minWidth: 280 }}
+              />
+            </div>
+            {vaultAddress.trim() && selectedToken ? (
+              <StakeEarnPanel
+                vaultAddress={vaultAddress.trim()}
+                modelDenom={selectedToken.denom}
+                modelSymbol={selectedToken.symbol}
+                address={connectedAddress}
+              />
+            ) : (
+              <div className="empty" data-testid="stake-earn-await-vault">
+                Enter a ModelVault contract address to load its dividend pool.
+              </div>
+            )}
+          </>
+        )}
+      </div>
 
       {/* How it works / actions (informational) */}
       <div className="card" style={{ marginTop: 24 }}>
