@@ -61,6 +61,30 @@ P0 has a live-accepted `clawd` implementation slice:
   transfer model tokens to a non-admin holder, holder self-burns, provider runs
   `serve-loop`, and final on-chain job status is asserted as `completed`.
 
+P2 has a built ModelVault contract + CLI + web surface (bonding curve and
+revenue/dividend pool):
+
+- `contracts/model-vault/` is a CosmWasm contract implementing the reserve-backed
+  bonding curve and the pro-rata revenue pool. Pricing math lives in `src/curve.rs`
+  (buy = send CLAW → mint model tokens against the reserve; sell = burn model tokens →
+  receive CLAW), and the per-token reward-index accrual lives in `src/rewards.rs`
+  (`Stake`/`Unstake`/`ClaimRewards`, with `DistributeRevenue` crediting the pool so
+  stakers earn pro-rata inference fees). `msg.rs` exposes execute `Buy`/`Sell`/`Fund`/
+  `Stake`/`Unstake`/`ClaimRewards`/`DistributeRevenue` and queries `Config`/`Pool`/
+  `PoolInfo`/`Quote`/`StakeInfo`.
+- `clawd model-vault` (`cmd/clawd/src/commands/model-vault.ts`) drives the contract from
+  the CLI: `fund`/`buy`/`sell` (curve), `stake`/`unstake`/`claim`/`distribute` (revenue
+  pool), and `quote`/`stake-info`/`pool-info`/`config`/`pool` (queries). Messages route
+  through the shared `clawd` custom registry as `MsgExecuteContract`; query keys are
+  decoded back to JSON and asserted to match the contract's snake_case `msg.rs` exactly.
+- The web AI Model Exchange page now has a `StakeEarnPanel`
+  (`web/src/components/StakeEarnPanel.tsx`, backed by `web/src/lib/model-vault.ts`) that
+  queries `pool-info`/`stake-info` and exposes stake/claim actions, completing the
+  user-facing dividend-pool loop on the web side.
+- Remaining P2 work is live on-chain acceptance against a real testnet (wasm packaging /
+  store-instantiate, then a buy-moves-price-on-the-curve + holder-claims-non-zero-revenue
+  run), and wagmi hooks so a React dApp can drive the vault (currently P4).
+
 Verification:
 
 ```bash
@@ -78,7 +102,17 @@ bash -n scripts/testnet/model-token-holder-redeem.sh
 bash -n scripts/testnet/model-token-real-models.sh
 go test -count=1 ./x/modelregistry/... ./x/tokenfactory/...
 go build -o build/clawchaind ./cmd/clawchaind/
+# P2 ModelVault (offline):
+cd contracts/model-vault && cargo test                 # 35 tests (15 unit curve/rewards + 20 integration)
+cd cmd/clawd && npx vitest run src/commands/__tests__/model-vault.test.ts   # 11 tests
+cd web && npx tsc --noEmit && npx vitest run src/components/__tests__/StakeEarnPanel.test.tsx src/lib/__tests__/model-vault.test.ts  # 17 tests
 ```
+
+P2 offline acceptance passed 2026-06-01: model-vault contract `cargo test` 35/35
+(bonding-curve pricing + reward-index accrual), `clawd model-vault` 11/11 (execute
+message + decoded snake_case query-key shapes), and the web Stake & Earn panel 17/17
+with `tsc --noEmit` clean. Live store-instantiate + on-chain curve/revenue acceptance is
+the remaining P2 step.
 
 Live P0 acceptance passed on a fresh 4-validator local testnet with deployed DEX
 contracts:
@@ -252,6 +286,9 @@ and/or the DEX, and an oracle index as a published "fundamental." This gives uti
   vault UX/accounting and a production supervisor/daemon wrapper.**
 - **P2 — ModelVault bonding curve (CosmWasm):** reserve-backed mint/burn pricing +
   revenue pool + pro-rata holder claims. Deterministic liquidity + dividends.
+  **Contract (`contracts/model-vault/`), `clawd model-vault` command group, and the web
+  Stake & Earn panel implemented and offline-verified (35 + 11 + 17 tests). Remaining:
+  live store-instantiate + on-chain curve/revenue acceptance.**
 - **P3 — Oracle model index:** publish per-model fundamentals; reference in the vault/UI.
 - **P4 — Harden:** provider attestation + dispute/slash for inference settlement; an
   `x/modeltoken` module if the CosmWasm vault outgrows contract limits; web dashboard
@@ -265,7 +302,9 @@ and/or the DEX, and an oracle index as a published "fundamental." This gives uti
 - **P1:** redeeming OPUS46 burns tokens and returns a real model completion (live, gated
   by `OPENROUTER_API_KEY`), with the inference job marked Complete on-chain.
 - **P2:** buy/sell against the vault reserve moves price on the curve; a holder claims a
-  non-zero revenue share after inference fees accrue.
+  non-zero revenue share after inference fees accrue. **Offline-proven in the contract
+  integration tests (`contracts/model-vault/tests/integration.rs`) + CLI/web suites
+  (2026-06-01); live on-chain acceptance pending wasm store-instantiate.**
 
 ## Risks & open questions (must address before mainnet)
 
