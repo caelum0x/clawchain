@@ -100,6 +100,16 @@ export type {
   TradeSide,
 } from "./model-vault.js";
 
+// ModelVault deployment on-ramp (store code -> instantiate -> fund)
+export { ModelVaultDeployer, createModelVaultDeployer } from "./model-vault-deploy.js";
+export type {
+  ModelVaultDeployerOptions,
+  ModelVaultDeployerBackend,
+  ModelVaultInstantiateOptions,
+  ModelVaultInstantiateResult,
+  ModelVaultStoreResult,
+} from "./model-vault-deploy.js";
+
 // Higher-level model-market aggregate (composes the ModelVault client + DEX)
 export { ModelMarket, createModelMarket } from "./model-market.js";
 export type {

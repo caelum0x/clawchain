@@ -81,6 +81,7 @@ import {
   runModelVaultWatch,
   runModelVaultArb,
   runModelVaultPortfolio,
+  runModelVaultDeploy,
 } from "./commands/model-vault.js";
 import {
   runModelIndexCompute,
@@ -2333,6 +2334,36 @@ modelVaultCmd
       address: opts.address,
       vaults: opts.vaults,
       vault: opts.vault,
+      json: opts.json,
+    });
+  });
+
+modelVaultCmd
+  .command("deploy")
+  .description("Store + instantiate (+ optionally fund) a ModelVault for a model token")
+  .requiredOption("--model-denom <denom>", "model-token denom the vault trades")
+  .option("--reserve-denom <denom>", "reserve denom (bonding-curve quote asset)", "uclaw")
+  .option("--owner <address>", "vault owner (defaults to the deploying signer)")
+  .option("--fee-bps <n>", "swap fee in basis points", "30")
+  .option("--wasm <path>", "optimized wasm artifact to store first (parses code_id)")
+  .option("--code-id <n>", "reuse an already-uploaded code id (skips the store step)")
+  .option("--label <s>", "instantiate label", "model-vault")
+  .option("--admin <address>", "contract admin (defaults to the deploying signer)")
+  .option("--seed-reserve <amount>", "reserve-denom amount to fund after instantiate")
+  .option("--seed-inventory <amount>", "model-denom amount to fund after instantiate")
+  .option("--json", "output JSON")
+  .action(async (opts) => {
+    await runModelVaultDeploy({
+      modelDenom: opts.modelDenom,
+      reserveDenom: opts.reserveDenom,
+      owner: opts.owner,
+      feeBps: opts.feeBps,
+      wasm: opts.wasm,
+      codeId: opts.codeId,
+      label: opts.label,
+      admin: opts.admin,
+      seedReserve: opts.seedReserve,
+      seedInventory: opts.seedInventory,
       json: opts.json,
     });
   });

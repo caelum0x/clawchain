@@ -12,6 +12,7 @@
  * the JSON payloads below MUST stay snake_case to match the Rust contract.
  */
 
+import { readFileSync } from "node:fs";
 import { toUtf8 } from "@cosmjs/encoding";
 import { DirectSecp256k1HdWallet } from "@cosmjs/proto-signing";
 import { GasPrice } from "@cosmjs/stargate";
@@ -21,8 +22,14 @@ import { loadMnemonic, mnemonicFileExists } from "../lib/mnemonic.js";
 import { connectClawchainSigningClient } from "../lib/signing.js";
 
 type Coin = { denom: string; amount: string };
+type TxEvent = {
+  type: string;
+  attributes?: readonly { key: string; value: string | Uint8Array }[];
+};
 
 const EXECUTE_TYPE_URL = "/cosmwasm.wasm.v1.MsgExecuteContract";
+const STORE_CODE_TYPE_URL = "/cosmwasm.wasm.v1.MsgStoreCode";
+const INSTANTIATE_TYPE_URL = "/cosmwasm.wasm.v1.MsgInstantiateContract";
 
 // ---------------------------------------------------------------------------
 // Option types
@@ -113,6 +120,24 @@ export type ModelVaultPortfolioOptions = {
   json?: boolean;
 };
 
+export type ModelVaultDeployOptions = {
+  modelDenom: string;
+  reserveDenom?: string;
+  owner?: string;
+  feeBps?: string;
+  /** Optimized wasm artifact to store first (parses code_id from store tx). */
+  wasm?: string;
+  /** Pre-uploaded code id; skips the store step when provided. */
+  codeId?: string;
+  label?: string;
+  admin?: string;
+  /** Reserve-denom amount to fund after instantiate (optional). */
+  seedReserve?: string;
+  /** Model-denom amount to fund after instantiate (optional). */
+  seedInventory?: string;
+  json?: boolean;
+};
+
 // ---------------------------------------------------------------------------
 // Validation helpers
 // ---------------------------------------------------------------------------
@@ -150,6 +175,42 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/** fee_bps must be an integer in [0, 10000] (0%..100%). */
+function requireFeeBps(label: string, value: string | undefined): number {
+  if (value === undefined || !/^[0-9]+$/.test(value)) {
+    throw new Error(`${label} must be a non-negative integer.`);
+  }
+  const bps = Number(value);
+  if (bps > 10_000) {
+    throw new Error(`${label} must be between 0 and 10000 basis points.`);
+  }
+  return bps;
+}
+
+function attrValue(value: string | Uint8Array): string {
+  return typeof value === "string" ? value : new TextDecoder().decode(value);
+}
+
+/**
+ * Parse the last matching attribute from a tx's events. Mirrors the jq
+ * `[.events[]|select(.type==T)|.attributes[]|select(.key==K)|.value]|last`
+ * used by model-vault-demo.sh, and findEventAttribute in model-token.ts.
+ */
+export function findEventAttribute(
+  events: readonly TxEvent[] | undefined,
+  type: string,
+  key: string,
+): string | undefined {
+  let found: string | undefined;
+  for (const event of events ?? []) {
+    if (event.type !== type) continue;
+    for (const attr of event.attributes ?? []) {
+      if (attr.key === key) found = attrValue(attr.value);
+    }
+  }
+  return found;
+}
+
 // ---------------------------------------------------------------------------
 // Message builders (pure, unit-testable)
 // ---------------------------------------------------------------------------
@@ -173,6 +234,57 @@ export function buildExecuteMsg(
 
 export function buildFundMsg(sender: string, contract: string, funds: Coin[]) {
   return buildExecuteMsg(sender, contract, { fund: {} }, funds);
+}
+
+export function buildStoreCodeMsg(sender: string, wasmByteCode: Uint8Array) {
+  return {
+    typeUrl: STORE_CODE_TYPE_URL,
+    value: { sender, wasmByteCode },
+  };
+}
+
+/**
+ * MsgInstantiateContract for the ModelVault. `initMsg` is the ModelVault
+ * InstantiateMsg ({ model_denom, reserve_denom?, owner?, fee_bps?, ... }),
+ * serialized to UTF-8 bytes like every other wasm payload here.
+ */
+export function buildInstantiateMsg(
+  sender: string,
+  codeId: string,
+  initMsg: Record<string, unknown>,
+  label: string,
+  admin: string,
+  funds: Coin[] = [],
+) {
+  return {
+    typeUrl: INSTANTIATE_TYPE_URL,
+    value: {
+      sender,
+      admin,
+      codeId: BigInt(codeId),
+      label,
+      msg: toUtf8(JSON.stringify(initMsg)),
+      funds,
+    },
+  };
+}
+
+/**
+ * Build the ModelVault InstantiateMsg payload. Only required field is
+ * model_denom; reserve_denom/owner/fee_bps are included when provided so the
+ * contract falls back to its own defaults otherwise.
+ */
+export function buildVaultInstantiateMsg(opts: {
+  modelDenom: string;
+  reserveDenom?: string;
+  owner?: string;
+  feeBps?: number;
+}): Record<string, unknown> {
+  const msg: Record<string, unknown> = { model_denom: opts.modelDenom };
+  if (opts.reserveDenom) msg.reserve_denom = opts.reserveDenom;
+  if (opts.owner) msg.owner = opts.owner;
+  if (opts.feeBps !== undefined) msg.fee_bps = opts.feeBps;
+  return msg;
 }
 
 export function buildBuyMsg(sender: string, contract: string, funds: Coin[]) {
@@ -650,6 +762,163 @@ export async function runModelVaultPortfolio(opts: ModelVaultPortfolioOptions): 
   } catch (err) {
     console.error(`model-vault portfolio failed: ${String(err)}`);
     process.exit(1);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// deploy: store the optimized wasm (optional) -> instantiate the vault ->
+// optionally fund it. Parses code_id from the store_code event and the vault
+// address from the instantiate event, exactly like model-vault-demo.sh.
+// ---------------------------------------------------------------------------
+
+function loadWasmBytes(path: string): Uint8Array {
+  try {
+    return new Uint8Array(readFileSync(path));
+  } catch (err) {
+    throw new Error(`Failed to read wasm artifact "${path}": ${String(err)}`);
+  }
+}
+
+/**
+ * `clawd model-vault deploy` — store + instantiate (+ optionally fund) a
+ * ModelVault for a model token. Flow:
+ *   [--wasm -> store -> code_id]  (or reuse --code-id)
+ *   -> instantiate (parse _contract_address)
+ *   -> [--seed-reserve/--seed-inventory -> fund{}]
+ * Every tx goes through ensureSigner + the shared clawchain registry, and each
+ * tx hash plus the final vault address is reported.
+ */
+export async function runModelVaultDeploy(opts: ModelVaultDeployOptions): Promise<void> {
+  const modelDenom = requireNonEmpty("--model-denom", opts.modelDenom);
+  const reserveDenom = (opts.reserveDenom?.trim() || "uclaw");
+  const feeBps = requireFeeBps("--fee-bps", opts.feeBps ?? "30");
+  const label = opts.label?.trim() || "model-vault";
+  const owner = opts.owner?.trim() || undefined;
+
+  if (!opts.wasm && !opts.codeId) {
+    throw new Error("Provide --wasm <path> to store, or --code-id <n> to reuse an uploaded code.");
+  }
+  if (opts.codeId !== undefined && !/^[0-9]+$/.test(opts.codeId)) {
+    throw new Error("--code-id must be a non-negative integer.");
+  }
+
+  // Validate optional seed amounts up front so we fail before broadcasting.
+  const seedReserve = opts.seedReserve?.trim()
+    ? requirePositiveAmount("--seed-reserve", opts.seedReserve)
+    : undefined;
+  const seedInventory = opts.seedInventory?.trim()
+    ? requirePositiveAmount("--seed-inventory", opts.seedInventory)
+    : undefined;
+
+  const { account, signingClient } = await ensureSigner();
+  try {
+    const admin = opts.admin?.trim() || account.address;
+    const report: Record<string, unknown> = {
+      action: "ModelVaultDeploy",
+      deployer: account.address,
+      model_denom: modelDenom,
+      reserve_denom: reserveDenom,
+      fee_bps: feeBps,
+      label,
+      admin,
+      owner: owner ?? account.address,
+    };
+
+    if (!opts.json) {
+      console.log("Deploying ModelVault...");
+      console.log(`  Deployer:    ${shortAddr(account.address)}`);
+      console.log(`  Model Denom: ${modelDenom}`);
+      console.log(`  Reserve:     ${reserveDenom}`);
+      console.log(`  Fee:         ${feeBps} bps`);
+      console.log();
+    }
+
+    // --- 1. Store the wasm (optional; skipped when --code-id is supplied). ---
+    let codeId = opts.codeId;
+    if (opts.wasm) {
+      const wasmBytes = loadWasmBytes(opts.wasm);
+      const storeMsg = buildStoreCodeMsg(account.address, wasmBytes);
+      const storeRes = await signingClient.signAndBroadcast(account.address, [storeMsg], "auto");
+      if (storeRes.code !== 0) {
+        throw new Error(`store tx failed (code=${storeRes.code}): ${storeRes.rawLog}`);
+      }
+      const parsedCodeId = findEventAttribute(storeRes.events, "store_code", "code_id");
+      if (!parsedCodeId) {
+        throw new Error("Could not parse code_id from the store_code event.");
+      }
+      codeId = parsedCodeId;
+      report.store_tx_hash = storeRes.transactionHash;
+      report.code_id = codeId;
+
+      if (!opts.json) {
+        console.log("Wasm stored.");
+        console.log(`  TxHash:  ${storeRes.transactionHash}`);
+        console.log(`  CodeID:  ${codeId}`);
+        console.log();
+      }
+    } else {
+      report.code_id = codeId;
+    }
+
+    if (!codeId) {
+      throw new Error("No code_id available to instantiate (store failed?).");
+    }
+
+    // --- 2. Instantiate the vault (parse _contract_address). ---
+    const initMsg = buildVaultInstantiateMsg({ modelDenom, reserveDenom, owner, feeBps });
+    const instantiateMsg = buildInstantiateMsg(account.address, codeId, initMsg, label, admin);
+    const instRes = await signingClient.signAndBroadcast(account.address, [instantiateMsg], "auto");
+    if (instRes.code !== 0) {
+      throw new Error(`instantiate tx failed (code=${instRes.code}): ${instRes.rawLog}`);
+    }
+    const vault = findEventAttribute(instRes.events, "instantiate", "_contract_address");
+    if (!vault) {
+      throw new Error("Could not parse _contract_address from the instantiate event.");
+    }
+    report.instantiate_tx_hash = instRes.transactionHash;
+    report.vault = vault;
+
+    if (!opts.json) {
+      console.log("Vault instantiated.");
+      console.log(`  TxHash:  ${instRes.transactionHash}`);
+      console.log(`  Vault:   ${vault}`);
+      console.log();
+    }
+
+    // --- 3. Optionally fund the vault with reserve and/or model tokens. ---
+    if (seedReserve || seedInventory) {
+      const funds: Coin[] = [];
+      if (seedReserve) funds.push({ denom: reserveDenom, amount: seedReserve });
+      if (seedInventory) funds.push({ denom: modelDenom, amount: seedInventory });
+      // CosmWasm requires funds sorted by denom.
+      funds.sort((a, b) => a.denom.localeCompare(b.denom));
+
+      const fundMsg = buildFundMsg(account.address, vault, funds);
+      const fundRes = await signingClient.signAndBroadcast(account.address, [fundMsg], "auto");
+      if (fundRes.code !== 0) {
+        throw new Error(`fund tx failed (code=${fundRes.code}): ${fundRes.rawLog}`);
+      }
+      report.fund_tx_hash = fundRes.transactionHash;
+      report.funds = funds;
+
+      if (!opts.json) {
+        console.log("Vault funded.");
+        for (const f of funds) console.log(`  ${f.amount} ${f.denom}`);
+        console.log(`  TxHash:  ${fundRes.transactionHash}`);
+        console.log();
+      }
+    }
+
+    if (opts.json) {
+      process.stdout.write(JSON.stringify(report, null, 2) + "\n");
+    } else {
+      console.log(`ModelVault deployed at ${vault}`);
+    }
+  } catch (err) {
+    console.error(`model-vault deploy failed: ${String(err)}`);
+    process.exit(1);
+  } finally {
+    signingClient.disconnect();
   }
 }
 

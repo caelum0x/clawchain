@@ -9,7 +9,11 @@
 
 import { GeneratedType, Registry } from "@cosmjs/proto-signing";
 import { defaultRegistryTypes } from "@cosmjs/stargate";
-import { MsgExecuteContract } from "cosmjs-types/cosmwasm/wasm/v1/tx.js";
+import {
+  MsgExecuteContract,
+  MsgInstantiateContract,
+  MsgStoreCode,
+} from "cosmjs-types/cosmwasm/wasm/v1/tx.js";
 
 import * as privacyTx from "../generated/proto/clawchain/privacy/v1/tx.js";
 import * as agentTx from "../generated/proto/clawchain/agent/v1/tx.js";
@@ -107,9 +111,15 @@ export const clawchainCoreTypes: ReadonlyArray<[string, GeneratedType]> =
 export const tokenfactoryTypes: ReadonlyArray<[string, GeneratedType]> =
   moduleTypes("osmosis.tokenfactory.v1beta1", tokenfactoryTx);
 
-/** CosmWasm execute message codec used by DEX pair/liquidity flows. */
+/**
+ * CosmWasm message codecs. MsgExecuteContract drives DEX pair/liquidity flows;
+ * MsgStoreCode + MsgInstantiateContract let clawd upload and instantiate
+ * contracts (e.g. `clawd model-vault deploy`).
+ */
 export const cosmwasmTypes: ReadonlyArray<[string, GeneratedType]> = [
   ["/cosmwasm.wasm.v1.MsgExecuteContract", asGeneratedType(MsgExecuteContract)],
+  ["/cosmwasm.wasm.v1.MsgStoreCode", asGeneratedType(MsgStoreCode)],
+  ["/cosmwasm.wasm.v1.MsgInstantiateContract", asGeneratedType(MsgInstantiateContract)],
 ];
 
 /**
