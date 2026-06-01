@@ -102,6 +102,26 @@ export type ModelVaultWatchOptions = {
   json?: boolean;
 };
 
+export type ModelVaultHistoryOptions = {
+  contract: string;
+  intervalMs?: string;
+  /** Total number of samples to collect before printing the series. */
+  samples?: string;
+  json?: boolean;
+  csv?: boolean;
+};
+
+export type ModelVaultAlertOptions = {
+  contract: string;
+  intervalMs?: string;
+  /** Spot-price threshold to compare against each cycle. */
+  threshold: string;
+  /** "above" -> trigger when price >= threshold; "below" -> price <= threshold. */
+  direction?: string;
+  maxCycles?: string;
+  json?: boolean;
+};
+
 export type ModelVaultArbOptions = {
   contract: string;
   dexPair: string;
@@ -1008,6 +1028,223 @@ export async function runModelVaultWatch(opts: ModelVaultWatchOptions): Promise<
 
     if (maxCycles > 0 && cycle >= maxCycles) break;
     if (intervalMs > 0) await sleep(intervalMs);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// history: sample the curve spot price over time to build a price series
+// (the chain stores no price history — a "series" is just sampled spot prices).
+// ---------------------------------------------------------------------------
+
+function requirePositiveCount(label: string, value: string | undefined): number {
+  if (value === undefined || !/^[0-9]+$/.test(value) || Number(value) <= 0) {
+    throw new Error(`${label} must be a positive integer.`);
+  }
+  return Number(value);
+}
+
+function requirePositivePrice(label: string, value: string | undefined): number {
+  const n = Number(value);
+  if (value === undefined || value.trim() === "" || !Number.isFinite(n) || n <= 0) {
+    throw new Error(`${label} must be a positive number.`);
+  }
+  return n;
+}
+
+function normalizeDirection(direction: string | undefined): "above" | "below" {
+  const normalized = (direction ?? "above").trim().toLowerCase();
+  if (normalized !== "above" && normalized !== "below") {
+    throw new Error('--direction must be "above" or "below".');
+  }
+  return normalized;
+}
+
+type HistorySample = {
+  timestamp: string;
+  spotPrice: number;
+  reserve: string;
+  inventory: string;
+};
+
+function summarizeSeries(samples: readonly HistorySample[]): {
+  first: number;
+  last: number;
+  min: number;
+  max: number;
+  changePct: number;
+} {
+  const prices = samples.map((s) => s.spotPrice);
+  const first = prices[0] ?? 0;
+  const last = prices[prices.length - 1] ?? 0;
+  const min = prices.length > 0 ? Math.min(...prices) : 0;
+  const max = prices.length > 0 ? Math.max(...prices) : 0;
+  const changePct = first > 0 ? round6(((last - first) / first) * 100) : 0;
+  return { first, last, min, max, changePct };
+}
+
+function toCsv(samples: readonly HistorySample[]): string {
+  const header = "timestamp,spotPrice,reserve,inventory";
+  const rows = samples.map(
+    (s) => `${s.timestamp},${s.spotPrice},${s.reserve},${s.inventory}`,
+  );
+  return [header, ...rows].join("\n");
+}
+
+/**
+ * `clawd model-vault history` — poll the bonding curve --samples times and
+ * record {timestamp, spotPrice, reserve, inventory} per sample. At the end it
+ * prints the full series plus summary stats (first/last/min/max/changePct).
+ * Reuses snapshotCurve's spot-price math; --csv emits CSV, --json emits JSON.
+ */
+export async function runModelVaultHistory(opts: ModelVaultHistoryOptions): Promise<void> {
+  const contract = requireNonEmpty("--contract", opts.contract);
+  const intervalMs = requireNonNegativeInteger("--interval-ms", opts.intervalMs ?? "5000");
+  const samples = requirePositiveCount("--samples", opts.samples ?? "12");
+
+  if (!opts.json && !opts.csv) {
+    console.log("Sampling ModelVault bonding-curve spot price...");
+    console.log(`  Contract: ${shortAddr(contract)}`);
+    console.log(`  Interval: ${intervalMs}ms`);
+    console.log(`  Samples:  ${samples}`);
+    console.log();
+  }
+
+  const series: HistorySample[] = [];
+  for (let i = 0; i < samples; i += 1) {
+    try {
+      const snap = await snapshotCurve(contract);
+      const sample: HistorySample = {
+        timestamp: new Date().toISOString(),
+        spotPrice: snap.spotPrice,
+        reserve: snap.reserve,
+        inventory: snap.inventory,
+      };
+      series.push(sample);
+      if (!opts.json && !opts.csv) {
+        console.log(
+          `  [${i + 1}/${samples}] ${sample.timestamp}  price=${sample.spotPrice}  reserve=${sample.reserve}  inventory=${sample.inventory}`,
+        );
+      }
+    } catch (err) {
+      // A single failed sample should not abort the whole series.
+      console.error(`model-vault history sample ${i + 1} failed: ${String(err)}`);
+    }
+    if (i < samples - 1 && intervalMs > 0) await sleep(intervalMs);
+  }
+
+  if (series.length === 0) {
+    console.error("model-vault history collected no samples.");
+    process.exit(1);
+  }
+
+  const summary = summarizeSeries(series);
+
+  if (opts.csv) {
+    process.stdout.write(toCsv(series) + "\n");
+    return;
+  }
+
+  if (opts.json) {
+    process.stdout.write(
+      JSON.stringify({ contract, intervalMs, samples: series, summary }, null, 2) + "\n",
+    );
+    return;
+  }
+
+  console.log("\nSummary:");
+  console.log(`  First:      ${summary.first}`);
+  console.log(`  Last:       ${summary.last}`);
+  console.log(`  Min:        ${summary.min}`);
+  console.log(`  Max:        ${summary.max}`);
+  console.log(`  Change:     ${summary.changePct}%`);
+  console.log();
+}
+
+// ---------------------------------------------------------------------------
+// alert: poll the curve spot price and fire when it crosses a threshold in the
+// chosen direction. Supervised-loop style, matching runModelVaultWatch.
+// ---------------------------------------------------------------------------
+
+/**
+ * `clawd model-vault alert` — poll the bonding-curve spot price each cycle and
+ * print/exit when it crosses --threshold in --direction (above|below). Logs
+ * each non-triggering cycle. --max-cycles 0 (default) runs until triggered or
+ * interrupted; a positive value exits unsatisfied after that many cycles.
+ */
+export async function runModelVaultAlert(opts: ModelVaultAlertOptions): Promise<void> {
+  const contract = requireNonEmpty("--contract", opts.contract);
+  const intervalMs = requireNonNegativeInteger("--interval-ms", opts.intervalMs ?? "5000");
+  const threshold = requirePositivePrice("--threshold", opts.threshold);
+  const direction = normalizeDirection(opts.direction);
+  const maxCycles = requireNonNegativeInteger("--max-cycles", opts.maxCycles ?? "0");
+  let cycle = 0;
+
+  if (!opts.json) {
+    console.log("Watching ModelVault spot price for threshold crossing...");
+    console.log(`  Contract:  ${shortAddr(contract)}`);
+    console.log(`  Threshold: ${threshold} (${direction})`);
+    console.log(`  Interval:  ${intervalMs}ms`);
+    console.log(`  Cycles:    ${maxCycles === 0 ? "until triggered" : String(maxCycles)}`);
+    console.log();
+  }
+
+  while (maxCycles === 0 || cycle < maxCycles) {
+    cycle += 1;
+    try {
+      const snap = await snapshotCurve(contract);
+      const price = snap.spotPrice;
+      const triggered =
+        direction === "above" ? price >= threshold : price <= threshold;
+
+      if (triggered) {
+        const report = {
+          action: "ModelVaultAlert",
+          contract,
+          cycle,
+          threshold,
+          direction,
+          spotPrice: price,
+          reserve: snap.reserve,
+          inventory: snap.inventory,
+          triggered: true,
+        };
+        if (opts.json) {
+          process.stdout.write(JSON.stringify(report, null, 2) + "\n");
+        } else {
+          console.log(`ALERT: spot price ${price} is ${direction} threshold ${threshold}.`);
+          console.log(`  Cycle:     ${cycle}`);
+          console.log(`  Reserve:   ${snap.reserve}`);
+          console.log(`  Inventory: ${snap.inventory}`);
+          console.log();
+        }
+        return;
+      }
+
+      if (opts.json) {
+        process.stdout.write(
+          JSON.stringify({ cycle, contract, threshold, direction, spotPrice: price, triggered: false }) + "\n",
+        );
+      } else {
+        console.log(
+          `Cycle ${cycle}${maxCycles > 0 ? `/${maxCycles}` : ""}: price=${price} (threshold ${threshold} ${direction}) — no trigger`,
+        );
+      }
+    } catch (err) {
+      // A single failed cycle should not kill a long-running alert watch.
+      console.error(`model-vault alert cycle ${cycle} failed: ${String(err)}`);
+    }
+
+    if (maxCycles > 0 && cycle >= maxCycles) break;
+    if (intervalMs > 0) await sleep(intervalMs);
+  }
+
+  // Exhausted maxCycles without crossing the threshold.
+  if (opts.json) {
+    process.stdout.write(
+      JSON.stringify({ action: "ModelVaultAlert", contract, threshold, direction, cycles: cycle, triggered: false }) + "\n",
+    );
+  } else {
+    console.log(`No crossing after ${cycle} cycle(s): price never went ${direction} ${threshold}.`);
   }
 }
 

@@ -20,6 +20,7 @@ import {
   type VaultPoolReserves,
 } from "../lib/model-index.ts";
 import QuoteCalculator from "../components/VaultQuoteCalculator.tsx";
+import SessionPriceHistory from "../components/SessionPriceHistory.tsx";
 
 const RESERVE_LABEL = chainConfig.coinDenom; // e.g. "CLAW"
 
@@ -235,6 +236,9 @@ export default function VaultInspector() {
               </div>
             </div>
           </div>
+
+          {/* Session price history (client-sampled curve spot price) */}
+          <SessionPriceHistory vaultAddress={vault} />
 
           {/* Quote calculator */}
           <QuoteCalculator

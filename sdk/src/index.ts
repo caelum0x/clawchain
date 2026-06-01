@@ -138,6 +138,18 @@ export type {
   ModelPortfolioOptions,
 } from "./model-portfolio.js";
 
+// Pure market-analytics helpers (fold sampled curve spot prices into stats)
+export {
+  summarizeSeries,
+  addSample,
+  crossedThreshold,
+} from "./model-analytics.js";
+export type {
+  MarketSample,
+  MarketSeriesStats,
+  CrossDirection,
+} from "./model-analytics.js";
+
 // wagmi-style ModelVault actions (route through the wagmi adapter)
 export {
   readModelVaultConfig,

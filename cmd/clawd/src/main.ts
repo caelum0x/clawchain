@@ -80,6 +80,8 @@ import {
   runModelVaultStakeInfo,
   runModelVaultUnstake,
   runModelVaultWatch,
+  runModelVaultHistory,
+  runModelVaultAlert,
   runModelVaultArb,
   runModelVaultPortfolio,
   runModelVaultDeploy,
@@ -2364,6 +2366,44 @@ modelVaultCmd
   .action(async (opts) => {
     await runModelVaultWatch({
       contract: opts.contract,
+      intervalMs: opts.intervalMs,
+      maxCycles: opts.maxCycles,
+      json: opts.json,
+    });
+  });
+
+modelVaultCmd
+  .command("history")
+  .description("Sample the curve spot price over time, then print the series + summary stats (first/last/min/max/changePct)")
+  .requiredOption("--contract <address>", "ModelVault contract address")
+  .option("--interval-ms <ms>", "polling interval in milliseconds", "5000")
+  .option("--samples <n>", "total number of samples to collect", "12")
+  .option("--json", "output JSON")
+  .option("--csv", "output CSV (timestamp,spotPrice,reserve,inventory)")
+  .action(async (opts) => {
+    await runModelVaultHistory({
+      contract: opts.contract,
+      intervalMs: opts.intervalMs,
+      samples: opts.samples,
+      json: opts.json,
+      csv: opts.csv,
+    });
+  });
+
+modelVaultCmd
+  .command("alert")
+  .description("Poll the curve spot price and fire when it crosses a threshold in the chosen direction")
+  .requiredOption("--contract <address>", "ModelVault contract address")
+  .requiredOption("--threshold <price>", "spot-price threshold to compare against")
+  .option("--direction <above|below>", "trigger when price is above or below the threshold", "above")
+  .option("--interval-ms <ms>", "polling interval in milliseconds", "5000")
+  .option("--max-cycles <n>", "stop after N cycles (0 = until triggered/interrupted)", "0")
+  .option("--json", "output JSON")
+  .action(async (opts) => {
+    await runModelVaultAlert({
+      contract: opts.contract,
+      threshold: opts.threshold,
+      direction: opts.direction,
       intervalMs: opts.intervalMs,
       maxCycles: opts.maxCycles,
       json: opts.json,
