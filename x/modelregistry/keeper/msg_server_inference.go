@@ -563,6 +563,83 @@ func (k Keeper) DisputeInferenceJob(ctx context.Context, jobID uint64, creator s
 	return nil
 }
 
+// ResolveInferenceDispute lets the model owner resolve a disputed job. The
+// owner either upholds the dispute (uphold=true; the provider's dispute slash
+// stands) or rejects it (uphold=false; the slashed reputation is restored). Only
+// the owner of the job's model may resolve, the job must currently be disputed,
+// and it must not already be resolved. This is status + reputation only — no
+// funds or escrow are touched.
+func (k Keeper) ResolveInferenceDispute(ctx context.Context, jobID uint64, creator string, uphold bool) error {
+	raw, err := k.InferenceJobs.Get(ctx, jobID)
+	if err != nil {
+		return types.ErrInferenceJobNotFound.Wrapf("job %d", jobID)
+	}
+	var job types.InferenceJob
+	if err := json.Unmarshal([]byte(raw), &job); err != nil {
+		return fmt.Errorf("failed to unmarshal inference job: %w", err)
+	}
+
+	if !job.Disputed {
+		return types.ErrJobNotDisputed.Wrapf("job %d", jobID)
+	}
+	if job.Resolved {
+		return types.ErrDisputeAlreadyResolved.Wrapf("job %d", jobID)
+	}
+
+	// Only the owner of the job's model may resolve the dispute.
+	modelRaw, err := k.Models.Get(ctx, job.ModelId)
+	if err != nil {
+		return types.ErrModelNotFound.Wrapf("model %d", job.ModelId)
+	}
+	var model types.ModelRecord
+	if err := json.Unmarshal([]byte(modelRaw), &model); err != nil {
+		return fmt.Errorf("failed to unmarshal model: %w", err)
+	}
+	if model.Owner != creator {
+		return types.ErrNotModelOwner
+	}
+
+	now := sdk.UnwrapSDKContext(ctx).BlockTime().Unix()
+	job.Resolved = true
+	job.ResolutionUpheld = uphold
+	job.ResolvedAt = now
+
+	bz, err := json.Marshal(job)
+	if err != nil {
+		return fmt.Errorf("failed to marshal inference job: %w", err)
+	}
+	if err := k.InferenceJobs.Set(ctx, jobID, string(bz)); err != nil {
+		return err
+	}
+
+	// If the dispute is rejected (uphold=false), restore the reputation the
+	// dispute slashed — symmetric to the slash applied in DisputeInferenceJob.
+	// If the dispute is upheld, the slash stands and nothing is restored. The
+	// restore is best-effort by the same reasoning as the slash: the resolution
+	// has already been persisted above and a reputation-keeper error must not
+	// roll it back. The keeper reference is nil-safe for unit tests that
+	// construct the keeper without a reputation keeper.
+	if !uphold && k.reputationKeeper != nil {
+		if err := k.reputationKeeper.RestoreReputation(ctx, job.Provider, types.DisputeReputationPenalty); err != nil {
+			// Intentionally ignored: reputation restore is best-effort and the
+			// resolution has already succeeded. RestoreReputation caps at the max
+			// and treats a missing address as a no-op, so an error here is rare
+			// (an underlying store failure) and should not fail the resolution.
+			_ = err
+		}
+	}
+
+	sdkCtx := sdk.UnwrapSDKContext(ctx)
+	sdkCtx.EventManager().EmitEvent(sdk.NewEvent(
+		"resolve_inference_dispute",
+		sdk.NewAttribute("job_id", fmt.Sprintf("%d", jobID)),
+		sdk.NewAttribute("resolver", creator),
+		sdk.NewAttribute("upheld", fmt.Sprintf("%t", uphold)),
+	))
+
+	return nil
+}
+
 // ExpireInferenceJobs refunds timed-out jobs. Called in EndBlock.
 func (k Keeper) ExpireInferenceJobs(ctx context.Context) error {
 	sdkCtx := sdk.UnwrapSDKContext(ctx)

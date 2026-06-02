@@ -190,3 +190,10 @@ func (m msgServer) DisputeInferenceJob(ctx context.Context, msg *types.MsgDisput
 	}
 	return &types.MsgDisputeInferenceJobResponse{}, nil
 }
+
+func (m msgServer) ResolveInferenceDispute(ctx context.Context, msg *types.MsgResolveInferenceDispute) (*types.MsgResolveInferenceDisputeResponse, error) {
+	if err := m.keeper.ResolveInferenceDispute(ctx, msg.JobId, msg.Creator, msg.Uphold); err != nil {
+		return nil, err
+	}
+	return &types.MsgResolveInferenceDisputeResponse{}, nil
+}

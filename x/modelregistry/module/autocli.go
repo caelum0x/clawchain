@@ -111,6 +111,12 @@ func (am AppModule) AutoCLIOptions() *autocliv1.ModuleOptions {
 					Short:          "Dispute a completed inference job as the original requester",
 					PositionalArgs: []*autocliv1.PositionalArgDescriptor{{ProtoField: "job_id"}, {ProtoField: "reason"}},
 				},
+				{
+					RpcMethod:      "ResolveInferenceDispute",
+					Use:            "resolve-inference-dispute [job-id] [uphold]",
+					Short:          "Resolve a disputed inference job as the model owner (uphold or reject)",
+					PositionalArgs: []*autocliv1.PositionalArgDescriptor{{ProtoField: "job_id"}, {ProtoField: "uphold"}},
+				},
 			},
 		},
 	}

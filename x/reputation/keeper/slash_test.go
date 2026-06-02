@@ -72,3 +72,54 @@ func TestSlashReputationUnknownAddressIsNoOp(t *testing.T) {
 	require.False(t, found)
 	require.Equal(t, uint64(0), score)
 }
+
+// TestRestoreReputationAddsScore verifies a restore increments the stored score.
+func TestRestoreReputationAddsScore(t *testing.T) {
+	f := initFixture(t)
+	addr := slashTestAddr()
+
+	require.NoError(t, f.keeper.Reputations.Set(f.ctx, addr, types.ReputationRecord{
+		AgentAddress:   addr,
+		UptimeScoreBps: 9998,
+	}))
+
+	require.NoError(t, f.keeper.RestoreReputation(f.ctx, addr, 1))
+
+	score, found, err := f.keeper.GetReputation(f.ctx, addr)
+	require.NoError(t, err)
+	require.True(t, found)
+	require.Equal(t, uint64(9999), score)
+}
+
+// TestRestoreReputationCapsAtMax verifies a restore saturates at the ceiling
+// rather than exceeding the maximum uptime score.
+func TestRestoreReputationCapsAtMax(t *testing.T) {
+	f := initFixture(t)
+	addr := slashTestAddr()
+
+	require.NoError(t, f.keeper.Reputations.Set(f.ctx, addr, types.ReputationRecord{
+		AgentAddress:   addr,
+		UptimeScoreBps: 9999,
+	}))
+
+	require.NoError(t, f.keeper.RestoreReputation(f.ctx, addr, 100))
+
+	score, found, err := f.keeper.GetReputation(f.ctx, addr)
+	require.NoError(t, err)
+	require.True(t, found)
+	require.Equal(t, uint64(10000), score)
+}
+
+// TestRestoreReputationUnknownAddressIsNoOp verifies restoring an address with
+// no stored reputation does not error and does not create a record.
+func TestRestoreReputationUnknownAddressIsNoOp(t *testing.T) {
+	f := initFixture(t)
+	addr := slashTestAddr()
+
+	require.NoError(t, f.keeper.RestoreReputation(f.ctx, addr, 50))
+
+	score, found, err := f.keeper.GetReputation(f.ctx, addr)
+	require.NoError(t, err)
+	require.False(t, found)
+	require.Equal(t, uint64(0), score)
+}

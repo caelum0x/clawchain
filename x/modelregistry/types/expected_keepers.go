@@ -19,4 +19,5 @@ type BankKeeper interface {
 // depend on modelregistry).
 type ReputationKeeper interface {
 	SlashReputation(ctx context.Context, agentAddress string, points uint64) error
+	RestoreReputation(ctx context.Context, agentAddress string, points uint64) error
 }

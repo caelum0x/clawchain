@@ -57,6 +57,9 @@ service Msg {
 
   // DisputeInferenceJob lets the original requester dispute a completed job.
   rpc DisputeInferenceJob(MsgDisputeInferenceJob) returns (MsgDisputeInferenceJobResponse);
+
+  // ResolveInferenceDispute lets the model owner resolve a disputed job.
+  rpc ResolveInferenceDispute(MsgResolveInferenceDispute) returns (MsgResolveInferenceDisputeResponse);
 }
 
 message MsgRegisterModel {
@@ -238,3 +241,12 @@ message MsgDisputeInferenceJob {
 }
 
 message MsgDisputeInferenceJobResponse {}
+
+message MsgResolveInferenceDispute {
+  option (cosmos.msg.v1.signer) = "creator";
+  string creator = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  uint64 job_id = 2;
+  bool uphold = 3;
+}
+
+message MsgResolveInferenceDisputeResponse {}

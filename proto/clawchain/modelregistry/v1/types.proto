@@ -74,6 +74,10 @@ message InferenceJob {
   bool disputed = 21;
   string dispute_reason = 22;
   int64 disputed_at = 23;
+  // P4 dispute resolution (set by MsgResolveInferenceDispute by the model owner).
+  bool resolved = 24;
+  bool resolution_upheld = 25;
+  int64 resolved_at = 26;
 }
 
 // InferenceProvider represents a registered inference provider.

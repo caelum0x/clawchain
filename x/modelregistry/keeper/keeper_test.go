@@ -79,18 +79,28 @@ func (m *mockBankKeeper) SendCoinsFromModuleToAccount(_ context.Context, senderM
 	return nil
 }
 
-// mockReputationKeeper records SlashReputation calls so dispute tests can
-// assert the provider was slashed. It implements types.ReputationKeeper.
+// mockReputationKeeper records SlashReputation and RestoreReputation calls so
+// dispute/resolve tests can assert the provider was slashed and later restored.
+// It implements types.ReputationKeeper.
 type mockReputationKeeper struct {
-	slashed map[string]uint64
+	slashed  map[string]uint64
+	restored map[string]uint64
 }
 
 func newMockReputationKeeper() *mockReputationKeeper {
-	return &mockReputationKeeper{slashed: make(map[string]uint64)}
+	return &mockReputationKeeper{
+		slashed:  make(map[string]uint64),
+		restored: make(map[string]uint64),
+	}
 }
 
 func (m *mockReputationKeeper) SlashReputation(_ context.Context, agentAddress string, points uint64) error {
 	m.slashed[agentAddress] += points
+	return nil
+}
+
+func (m *mockReputationKeeper) RestoreReputation(_ context.Context, agentAddress string, points uint64) error {
+	m.restored[agentAddress] += points
 	return nil
 }
 

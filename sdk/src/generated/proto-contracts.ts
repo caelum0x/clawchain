@@ -56,6 +56,7 @@ export const PROTO_MSG_TYPE_URLS = {
   "clawchain.modelregistry.v1.MsgRegisterInferenceProvider": "/clawchain.modelregistry.v1.MsgRegisterInferenceProvider",
   "clawchain.modelregistry.v1.MsgRegisterModel": "/clawchain.modelregistry.v1.MsgRegisterModel",
   "clawchain.modelregistry.v1.MsgRenewSubscription": "/clawchain.modelregistry.v1.MsgRenewSubscription",
+  "clawchain.modelregistry.v1.MsgResolveInferenceDispute": "/clawchain.modelregistry.v1.MsgResolveInferenceDispute",
   "clawchain.modelregistry.v1.MsgSetInferencePricing": "/clawchain.modelregistry.v1.MsgSetInferencePricing",
   "clawchain.modelregistry.v1.MsgStartInferenceJob": "/clawchain.modelregistry.v1.MsgStartInferenceJob",
   "clawchain.modelregistry.v1.MsgSubmitInferenceJob": "/clawchain.modelregistry.v1.MsgSubmitInferenceJob",
