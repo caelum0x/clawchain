@@ -70,6 +70,14 @@ export interface InferenceJob {
   completedAt: string;
   timeoutBlock: string;
   errorMsg: string;
+  /** P4 usage attestation (set by MsgSubmitUsageAttestation on a completed job). */
+  attestationHash: string;
+  attestedOutputTokens: string;
+  attestedAt: string;
+  /** P4 dispute (set by MsgDisputeInferenceJob by the original requester). */
+  disputed: boolean;
+  disputeReason: string;
+  disputedAt: string;
 }
 
 /** InferenceProvider represents a registered inference provider. */
@@ -866,6 +874,12 @@ function createBaseInferenceJob(): InferenceJob {
     completedAt: "0",
     timeoutBlock: "0",
     errorMsg: "",
+    attestationHash: "",
+    attestedOutputTokens: "0",
+    attestedAt: "0",
+    disputed: false,
+    disputeReason: "",
+    disputedAt: "0",
   };
 }
 
@@ -921,6 +935,24 @@ export const InferenceJob: MessageFns<InferenceJob> = {
     }
     if (message.errorMsg !== "") {
       writer.uint32(138).string(message.errorMsg);
+    }
+    if (message.attestationHash !== "") {
+      writer.uint32(146).string(message.attestationHash);
+    }
+    if (message.attestedOutputTokens !== "0") {
+      writer.uint32(152).uint64(message.attestedOutputTokens);
+    }
+    if (message.attestedAt !== "0") {
+      writer.uint32(160).int64(message.attestedAt);
+    }
+    if (message.disputed !== false) {
+      writer.uint32(168).bool(message.disputed);
+    }
+    if (message.disputeReason !== "") {
+      writer.uint32(178).string(message.disputeReason);
+    }
+    if (message.disputedAt !== "0") {
+      writer.uint32(184).int64(message.disputedAt);
     }
     return writer;
   },
@@ -1068,6 +1100,54 @@ export const InferenceJob: MessageFns<InferenceJob> = {
           message.errorMsg = reader.string();
           continue;
         }
+        case 18: {
+          if (tag !== 146) {
+            break;
+          }
+
+          message.attestationHash = reader.string();
+          continue;
+        }
+        case 19: {
+          if (tag !== 152) {
+            break;
+          }
+
+          message.attestedOutputTokens = reader.uint64().toString();
+          continue;
+        }
+        case 20: {
+          if (tag !== 160) {
+            break;
+          }
+
+          message.attestedAt = reader.int64().toString();
+          continue;
+        }
+        case 21: {
+          if (tag !== 168) {
+            break;
+          }
+
+          message.disputed = reader.bool();
+          continue;
+        }
+        case 22: {
+          if (tag !== 178) {
+            break;
+          }
+
+          message.disputeReason = reader.string();
+          continue;
+        }
+        case 23: {
+          if (tag !== 184) {
+            break;
+          }
+
+          message.disputedAt = reader.int64().toString();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1136,6 +1216,32 @@ export const InferenceJob: MessageFns<InferenceJob> = {
         : isSet(object.error_msg)
         ? globalThis.String(object.error_msg)
         : "",
+      attestationHash: isSet(object.attestationHash)
+        ? globalThis.String(object.attestationHash)
+        : isSet(object.attestation_hash)
+        ? globalThis.String(object.attestation_hash)
+        : "",
+      attestedOutputTokens: isSet(object.attestedOutputTokens)
+        ? globalThis.String(object.attestedOutputTokens)
+        : isSet(object.attested_output_tokens)
+        ? globalThis.String(object.attested_output_tokens)
+        : "0",
+      attestedAt: isSet(object.attestedAt)
+        ? globalThis.String(object.attestedAt)
+        : isSet(object.attested_at)
+        ? globalThis.String(object.attested_at)
+        : "0",
+      disputed: isSet(object.disputed) ? globalThis.Boolean(object.disputed) : false,
+      disputeReason: isSet(object.disputeReason)
+        ? globalThis.String(object.disputeReason)
+        : isSet(object.dispute_reason)
+        ? globalThis.String(object.dispute_reason)
+        : "",
+      disputedAt: isSet(object.disputedAt)
+        ? globalThis.String(object.disputedAt)
+        : isSet(object.disputed_at)
+        ? globalThis.String(object.disputed_at)
+        : "0",
     };
   },
 
@@ -1192,6 +1298,24 @@ export const InferenceJob: MessageFns<InferenceJob> = {
     if (message.errorMsg !== "") {
       obj.errorMsg = message.errorMsg;
     }
+    if (message.attestationHash !== "") {
+      obj.attestationHash = message.attestationHash;
+    }
+    if (message.attestedOutputTokens !== "0") {
+      obj.attestedOutputTokens = message.attestedOutputTokens;
+    }
+    if (message.attestedAt !== "0") {
+      obj.attestedAt = message.attestedAt;
+    }
+    if (message.disputed !== false) {
+      obj.disputed = message.disputed;
+    }
+    if (message.disputeReason !== "") {
+      obj.disputeReason = message.disputeReason;
+    }
+    if (message.disputedAt !== "0") {
+      obj.disputedAt = message.disputedAt;
+    }
     return obj;
   },
 
@@ -1217,6 +1341,12 @@ export const InferenceJob: MessageFns<InferenceJob> = {
     message.completedAt = object.completedAt ?? "0";
     message.timeoutBlock = object.timeoutBlock ?? "0";
     message.errorMsg = object.errorMsg ?? "";
+    message.attestationHash = object.attestationHash ?? "";
+    message.attestedOutputTokens = object.attestedOutputTokens ?? "0";
+    message.attestedAt = object.attestedAt ?? "0";
+    message.disputed = object.disputed ?? false;
+    message.disputeReason = object.disputeReason ?? "";
+    message.disputedAt = object.disputedAt ?? "0";
     return message;
   },
 };

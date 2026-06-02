@@ -156,6 +156,19 @@ export type ModelTokenCompleteJobOptions = {
   json?: boolean;
 };
 
+export type ModelTokenAttestOptions = {
+  jobId: string;
+  outputTokens: string;
+  attestationHash: string;
+  json?: boolean;
+};
+
+export type ModelTokenDisputeOptions = {
+  jobId: string;
+  reason: string;
+  json?: boolean;
+};
+
 export type ModelTokenServeOnceOptions = {
   modelId?: string;
   status?: string;
@@ -211,6 +224,17 @@ type InferenceJob = {
   completedAt?: string | number;
   error_msg?: string;
   errorMsg?: string;
+  attestation_hash?: string;
+  attestationHash?: string;
+  attested_output_tokens?: string | number;
+  attestedOutputTokens?: string | number;
+  attested_at?: string | number;
+  attestedAt?: string | number;
+  disputed?: boolean;
+  dispute_reason?: string;
+  disputeReason?: string;
+  disputed_at?: string | number;
+  disputedAt?: string | number;
 };
 
 function deriveRestFromRpc(rpcUrl: string): string {
@@ -444,6 +468,35 @@ export function buildCompleteInferenceJobMsg(
       jobId: requirePositiveAmount("--job-id", opts.jobId),
       output: requireNonEmpty("--output", opts.output),
       tokensUsed: requireNonNegativeInteger("--tokens-used", opts.tokensUsed),
+    },
+  };
+}
+
+export function buildSubmitUsageAttestationMsg(
+  creator: string,
+  opts: Pick<ModelTokenAttestOptions, "jobId" | "outputTokens" | "attestationHash">,
+) {
+  return {
+    typeUrl: "/clawchain.modelregistry.v1.MsgSubmitUsageAttestation",
+    value: {
+      creator,
+      jobId: requirePositiveAmount("--job-id", opts.jobId),
+      outputTokens: requireNonNegativeInteger("--output-tokens", opts.outputTokens),
+      attestationHash: requireNonEmpty("--attestation-hash", opts.attestationHash),
+    },
+  };
+}
+
+export function buildDisputeInferenceJobMsg(
+  creator: string,
+  opts: Pick<ModelTokenDisputeOptions, "jobId" | "reason">,
+) {
+  return {
+    typeUrl: "/clawchain.modelregistry.v1.MsgDisputeInferenceJob",
+    value: {
+      creator,
+      jobId: requirePositiveAmount("--job-id", opts.jobId),
+      reason: requireNonEmpty("--reason", opts.reason),
     },
   };
 }
@@ -1151,6 +1204,94 @@ export async function runModelTokenCompleteJob(opts: ModelTokenCompleteJobOption
   }
 }
 
+/**
+ * `clawd model-token attest` — provider records a usage attestation on a
+ * completed inference job (MsgSubmitUsageAttestation). Provider-gated on chain;
+ * sets attestation_hash/attested_output_tokens/attested_at on the job.
+ */
+export async function runModelTokenAttest(opts: ModelTokenAttestOptions): Promise<void> {
+  const { account, signingClient, gasPrice } = await ensureSigner();
+
+  try {
+    const msg = buildSubmitUsageAttestationMsg(account.address, opts);
+    const res = await signingClient.signAndBroadcast(
+      account.address,
+      [msg],
+      calculateFee(PROVIDER_JOB_GAS, GasPrice.fromString(gasPrice)),
+    );
+    if (res.code !== 0) {
+      throw new Error(`attest tx failed (code=${res.code}): ${res.rawLog}`);
+    }
+
+    const report = {
+      job_id: opts.jobId,
+      provider: account.address,
+      output_tokens: opts.outputTokens,
+      attestation_hash: opts.attestationHash,
+      attest_tx_hash: res.transactionHash,
+    };
+
+    if (opts.json) {
+      process.stdout.write(JSON.stringify(report, null, 2) + "\n");
+      return;
+    }
+
+    console.log("Usage attestation submitted.");
+    console.log(`  JobID:   ${opts.jobId}`);
+    console.log(`  Tokens:  ${opts.outputTokens}`);
+    console.log(`  Hash:    ${opts.attestationHash}`);
+    console.log(`  TxHash:  ${res.transactionHash}`);
+  } catch (err) {
+    console.error(`Model token attest failed: ${String(err)}`);
+    process.exit(1);
+  } finally {
+    signingClient.disconnect();
+  }
+}
+
+/**
+ * `clawd model-token dispute` — original requester disputes a completed
+ * inference job (MsgDisputeInferenceJob). Requester-gated on chain; sets
+ * disputed/dispute_reason/disputed_at and slashes the provider's reputation.
+ */
+export async function runModelTokenDispute(opts: ModelTokenDisputeOptions): Promise<void> {
+  const { account, signingClient, gasPrice } = await ensureSigner();
+
+  try {
+    const msg = buildDisputeInferenceJobMsg(account.address, opts);
+    const res = await signingClient.signAndBroadcast(
+      account.address,
+      [msg],
+      calculateFee(PROVIDER_JOB_GAS, GasPrice.fromString(gasPrice)),
+    );
+    if (res.code !== 0) {
+      throw new Error(`dispute tx failed (code=${res.code}): ${res.rawLog}`);
+    }
+
+    const report = {
+      job_id: opts.jobId,
+      requester: account.address,
+      reason: opts.reason,
+      dispute_tx_hash: res.transactionHash,
+    };
+
+    if (opts.json) {
+      process.stdout.write(JSON.stringify(report, null, 2) + "\n");
+      return;
+    }
+
+    console.log("Inference job dispute submitted.");
+    console.log(`  JobID:   ${opts.jobId}`);
+    console.log(`  Reason:  ${opts.reason}`);
+    console.log(`  TxHash:  ${res.transactionHash}`);
+  } catch (err) {
+    console.error(`Model token dispute failed: ${String(err)}`);
+    process.exit(1);
+  } finally {
+    signingClient.disconnect();
+  }
+}
+
 export async function runModelTokenServeOnce(opts: ModelTokenServeOnceOptions): Promise<void> {
   const maxJobs = Number(requirePositiveAmount("--max-jobs", opts.maxJobs ?? "1"));
   const requestedStatus = (opts.status ?? "active").toLowerCase();
@@ -1336,6 +1477,27 @@ function printJobStatus(job: InferenceJob): void {
   console.log(`  Completed:   ${formatJobTimestamp(job.completed_at ?? job.completedAt)}`);
   const errorMsg = job.error_msg ?? job.errorMsg;
   if (errorMsg?.trim()) console.log(`  Error:       ${errorMsg}`);
+
+  // Usage attestation (MsgSubmitUsageAttestation, provider-gated).
+  const attestationHash = job.attestation_hash ?? job.attestationHash;
+  const attestedOutputTokens = jobAttestedOutputTokens(job);
+  console.log(`  Attest Hash: ${attestationHash?.trim() ? attestationHash : "(none)"}`);
+  console.log(`  Attest Tok:  ${attestedOutputTokens || "-"}`);
+  console.log(`  Attested:    ${formatJobTimestamp(job.attested_at ?? job.attestedAt)}`);
+
+  // Dispute (MsgDisputeInferenceJob, requester-gated).
+  const disputed = Boolean(job.disputed);
+  console.log(`  Disputed:    ${disputed ? "yes" : "no"}`);
+  const disputeReason = job.dispute_reason ?? job.disputeReason;
+  console.log(`  Dispute Why: ${disputeReason?.trim() ? disputeReason : "(none)"}`);
+  console.log(`  Disputed At: ${formatJobTimestamp(job.disputed_at ?? job.disputedAt)}`);
+}
+
+/** Attested output tokens (0/unset rendered as "-" by the caller). */
+function jobAttestedOutputTokens(job: InferenceJob): string {
+  const raw = job.attested_output_tokens ?? job.attestedOutputTokens;
+  if (raw === undefined || raw === null || raw === "" || Number(raw) === 0) return "";
+  return String(raw);
 }
 
 /**

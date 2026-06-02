@@ -25,6 +25,8 @@ export interface MsgRegisterModel {
   accessType: string;
   pricePerQueryUclaw: string;
   priceOneTimeUclaw: string;
+  priceSubscriptionUclaw: string;
+  subscriptionPeriodBlocks: string;
 }
 
 export interface MsgRegisterModelResponse {
@@ -164,6 +166,25 @@ export interface MsgProviderHeartbeat {
 export interface MsgProviderHeartbeatResponse {
 }
 
+export interface MsgSubmitUsageAttestation {
+  creator: string;
+  jobId: string;
+  outputTokens: string;
+  attestationHash: string;
+}
+
+export interface MsgSubmitUsageAttestationResponse {
+}
+
+export interface MsgDisputeInferenceJob {
+  creator: string;
+  jobId: string;
+  reason: string;
+}
+
+export interface MsgDisputeInferenceJobResponse {
+}
+
 function createBaseMsgRegisterModel(): MsgRegisterModel {
   return {
     owner: "",
@@ -181,6 +202,8 @@ function createBaseMsgRegisterModel(): MsgRegisterModel {
     accessType: "",
     pricePerQueryUclaw: "",
     priceOneTimeUclaw: "",
+    priceSubscriptionUclaw: "",
+    subscriptionPeriodBlocks: "0",
   };
 }
 
@@ -230,6 +253,12 @@ export const MsgRegisterModel: MessageFns<MsgRegisterModel> = {
     }
     if (message.priceOneTimeUclaw !== "") {
       writer.uint32(122).string(message.priceOneTimeUclaw);
+    }
+    if (message.priceSubscriptionUclaw !== "") {
+      writer.uint32(130).string(message.priceSubscriptionUclaw);
+    }
+    if (message.subscriptionPeriodBlocks !== "0") {
+      writer.uint32(136).uint64(message.subscriptionPeriodBlocks);
     }
     return writer;
   },
@@ -361,6 +390,22 @@ export const MsgRegisterModel: MessageFns<MsgRegisterModel> = {
           message.priceOneTimeUclaw = reader.string();
           continue;
         }
+        case 16: {
+          if (tag !== 130) {
+            break;
+          }
+
+          message.priceSubscriptionUclaw = reader.string();
+          continue;
+        }
+        case 17: {
+          if (tag !== 136) {
+            break;
+          }
+
+          message.subscriptionPeriodBlocks = reader.uint64().toString();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -419,6 +464,16 @@ export const MsgRegisterModel: MessageFns<MsgRegisterModel> = {
         : isSet(object.price_one_time_uclaw)
         ? globalThis.String(object.price_one_time_uclaw)
         : "",
+      priceSubscriptionUclaw: isSet(object.priceSubscriptionUclaw)
+        ? globalThis.String(object.priceSubscriptionUclaw)
+        : isSet(object.price_subscription_uclaw)
+        ? globalThis.String(object.price_subscription_uclaw)
+        : "",
+      subscriptionPeriodBlocks: isSet(object.subscriptionPeriodBlocks)
+        ? globalThis.String(object.subscriptionPeriodBlocks)
+        : isSet(object.subscription_period_blocks)
+        ? globalThis.String(object.subscription_period_blocks)
+        : "0",
     };
   },
 
@@ -469,6 +524,12 @@ export const MsgRegisterModel: MessageFns<MsgRegisterModel> = {
     if (message.priceOneTimeUclaw !== "") {
       obj.priceOneTimeUclaw = message.priceOneTimeUclaw;
     }
+    if (message.priceSubscriptionUclaw !== "") {
+      obj.priceSubscriptionUclaw = message.priceSubscriptionUclaw;
+    }
+    if (message.subscriptionPeriodBlocks !== "0") {
+      obj.subscriptionPeriodBlocks = message.subscriptionPeriodBlocks;
+    }
     return obj;
   },
 
@@ -492,6 +553,8 @@ export const MsgRegisterModel: MessageFns<MsgRegisterModel> = {
     message.accessType = object.accessType ?? "";
     message.pricePerQueryUclaw = object.pricePerQueryUclaw ?? "";
     message.priceOneTimeUclaw = object.priceOneTimeUclaw ?? "";
+    message.priceSubscriptionUclaw = object.priceSubscriptionUclaw ?? "";
+    message.subscriptionPeriodBlocks = object.subscriptionPeriodBlocks ?? "0";
     return message;
   },
 };
@@ -2713,6 +2776,308 @@ export const MsgProviderHeartbeatResponse: MessageFns<MsgProviderHeartbeatRespon
   },
   fromPartial(_: DeepPartial<MsgProviderHeartbeatResponse>): MsgProviderHeartbeatResponse {
     const message = createBaseMsgProviderHeartbeatResponse();
+    return message;
+  },
+};
+
+function createBaseMsgSubmitUsageAttestation(): MsgSubmitUsageAttestation {
+  return { creator: "", jobId: "0", outputTokens: "0", attestationHash: "" };
+}
+
+export const MsgSubmitUsageAttestation: MessageFns<MsgSubmitUsageAttestation> = {
+  encode(message: MsgSubmitUsageAttestation, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.creator !== "") {
+      writer.uint32(10).string(message.creator);
+    }
+    if (message.jobId !== "0") {
+      writer.uint32(16).uint64(message.jobId);
+    }
+    if (message.outputTokens !== "0") {
+      writer.uint32(24).uint64(message.outputTokens);
+    }
+    if (message.attestationHash !== "") {
+      writer.uint32(34).string(message.attestationHash);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): MsgSubmitUsageAttestation {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseMsgSubmitUsageAttestation();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.creator = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.jobId = reader.uint64().toString();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.outputTokens = reader.uint64().toString();
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.attestationHash = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): MsgSubmitUsageAttestation {
+    return {
+      creator: isSet(object.creator) ? globalThis.String(object.creator) : "",
+      jobId: isSet(object.jobId)
+        ? globalThis.String(object.jobId)
+        : isSet(object.job_id)
+        ? globalThis.String(object.job_id)
+        : "0",
+      outputTokens: isSet(object.outputTokens)
+        ? globalThis.String(object.outputTokens)
+        : isSet(object.output_tokens)
+        ? globalThis.String(object.output_tokens)
+        : "0",
+      attestationHash: isSet(object.attestationHash)
+        ? globalThis.String(object.attestationHash)
+        : isSet(object.attestation_hash)
+        ? globalThis.String(object.attestation_hash)
+        : "",
+    };
+  },
+
+  toJSON(message: MsgSubmitUsageAttestation): unknown {
+    const obj: any = {};
+    if (message.creator !== "") {
+      obj.creator = message.creator;
+    }
+    if (message.jobId !== "0") {
+      obj.jobId = message.jobId;
+    }
+    if (message.outputTokens !== "0") {
+      obj.outputTokens = message.outputTokens;
+    }
+    if (message.attestationHash !== "") {
+      obj.attestationHash = message.attestationHash;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<MsgSubmitUsageAttestation>): MsgSubmitUsageAttestation {
+    return MsgSubmitUsageAttestation.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<MsgSubmitUsageAttestation>): MsgSubmitUsageAttestation {
+    const message = createBaseMsgSubmitUsageAttestation();
+    message.creator = object.creator ?? "";
+    message.jobId = object.jobId ?? "0";
+    message.outputTokens = object.outputTokens ?? "0";
+    message.attestationHash = object.attestationHash ?? "";
+    return message;
+  },
+};
+
+function createBaseMsgSubmitUsageAttestationResponse(): MsgSubmitUsageAttestationResponse {
+  return {};
+}
+
+export const MsgSubmitUsageAttestationResponse: MessageFns<MsgSubmitUsageAttestationResponse> = {
+  encode(_: MsgSubmitUsageAttestationResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): MsgSubmitUsageAttestationResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseMsgSubmitUsageAttestationResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(_: any): MsgSubmitUsageAttestationResponse {
+    return {};
+  },
+
+  toJSON(_: MsgSubmitUsageAttestationResponse): unknown {
+    const obj: any = {};
+    return obj;
+  },
+
+  create(base?: DeepPartial<MsgSubmitUsageAttestationResponse>): MsgSubmitUsageAttestationResponse {
+    return MsgSubmitUsageAttestationResponse.fromPartial(base ?? {});
+  },
+  fromPartial(_: DeepPartial<MsgSubmitUsageAttestationResponse>): MsgSubmitUsageAttestationResponse {
+    const message = createBaseMsgSubmitUsageAttestationResponse();
+    return message;
+  },
+};
+
+function createBaseMsgDisputeInferenceJob(): MsgDisputeInferenceJob {
+  return { creator: "", jobId: "0", reason: "" };
+}
+
+export const MsgDisputeInferenceJob: MessageFns<MsgDisputeInferenceJob> = {
+  encode(message: MsgDisputeInferenceJob, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.creator !== "") {
+      writer.uint32(10).string(message.creator);
+    }
+    if (message.jobId !== "0") {
+      writer.uint32(16).uint64(message.jobId);
+    }
+    if (message.reason !== "") {
+      writer.uint32(26).string(message.reason);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): MsgDisputeInferenceJob {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseMsgDisputeInferenceJob();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.creator = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.jobId = reader.uint64().toString();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.reason = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): MsgDisputeInferenceJob {
+    return {
+      creator: isSet(object.creator) ? globalThis.String(object.creator) : "",
+      jobId: isSet(object.jobId)
+        ? globalThis.String(object.jobId)
+        : isSet(object.job_id)
+        ? globalThis.String(object.job_id)
+        : "0",
+      reason: isSet(object.reason) ? globalThis.String(object.reason) : "",
+    };
+  },
+
+  toJSON(message: MsgDisputeInferenceJob): unknown {
+    const obj: any = {};
+    if (message.creator !== "") {
+      obj.creator = message.creator;
+    }
+    if (message.jobId !== "0") {
+      obj.jobId = message.jobId;
+    }
+    if (message.reason !== "") {
+      obj.reason = message.reason;
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<MsgDisputeInferenceJob>): MsgDisputeInferenceJob {
+    return MsgDisputeInferenceJob.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<MsgDisputeInferenceJob>): MsgDisputeInferenceJob {
+    const message = createBaseMsgDisputeInferenceJob();
+    message.creator = object.creator ?? "";
+    message.jobId = object.jobId ?? "0";
+    message.reason = object.reason ?? "";
+    return message;
+  },
+};
+
+function createBaseMsgDisputeInferenceJobResponse(): MsgDisputeInferenceJobResponse {
+  return {};
+}
+
+export const MsgDisputeInferenceJobResponse: MessageFns<MsgDisputeInferenceJobResponse> = {
+  encode(_: MsgDisputeInferenceJobResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): MsgDisputeInferenceJobResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseMsgDisputeInferenceJobResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(_: any): MsgDisputeInferenceJobResponse {
+    return {};
+  },
+
+  toJSON(_: MsgDisputeInferenceJobResponse): unknown {
+    const obj: any = {};
+    return obj;
+  },
+
+  create(base?: DeepPartial<MsgDisputeInferenceJobResponse>): MsgDisputeInferenceJobResponse {
+    return MsgDisputeInferenceJobResponse.fromPartial(base ?? {});
+  },
+  fromPartial(_: DeepPartial<MsgDisputeInferenceJobResponse>): MsgDisputeInferenceJobResponse {
+    const message = createBaseMsgDisputeInferenceJobResponse();
     return message;
   },
 };

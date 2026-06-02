@@ -10,6 +10,9 @@ import {
   type ModelToken,
 } from "../lib/model-tokens.ts";
 import { buildRedeemCommand } from "../lib/redeem-command.ts";
+import JobSettlementPanel, {
+  JobSettlementDetail,
+} from "../components/JobSettlementPanel.tsx";
 
 /** Job lifecycle stages, ordered, for the simple status timeline. */
 const TIMELINE_STAGES = ["pending", "running", "completed"] as const;
@@ -195,6 +198,9 @@ export default function RedeemInference() {
     const timer = setInterval(() => pollJob(trackedId), 4000);
     return () => clearInterval(timer);
   }, [trackedId, job?.status, pollJob]);
+
+  // Settlement command generators target the loaded job, else the typed id.
+  const settlementJobId = job ? job.jobId : jobIdInput.trim();
 
   if (loading) {
     return (
@@ -471,6 +477,8 @@ export default function RedeemInference() {
 
             <StatusTimeline status={job.status} />
 
+            <JobSettlementDetail job={job} />
+
             <div
               className="grid-2"
               style={{ gap: 12, marginTop: 16, fontSize: 13 }}
@@ -572,6 +580,8 @@ export default function RedeemInference() {
           </div>
         )}
       </div>
+
+      <JobSettlementPanel jobId={settlementJobId} />
     </>
   );
 }

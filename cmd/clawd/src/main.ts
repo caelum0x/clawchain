@@ -62,6 +62,8 @@ import {
   runModelTokenLaunch,
   runModelTokenCompleteJob,
   runModelTokenJobStatus,
+  runModelTokenAttest,
+  runModelTokenDispute,
   runModelTokenRedeem,
   runModelTokenServeLoop,
   runModelTokenServeOnce,
@@ -2166,6 +2168,36 @@ modelTokenCmd
       jobId: opts.jobId,
       output: opts.output,
       tokensUsed: opts.tokensUsed,
+      json: opts.json,
+    });
+  });
+
+modelTokenCmd
+  .command("attest")
+  .description("Provider records a usage attestation on a completed inference job")
+  .requiredOption("--job-id <id>", "inference job ID")
+  .requiredOption("--output-tokens <n>", "attested output tokens used")
+  .requiredOption("--attestation-hash <hex>", "attestation hash recorded on-chain")
+  .option("--json", "output JSON")
+  .action(async (opts) => {
+    await runModelTokenAttest({
+      jobId: opts.jobId,
+      outputTokens: opts.outputTokens,
+      attestationHash: opts.attestationHash,
+      json: opts.json,
+    });
+  });
+
+modelTokenCmd
+  .command("dispute")
+  .description("Original requester disputes a completed inference job")
+  .requiredOption("--job-id <id>", "inference job ID")
+  .requiredOption("--reason <text>", "reason for disputing the job")
+  .option("--json", "output JSON")
+  .action(async (opts) => {
+    await runModelTokenDispute({
+      jobId: opts.jobId,
+      reason: opts.reason,
       json: opts.json,
     });
   });

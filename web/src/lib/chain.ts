@@ -944,6 +944,18 @@ export interface InferenceJob {
   completedAt: number;
   timeoutBlock: number;
   errorMsg: string;
+  /** Provider-submitted usage attestation hash (empty until attested). */
+  attestationHash: string;
+  /** Output tokens claimed in the usage attestation. */
+  attestedOutputTokens: number;
+  /** Unix seconds the attestation was recorded (0 until attested). */
+  attestedAt: number;
+  /** True once the requester has disputed the job. */
+  disputed: boolean;
+  /** Free-text reason supplied with the dispute. */
+  disputeReason: string;
+  /** Unix seconds the job was disputed (0 until disputed). */
+  disputedAt: number;
 }
 
 export interface InferenceProvider {
@@ -992,6 +1004,12 @@ export async function getInferenceJobs(modelId?: number, status?: string): Promi
       completedAt: j.completed_at ?? j.completedAt ?? 0,
       timeoutBlock: j.timeout_block ?? j.timeoutBlock ?? 0,
       errorMsg: j.error_msg ?? j.errorMsg ?? "",
+      attestationHash: j.attestation_hash ?? j.attestationHash ?? "",
+      attestedOutputTokens: Number(j.attested_output_tokens ?? j.attestedOutputTokens ?? 0),
+      attestedAt: Number(j.attested_at ?? j.attestedAt ?? 0),
+      disputed: j.disputed ?? false,
+      disputeReason: j.dispute_reason ?? j.disputeReason ?? "",
+      disputedAt: Number(j.disputed_at ?? j.disputedAt ?? 0),
     }));
   } catch {
     return [];
@@ -1251,6 +1269,12 @@ export async function getInferenceJob(jobId: number): Promise<InferenceJob | nul
       completedAt: j.completed_at ?? 0,
       timeoutBlock: j.timeout_block ?? 0,
       errorMsg: j.error_msg ?? "",
+      attestationHash: j.attestation_hash ?? j.attestationHash ?? "",
+      attestedOutputTokens: Number(j.attested_output_tokens ?? j.attestedOutputTokens ?? 0),
+      attestedAt: Number(j.attested_at ?? j.attestedAt ?? 0),
+      disputed: j.disputed ?? false,
+      disputeReason: j.dispute_reason ?? j.disputeReason ?? "",
+      disputedAt: Number(j.disputed_at ?? j.disputedAt ?? 0),
     };
   } catch {
     return null;

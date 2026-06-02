@@ -138,6 +138,23 @@ export type {
   RawInferenceJob,
 } from "./inference-redeem.js";
 
+// InferenceSettlement (provider usage-attestation + requester dispute msgs)
+export {
+  InferenceSettlement,
+  createInferenceSettlement,
+  MSG_SUBMIT_USAGE_ATTESTATION_TYPE_URL,
+  MSG_DISPUTE_INFERENCE_JOB_TYPE_URL,
+} from "./inference-settlement.js";
+export type {
+  InferenceSettlementBackend,
+  InferenceSettlementOptions,
+  InferenceSettlementResult,
+  SubmitUsageAttestationOptions,
+  DisputeInferenceJobOptions,
+  UsageAttestationRequest,
+  DisputeRequest,
+} from "./inference-settlement.js";
+
 // Higher-level model-market aggregate (composes the ModelVault client + DEX)
 export { ModelMarket, createModelMarket } from "./model-market.js";
 export type {
