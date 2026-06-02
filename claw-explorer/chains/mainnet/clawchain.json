@@ -32,14 +32,17 @@
   ],
   "features": [
     "agent",
+    "clawgov",
     "cosmwasm",
     "ibc-go",
     "ibc-transfer",
     "marketplace",
+    "messaging",
     "modelregistry",
     "oracle",
     "privacy",
-    "reputation"
+    "reputation",
+    "tokenfactory"
   ],
   "keplr_features": [
     "cosmwasm",
