@@ -503,6 +503,54 @@ func (k Keeper) SubmitUsageAttestation(ctx context.Context, jobID uint64, creato
 	return nil
 }
 
+// DisputeInferenceJob lets the original requester dispute a completed job.
+// Only the requester (original submitter) may dispute, and the job must be completed.
+func (k Keeper) DisputeInferenceJob(ctx context.Context, jobID uint64, creator string, reason string) error {
+	raw, err := k.InferenceJobs.Get(ctx, jobID)
+	if err != nil {
+		return types.ErrInferenceJobNotFound.Wrapf("job %d", jobID)
+	}
+	var job types.InferenceJob
+	if err := json.Unmarshal([]byte(raw), &job); err != nil {
+		return fmt.Errorf("failed to unmarshal inference job: %w", err)
+	}
+
+	if job.Requester != creator {
+		return types.ErrNotJobRequester
+	}
+	if job.Status != types.InferenceStatusCompleted {
+		return types.ErrJobNotDisputable.Wrapf("job %d is in %s status", jobID, job.Status)
+	}
+
+	now := sdk.UnwrapSDKContext(ctx).BlockTime().Unix()
+	job.Disputed = true
+	job.DisputeReason = reason
+	job.DisputedAt = now
+
+	bz, err := json.Marshal(job)
+	if err != nil {
+		return fmt.Errorf("failed to marshal inference job: %w", err)
+	}
+	if err := k.InferenceJobs.Set(ctx, jobID, string(bz)); err != nil {
+		return err
+	}
+
+	// TODO(P4): slash provider reputation on dispute once reputation keeper is injected.
+	// The modelregistry keeper does not currently hold a reputation keeper reference;
+	// wiring one in is deferred to avoid expanding cross-module dependency injection here.
+
+	sdkCtx := sdk.UnwrapSDKContext(ctx)
+	sdkCtx.EventManager().EmitEvent(sdk.NewEvent(
+		"dispute_inference_job",
+		sdk.NewAttribute("job_id", fmt.Sprintf("%d", jobID)),
+		sdk.NewAttribute("requester", creator),
+		sdk.NewAttribute("provider", job.Provider),
+		sdk.NewAttribute("reason", reason),
+	))
+
+	return nil
+}
+
 // ExpireInferenceJobs refunds timed-out jobs. Called in EndBlock.
 func (k Keeper) ExpireInferenceJobs(ctx context.Context) error {
 	sdkCtx := sdk.UnwrapSDKContext(ctx)

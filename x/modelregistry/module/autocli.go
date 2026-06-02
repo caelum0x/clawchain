@@ -105,6 +105,12 @@ func (am AppModule) AutoCLIOptions() *autocliv1.ModuleOptions {
 					Short:          "Submit a usage attestation for a completed inference job",
 					PositionalArgs: []*autocliv1.PositionalArgDescriptor{{ProtoField: "job_id"}, {ProtoField: "output_tokens"}, {ProtoField: "attestation_hash"}},
 				},
+				{
+					RpcMethod:      "DisputeInferenceJob",
+					Use:            "dispute-inference-job [job-id] [reason]",
+					Short:          "Dispute a completed inference job as the original requester",
+					PositionalArgs: []*autocliv1.PositionalArgDescriptor{{ProtoField: "job_id"}, {ProtoField: "reason"}},
+				},
 			},
 		},
 	}

@@ -23,6 +23,7 @@ func RegisterCodec(cdc *codec.LegacyAmino) {
 	cdc.RegisterConcrete(&MsgFailInferenceJob{}, "clawchain/modelregistry/MsgFailInferenceJob", nil)
 	cdc.RegisterConcrete(&MsgProviderHeartbeat{}, "clawchain/modelregistry/MsgProviderHeartbeat", nil)
 	cdc.RegisterConcrete(&MsgSubmitUsageAttestation{}, "clawchain/modelregistry/MsgSubmitUsageAttestation", nil)
+	cdc.RegisterConcrete(&MsgDisputeInferenceJob{}, "clawchain/modelregistry/MsgDisputeInferenceJob", nil)
 }
 
 func RegisterInterfaces(registry cdctypes.InterfaceRegistry) {
@@ -42,6 +43,7 @@ func RegisterInterfaces(registry cdctypes.InterfaceRegistry) {
 		&MsgFailInferenceJob{},
 		&MsgProviderHeartbeat{},
 		&MsgSubmitUsageAttestation{},
+		&MsgDisputeInferenceJob{},
 	)
 	msgservice.RegisterMsgServiceDesc(registry, &Msg_serviceDesc)
 }

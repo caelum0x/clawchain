@@ -183,3 +183,10 @@ func (m msgServer) SubmitUsageAttestation(ctx context.Context, msg *types.MsgSub
 	}
 	return &types.MsgSubmitUsageAttestationResponse{}, nil
 }
+
+func (m msgServer) DisputeInferenceJob(ctx context.Context, msg *types.MsgDisputeInferenceJob) (*types.MsgDisputeInferenceJobResponse, error) {
+	if err := m.keeper.DisputeInferenceJob(ctx, msg.JobId, msg.Creator, msg.Reason); err != nil {
+		return nil, err
+	}
+	return &types.MsgDisputeInferenceJobResponse{}, nil
+}

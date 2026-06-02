@@ -47,6 +47,7 @@ export const PROTO_MSG_TYPE_URLS = {
   "clawchain.messaging.v1.MsgUpdateParams": "/clawchain.messaging.v1.MsgUpdateParams",
   "clawchain.modelregistry.v1.MsgCompleteInferenceJob": "/clawchain.modelregistry.v1.MsgCompleteInferenceJob",
   "clawchain.modelregistry.v1.MsgDelistModel": "/clawchain.modelregistry.v1.MsgDelistModel",
+  "clawchain.modelregistry.v1.MsgDisputeInferenceJob": "/clawchain.modelregistry.v1.MsgDisputeInferenceJob",
   "clawchain.modelregistry.v1.MsgFailInferenceJob": "/clawchain.modelregistry.v1.MsgFailInferenceJob",
   "clawchain.modelregistry.v1.MsgProviderHeartbeat": "/clawchain.modelregistry.v1.MsgProviderHeartbeat",
   "clawchain.modelregistry.v1.MsgPublishVersion": "/clawchain.modelregistry.v1.MsgPublishVersion",

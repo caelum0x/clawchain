@@ -30,4 +30,6 @@ var (
 	ErrSubscriptionExpired   = errorsmod.Register(ModuleName, 1330, "subscription has expired")
 	ErrNoSubscriptionPrice   = errorsmod.Register(ModuleName, 1331, "model has no subscription price configured")
 	ErrJobNotAttestable      = errorsmod.Register(ModuleName, 1332, "inference job is not in a state that can be attested")
+	ErrJobNotDisputable      = errorsmod.Register(ModuleName, 1333, "inference job is not in a state that can be disputed")
+	ErrNotJobRequester       = errorsmod.Register(ModuleName, 1334, "caller is not the requester of this inference job")
 )

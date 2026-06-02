@@ -70,6 +70,10 @@ message InferenceJob {
   string attestation_hash = 18;
   uint64 attested_output_tokens = 19;
   int64 attested_at = 20;
+  // P4 dispute (set by MsgDisputeInferenceJob by the original requester).
+  bool disputed = 21;
+  string dispute_reason = 22;
+  int64 disputed_at = 23;
 }
 
 // InferenceProvider represents a registered inference provider.
