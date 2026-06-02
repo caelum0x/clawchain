@@ -102,6 +102,22 @@ clawd model-token serve-loop --max-cycles 1
 clawd model-token job-status --job-id <id> --watch   # track a redeemed job until completed/failed
 ```
 
+### Inference settlement (P4: attestation → dispute → slash)
+
+Once a job is `completed`, the provider can attest its usage and the requester can dispute it
+(a dispute slashes the provider's reputation):
+
+```bash
+# Provider attests the completed job's usage (provider-only, requires status=completed):
+clawd model-token attest --job-id <id> --output-tokens <n> --attestation-hash <hex>
+# Original requester disputes a completed job (requester-only); slashes provider reputation:
+clawd model-token dispute --job-id <id> --reason "output did not match prompt"
+# job-status now shows the attestation hash / attested tokens / disputed flag + reason.
+```
+
+Chain-side these are `MsgSubmitUsageAttestation` / `MsgDisputeInferenceJob` in `x/modelregistry`
+(also available directly as `clawchaind tx modelregistry submit-usage-attestation|dispute-inference-job`).
+
 ### 6. Publish model fundamentals (P3)
 
 ```bash
@@ -133,6 +149,10 @@ const snap = await market.snapshot();               // curveSpotPrice, quotes, d
 const portfolio = createModelPortfolio({ rpcUrl, vaults: [vaultA, vaultB] });
 const overview = await portfolio.snapshot(address);  // positions[], totalClaimableByDenom
 ```
+
+The inference loop has SDK helpers too: `createInferenceRedeemer()` (burn a model token +
+open a job, `redeem()`/`jobStatus()`) and `createInferenceSettlement()`
+(`submitUsageAttestation()` / `disputeInferenceJob()`).
 
 A runnable example lives at `sdk/examples/model-vault.ts`. wagmi-style hooks/actions for
 React dApps are in `sdk/src/wagmi-model-vault.ts`.
