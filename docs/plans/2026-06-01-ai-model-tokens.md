@@ -310,9 +310,11 @@ and/or the DEX, and an oracle index as a published "fundamental." This gives uti
   idempotent, proto sources now version-tracked (gitignore trap fixed), build+tests green
   (see `docs/known-issues/proto-generated-drift.md`). Provider usage attestation LANDED:
   `MsgSubmitUsageAttestation` in `x/modelregistry` (`6eea59de`) records a completed job's
-  attestation (provider-only, status-gated) with a keeper test. Remaining P4: the dispute
-  path (`MsgDisputeInferenceJob`) + reputation slashing hook, and the optional `x/modeltoken`
-  module migration.**
+  attestation (provider-only, status-gated) with a keeper test. The dispute path
+  `MsgDisputeInferenceJob` (`2289e156`) also landed (requester-gated, sets disputed/reason/
+  disputed_at + event, keeper test). Remaining P4: wire the reputation-slash on dispute
+  (currently a documented hook — modelregistry has no reputation keeper injected yet), and
+  the optional `x/modeltoken` module migration.**
 
 ## Acceptance (per phase)
 
