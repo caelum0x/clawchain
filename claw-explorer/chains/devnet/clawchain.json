@@ -5,10 +5,16 @@
   "network_type": "devnet",
   "theme_color": "#6C5CE7",
   "api": [
-    { "provider": "ClawChain (local dev)", "address": "http://localhost:1317" }
+    {
+      "provider": "ClawChain (local dev)",
+      "address": "http://localhost:1317"
+    }
   ],
   "rpc": [
-    { "provider": "ClawChain (local dev)", "address": "http://localhost:26657" }
+    {
+      "provider": "ClawChain (local dev)",
+      "address": "http://localhost:26657"
+    }
   ],
   "sdk_version": "0.53.6",
   "coin_type": "118",
@@ -24,6 +30,17 @@
       "logo": "/logos/clawchain.svg"
     }
   ],
-  "features": ["cosmwasm", "ibc-transfer", "ibc-go"],
-  "keplr_features": ["cosmwasm", "ibc-transfer", "ibc-go"]
+  "features": [
+    "cosmwasm",
+    "ibc-go",
+    "ibc-transfer",
+    "marketplace",
+    "modelregistry",
+    "oracle"
+  ],
+  "keplr_features": [
+    "cosmwasm",
+    "ibc-transfer",
+    "ibc-go"
+  ]
 }
