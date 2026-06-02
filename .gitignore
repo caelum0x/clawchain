@@ -66,6 +66,7 @@ deploy/k8s/secrets.yaml
 # Local chain data
 .local-node/
 .devnet-node/
+.accept-node/
 testnet/data/
 contracts/dex/e2e/docker/*/.*/data/
 contracts/dex/e2e/docker/*/.*/config/node_key.json
