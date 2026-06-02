@@ -306,6 +306,11 @@ and/or the DEX, and an oracle index as a published "fundamental." This gives uti
   `clawd model-vault portfolio`, web Portfolio page). Remaining: the trust-boundary
   hardening — provider usage attestation + dispute/slash on inference settlement — and the
   optional `x/modeltoken` module migration. These are the genuinely chain-side P4 items.**
+  **BLOCKED (2026-06-02): the provider usage-attestation + dispute messages need a proto
+  change in `x/modelregistry`, but the repo's proto sources have drifted from the committed
+  generated `*.pb.go` across 5 modules — `make proto-gen` on a clean tree yields a ~2,144-line
+  breaking diff. See `docs/known-issues/proto-generated-drift.md`. The proto/generated drift
+  must be reconciled first (a separate infra task) before attestation can land via proto-gen.**
 
 ## Acceptance (per phase)
 
