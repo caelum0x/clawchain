@@ -66,6 +66,10 @@ message InferenceJob {
   int64 completed_at = 15;
   int64 timeout_block = 16;
   string error_msg = 17;
+  // P4 usage attestation (set by MsgSubmitUsageAttestation on a completed job).
+  string attestation_hash = 18;
+  uint64 attested_output_tokens = 19;
+  int64 attested_at = 20;
 }
 
 // InferenceProvider represents a registered inference provider.

@@ -51,6 +51,9 @@ service Msg {
 
   // ProviderHeartbeat sends a heartbeat from a provider.
   rpc ProviderHeartbeat(MsgProviderHeartbeat) returns (MsgProviderHeartbeatResponse);
+
+  // SubmitUsageAttestation records a provider's usage attestation on a completed job.
+  rpc SubmitUsageAttestation(MsgSubmitUsageAttestation) returns (MsgSubmitUsageAttestationResponse);
 }
 
 message MsgRegisterModel {
@@ -213,3 +216,13 @@ message MsgProviderHeartbeat {
 }
 
 message MsgProviderHeartbeatResponse {}
+
+message MsgSubmitUsageAttestation {
+  option (cosmos.msg.v1.signer) = "creator";
+  string creator = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  uint64 job_id = 2;
+  uint64 output_tokens = 3;
+  string attestation_hash = 4;
+}
+
+message MsgSubmitUsageAttestationResponse {}

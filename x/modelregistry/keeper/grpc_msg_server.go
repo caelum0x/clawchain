@@ -176,3 +176,10 @@ func (m msgServer) ProviderHeartbeat(ctx context.Context, msg *types.MsgProvider
 	}
 	return &types.MsgProviderHeartbeatResponse{}, nil
 }
+
+func (m msgServer) SubmitUsageAttestation(ctx context.Context, msg *types.MsgSubmitUsageAttestation) (*types.MsgSubmitUsageAttestationResponse, error) {
+	if err := m.keeper.SubmitUsageAttestation(ctx, msg.JobId, msg.Creator, msg.OutputTokens, msg.AttestationHash); err != nil {
+		return nil, err
+	}
+	return &types.MsgSubmitUsageAttestationResponse{}, nil
+}

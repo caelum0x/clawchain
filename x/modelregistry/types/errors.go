@@ -29,4 +29,5 @@ var (
 	ErrInvalidJobTransition  = errorsmod.Register(ModuleName, 1329, "invalid job status transition")
 	ErrSubscriptionExpired   = errorsmod.Register(ModuleName, 1330, "subscription has expired")
 	ErrNoSubscriptionPrice   = errorsmod.Register(ModuleName, 1331, "model has no subscription price configured")
+	ErrJobNotAttestable      = errorsmod.Register(ModuleName, 1332, "inference job is not in a state that can be attested")
 )

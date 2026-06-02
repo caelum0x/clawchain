@@ -459,6 +459,50 @@ func (k Keeper) ProviderHeartbeat(ctx context.Context, address string) error {
 	return k.InferenceProviders.Set(ctx, address, string(bz))
 }
 
+// SubmitUsageAttestation records a provider's usage attestation on a completed job.
+// Only the assigned provider may attest, and the job must already be completed.
+func (k Keeper) SubmitUsageAttestation(ctx context.Context, jobID uint64, creator string, outputTokens uint64, attestationHash string) error {
+	raw, err := k.InferenceJobs.Get(ctx, jobID)
+	if err != nil {
+		return types.ErrInferenceJobNotFound.Wrapf("job %d", jobID)
+	}
+	var job types.InferenceJob
+	if err := json.Unmarshal([]byte(raw), &job); err != nil {
+		return fmt.Errorf("failed to unmarshal inference job: %w", err)
+	}
+
+	if job.Provider != creator {
+		return types.ErrNotJobProvider
+	}
+	if job.Status != types.InferenceStatusCompleted {
+		return types.ErrJobNotAttestable.Wrapf("job %d is in %s status", jobID, job.Status)
+	}
+
+	now := sdk.UnwrapSDKContext(ctx).BlockTime().Unix()
+	job.AttestationHash = attestationHash
+	job.AttestedOutputTokens = outputTokens
+	job.AttestedAt = now
+
+	bz, err := json.Marshal(job)
+	if err != nil {
+		return fmt.Errorf("failed to marshal inference job: %w", err)
+	}
+	if err := k.InferenceJobs.Set(ctx, jobID, string(bz)); err != nil {
+		return err
+	}
+
+	sdkCtx := sdk.UnwrapSDKContext(ctx)
+	sdkCtx.EventManager().EmitEvent(sdk.NewEvent(
+		"submit_usage_attestation",
+		sdk.NewAttribute("job_id", fmt.Sprintf("%d", jobID)),
+		sdk.NewAttribute("provider", creator),
+		sdk.NewAttribute("output_tokens", fmt.Sprintf("%d", outputTokens)),
+		sdk.NewAttribute("attestation_hash", attestationHash),
+	))
+
+	return nil
+}
+
 // ExpireInferenceJobs refunds timed-out jobs. Called in EndBlock.
 func (k Keeper) ExpireInferenceJobs(ctx context.Context) error {
 	sdkCtx := sdk.UnwrapSDKContext(ctx)
