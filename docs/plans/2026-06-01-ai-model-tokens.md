@@ -315,9 +315,16 @@ and/or the DEX, and an oracle index as a published "fundamental." This gives uti
   disputed_at + event, keeper test). The reputation slash on dispute is now WIRED
   (`691e8a5a`): x/modelregistry calls a new `x/reputation` `SlashReputation` keeper method via
   depinject (no import cycle; validated by `TestNewApp`), docking the provider on dispute.
-  **The P4 inference-settlement surface (attestation → dispute → slash) is COMPLETE and
-  verified.** Only remaining P4 item: the optional `x/modeltoken` module migration — explicitly
-  conditional on the CosmWasm vault outgrowing contract limits (not currently needed).**
+  Dispute RESOLUTION landed (`c09f55dd`): `MsgResolveInferenceDispute` lets the model owner
+  uphold (provider stays slashed) or reject (slashed reputation RESTORED via a new
+  `x/reputation.RestoreReputation`); status + reputation only, no fund-flow change.
+  **The full P4 inference-settlement lifecycle (attestation → dispute → slash → resolve) is
+  COMPLETE, surfaced in clawd/web/SDK, and LIVE-VERIFIED end-to-end on a real single node**
+  (`scripts/testnet/inference-settlement-accept.sh` and the explorer data verify
+  `scripts/testnet/explorer-data-verify.sh` — the latter asserts a job ends with
+  `attestation_hash` set + `disputed=true` + `resolved=true` on-chain). Only remaining P4 item:
+  the optional `x/modeltoken` module migration — explicitly conditional on the CosmWasm vault
+  outgrowing contract limits (not currently needed).**
 
 ## Acceptance (per phase)
 
