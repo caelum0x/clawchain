@@ -87,6 +87,7 @@ import {
   runModelVaultPortfolio,
   runModelVaultCompare,
   runModelVaultPlan,
+  runModelVaultOwnerReport,
   runModelVaultDeploy,
 } from "./commands/model-vault.js";
 import {
@@ -2506,6 +2507,18 @@ modelVaultCmd
       targetPrice: opts.targetPrice,
       buy: opts.buy,
       sell: opts.sell,
+      json: opts.json,
+    });
+  });
+
+modelVaultCmd
+  .command("owner-report")
+  .description("Read-only owner dashboard: config + pool + dividend state, fee %, and funded/unfunded health")
+  .requiredOption("--contract <address>", "vault contract address")
+  .option("--json", "output JSON")
+  .action(async (opts) => {
+    await runModelVaultOwnerReport({
+      contract: opts.contract,
       json: opts.json,
     });
   });

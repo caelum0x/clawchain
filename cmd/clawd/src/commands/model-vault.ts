@@ -106,6 +106,11 @@ export type ModelVaultContractQueryOptions = {
   json?: boolean;
 };
 
+export type ModelVaultOwnerReportOptions = {
+  contract: string;
+  json?: boolean;
+};
+
 export type ModelVaultWatchOptions = {
   contract: string;
   intervalMs?: string;
@@ -1156,6 +1161,128 @@ export async function runModelVaultPlan(opts: ModelVaultPlanOptions): Promise<vo
     console.log();
   } catch (err) {
     console.error(`model-vault plan failed: ${String(err)}`);
+    process.exit(1);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// owner-report: read-only consolidated owner dashboard. Queries config{} +
+// pool{} + pool_info{} in parallel and prints owner, denoms, fee (bps + %),
+// reserve/inventory, spot price, total_staked, reward index, plus a funded/
+// unfunded health flag (reserve>0 && inventory>0) and a reserve:inventory ratio.
+// No signer — pure smart queries over REST.
+// ---------------------------------------------------------------------------
+
+/** Config shape including fee_bps, which the base ConfigShape omits. */
+type OwnerReportConfigShape = {
+  model_denom?: string;
+  reserve_denom?: string;
+  owner?: string;
+  fee_bps?: number | string;
+};
+
+/** Convert fee basis points to a percentage string (e.g. 30 -> "0.3%"). */
+function feeBpsToPercent(feeBps: number): string {
+  return `${round6(feeBps / 100)}%`;
+}
+
+/**
+ * `clawd model-vault owner-report` — read-only owner dashboard. Fans out
+ * config{} + pool{} + pool_info{} in parallel and prints a single consolidated
+ * report: owner, model/reserve denom, fee (bps and %), reserve, inventory,
+ * bonding-curve spot price, total_staked, reward index, a funded/unfunded
+ * health flag (reserve>0 && inventory>0), and the reserve:inventory ratio.
+ * Supports --json. No signer required.
+ */
+export async function runModelVaultOwnerReport(
+  opts: ModelVaultOwnerReportOptions,
+): Promise<void> {
+  const contract = requireNonEmpty("--contract", opts.contract);
+
+  try {
+    const [config, pool, poolInfo] = (await Promise.all([
+      smartQuery(contract, buildConfigQuery()),
+      smartQuery(contract, buildPoolQuery()),
+      smartQuery(contract, buildPoolInfoQuery()),
+    ])) as [OwnerReportConfigShape, CurvePoolShape, PoolInfoShape];
+
+    const owner = config.owner?.trim() || "?";
+    const modelDenom = config.model_denom?.trim() || "?";
+    const reserveDenom = config.reserve_denom?.trim() || "?";
+
+    const feeBpsRaw = config.fee_bps;
+    const feeBps =
+      feeBpsRaw === undefined || feeBpsRaw === null ? 0 : Number(feeBpsRaw);
+    const feePercent = feeBpsToPercent(feeBps);
+
+    const reserve = pool.reserve ?? "0";
+    const inventory = pool.inventory ?? "0";
+    const reserveBig = BigInt(reserve);
+    const inventoryBig = BigInt(inventory);
+    const spotPrice = round6(curveSpotPrice(pool));
+
+    const totalStaked = poolInfo.total_staked ?? "0";
+    const rewardIndex = poolInfo.reward_index ?? poolInfo.reward_per_token ?? "0";
+
+    // Health: a vault is "funded" only when it holds both reserve and inventory.
+    const funded = reserveBig > 0n && inventoryBig > 0n;
+    // reserve:inventory ratio (reserve units per model token). Equals the spot
+    // price when inventory>0; reported as null when inventory is empty.
+    const reserveInventoryRatio = inventoryBig > 0n ? spotPrice : null;
+
+    if (opts.json) {
+      const report = {
+        action: "ModelVaultOwnerReport",
+        contract,
+        owner,
+        model_denom: modelDenom,
+        reserve_denom: reserveDenom,
+        fee_bps: feeBps,
+        fee_percent: feePercent,
+        reserve,
+        inventory,
+        spot_price: spotPrice,
+        total_staked: totalStaked,
+        reward_index: rewardIndex,
+        funded,
+        health: funded ? "funded" : "unfunded",
+        reserve_inventory_ratio: reserveInventoryRatio,
+      };
+      process.stdout.write(JSON.stringify(report, null, 2) + "\n");
+      return;
+    }
+
+    console.log("ModelVault owner report");
+    console.log(`  Contract:        ${shortAddr(contract)}`);
+    console.log(`  Owner:           ${shortAddr(owner)}`);
+    console.log();
+    console.log("Config:");
+    console.log(`  Model Denom:     ${modelDenom}`);
+    console.log(`  Reserve Denom:   ${reserveDenom}`);
+    console.log(`  Fee:             ${feeBps} bps (${feePercent})`);
+    console.log();
+    console.log("Pool:");
+    console.log(`  Reserve:         ${reserve} ${reserveDenom}`);
+    console.log(`  Inventory:       ${inventory} ${modelDenom}`);
+    console.log(`  Spot Price:      ${spotPrice} (reserve/inventory)`);
+    console.log(
+      `  Reserve:Inv:     ${reserveInventoryRatio === null ? "n/a (no inventory)" : reserveInventoryRatio}`,
+    );
+    console.log();
+    console.log("Dividend pool:");
+    console.log(`  Total Staked:    ${totalStaked}`);
+    console.log(`  Reward Index:    ${rewardIndex}`);
+    console.log();
+    console.log("Health:");
+    console.log(`  Status:          ${funded ? "funded" : "unfunded"}`);
+    if (!funded) {
+      console.log(
+        `  Note:            vault needs both reserve and inventory to quote trades.`,
+      );
+    }
+    console.log();
+  } catch (err) {
+    console.error(`model-vault owner-report failed: ${String(err)}`);
     process.exit(1);
   }
 }

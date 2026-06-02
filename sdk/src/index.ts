@@ -147,6 +147,10 @@ export type {
   DexPoolReader,
 } from "./model-market.js";
 
+// Vault-owner facade (composes the ModelVault client for issuer workflows)
+export { IssuerOps, createIssuerOps } from "./issuer-ops.js";
+export type { VaultOwnerReport } from "./issuer-ops.js";
+
 // Cross-vault model-portfolio aggregate (composes per-vault ModelVault clients)
 export { ModelPortfolio, createModelPortfolio } from "./model-portfolio.js";
 export type {

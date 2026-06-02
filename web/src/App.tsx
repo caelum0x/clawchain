@@ -28,6 +28,7 @@ const ModelMarkets = lazy(() => import("./pages/ModelMarkets.tsx"));
 const ModelPortfolio = lazy(() => import("./pages/ModelPortfolio.tsx"));
 const Watchlist = lazy(() => import("./pages/Watchlist.tsx"));
 const VaultInspector = lazy(() => import("./pages/VaultInspector.tsx"));
+const VaultAdmin = lazy(() => import("./pages/VaultAdmin.tsx"));
 const TradeSimulator = lazy(() => import("./pages/TradeSimulator.tsx"));
 const ModelLeaderboard = lazy(() => import("./pages/ModelLeaderboard.tsx"));
 const LaunchModel = lazy(() => import("./pages/LaunchModel.tsx"));
@@ -99,6 +100,7 @@ export default function App() {
             <Route path="/model-portfolio" element={<ModelPortfolio />} />
             <Route path="/watchlist" element={<Watchlist />} />
             <Route path="/vault-inspector" element={<VaultInspector />} />
+            <Route path="/vault-admin" element={<VaultAdmin />} />
             <Route path="/trade-simulator" element={<TradeSimulator />} />
             <Route path="/model-leaderboard" element={<ModelLeaderboard />} />
             <Route path="/launch-model" element={<LaunchModel />} />

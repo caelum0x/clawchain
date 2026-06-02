@@ -95,6 +95,9 @@ export default function Layout({ children }: { children: ReactNode }) {
           <NavLink to="/vault-inspector" onClick={closeMenu} className={({ isActive }) => isActive ? "active" : ""}>
             Vault Inspector
           </NavLink>
+          <NavLink to="/vault-admin" onClick={closeMenu} className={({ isActive }) => isActive ? "active" : ""}>
+            Vault Admin
+          </NavLink>
           <NavLink to="/trade-simulator" onClick={closeMenu} className={({ isActive }) => isActive ? "active" : ""}>
             Trade Simulator
           </NavLink>
