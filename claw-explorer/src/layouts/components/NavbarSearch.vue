@@ -36,6 +36,32 @@ function confirm() {
   const current = blockStore?.current?.chainName || '';
   const routeParams = vueRouters?.currentRoute?.value;
 
+  // Custom-module detail pages: "model <id>", "job:<id>", "skill <id>", "proposal <id>"
+  const trimmed = key.trim();
+  const moduleSearch = /^(model|job|skill|proposal|prop)\s*[:\s]\s*(.+)$/i;
+  const moduleMatch = trimmed.match(moduleSearch);
+  if (moduleMatch) {
+    const prefix = moduleMatch[1].toLowerCase();
+    const id = moduleMatch[2].trim();
+    if (id) {
+      let path = '';
+      if (prefix === 'model') {
+        path = `/${current}/modelregistry/${id}`;
+      } else if (prefix === 'job') {
+        path = `/${current}/modelregistry/job/${id}`;
+      } else if (prefix === 'skill') {
+        path = `/${current}/marketplace/${id}`;
+      } else if (prefix === 'proposal' || prefix === 'prop') {
+        path = `/${current}/clawgov/${id}`;
+      }
+      vueRouters.push({ path });
+      setTimeout(() => {
+        closeSearchModal();
+      }, 1000);
+      return;
+    }
+  }
+
   if (!Object.values(routeParams?.params).includes(key)) {
     if (height.test(key)) {
       vueRouters.push({ path: `/${current}/block/${key}` });
@@ -76,7 +102,7 @@ function confirm() {
         <div class="flex items-center justify-between">
           <div class="text-lg font-bold flex flex-col md:!flex-row justify-between items-baseline">
             <span class="mr-2">Search</span>
-            <span class="capitalize text-sm md:!text-base">Height/Transaction/Account Address</span>
+            <span class="capitalize text-sm md:!text-base">Height/Transaction/Account Address · model/job/skill/proposal &lt;id&gt;</span>
           </div>
           <label htmlFor="modal-pool-modal" class="cursor-pointer" @click="closeSearchModal">
             <Icon icon="zondicons:close-outline" class="text-2xl text-gray-500 dark:text-gray-400" />
@@ -88,7 +114,7 @@ function confirm() {
             <input
               class="input flex-1 w-full !input-bordered"
               v-model="searchQuery"
-              placeholder="Height/Transaction/Account Address"
+              placeholder="Height/Tx/Address or model:<id> · job:<id> · skill:<id> · proposal:<id>"
             />
             <div class="mt-2 text-right text-sm text-error" v-show="errorMessage">
               {{ errorMessage }}

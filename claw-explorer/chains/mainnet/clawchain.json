@@ -33,6 +33,7 @@
   "features": [
     "agent",
     "clawgov",
+    "clawoverview",
     "cosmwasm",
     "ibc-go",
     "ibc-transfer",
