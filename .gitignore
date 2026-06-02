@@ -67,6 +67,7 @@ deploy/k8s/secrets.yaml
 .local-node/
 .devnet-node/
 .accept-node/
+.explorer-verify-node/
 testnet/data/
 contracts/dex/e2e/docker/*/.*/data/
 contracts/dex/e2e/docker/*/.*/config/node_key.json
