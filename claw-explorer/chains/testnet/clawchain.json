@@ -31,12 +31,15 @@
     }
   ],
   "features": [
+    "agent",
     "cosmwasm",
     "ibc-go",
     "ibc-transfer",
     "marketplace",
     "modelregistry",
-    "oracle"
+    "oracle",
+    "privacy",
+    "reputation"
   ],
   "keplr_features": [
     "cosmwasm",
