@@ -1,0 +1,18 @@
+syntax = "proto3";
+package clawchain.marketplace.v1;
+
+import "gogoproto/gogo.proto";
+
+option go_package = "clawchain/x/marketplace/types";
+
+// SkillVersionEntry represents a versioned skill entry.
+message SkillVersionEntry {
+  uint64 skill_id              = 1;
+  uint64 version               = 2;
+  string description           = 3;
+  string price                 = 4;
+  int64  updated_at            = 5;
+  string category              = 6;
+  repeated string tags         = 7;
+  repeated uint64 dependencies = 8;
+}

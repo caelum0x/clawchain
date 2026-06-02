@@ -1,0 +1,13 @@
+syntax = "proto3";
+package clawchain.modelregistry.v1;
+
+import "cosmos/app/v1alpha1/module.proto";
+
+option go_package = "clawchain/x/modelregistry/types";
+
+message Module {
+  option (cosmos.app.v1alpha1.module) = {
+    go_import: "clawchain/x/modelregistry/module"
+  };
+  string authority = 1;
+}

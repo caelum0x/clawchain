@@ -1,0 +1,46 @@
+syntax = "proto3";
+package clawchain.agent.v1;
+
+import "gogoproto/gogo.proto";
+
+option go_package = "clawchain/x/agent/types";
+
+// AgentInfo represents a registered AI agent on-chain.
+message AgentInfo {
+  string address       = 1;
+  string pubkey        = 2;
+  string endpoint      = 3;
+  string name          = 4;
+  int64  registered_at = 5;
+  bool   active        = 6;
+  // Deterministic sorted unique list of tool identifiers supported by this agent.
+  repeated string supported_tools = 7;
+  // Optional pricing hint metadata (free-form, typically JSON).
+  string pricing_hint = 8;
+  // Agent runtime/version identifier (e.g. "openclaw/2026.2.18").
+  string version = 9;
+  // Amount of uclaw deposit held by the module account for this agent.
+  string deposit_amount = 10;
+}
+
+// CoordinationIntent represents a multi-agent coordination intent.
+message CoordinationIntent {
+  uint64 id              = 1;
+  string creator_address = 2;
+  string description     = 3;
+  string intent_type     = 4;
+  string payload         = 5;
+  string status          = 6;
+  uint64 min_responses   = 7;
+  int64  created_at      = 8;
+  int64  expires_at      = 9;
+}
+
+// IntentResponse represents a response to a coordination intent.
+message IntentResponse {
+  uint64 intent_id      = 1;
+  string responder_addr = 2;
+  bool   accepted       = 3;
+  string payload        = 4;
+  int64  responded_at   = 5;
+}

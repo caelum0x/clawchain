@@ -1,0 +1,15 @@
+syntax = "proto3";
+package clawchain.marketplace.v1;
+
+import "amino/amino.proto";
+import "gogoproto/gogo.proto";
+
+option go_package = "clawchain/x/marketplace/types";
+
+// Params defines the parameters for the marketplace module.
+message Params {
+  option (amino.name) = "clawchain/x/marketplace/Params";
+  option (gogoproto.equal) = true;
+
+  uint64 max_skills_per_agent = 1;
+}

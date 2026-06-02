@@ -1,0 +1,173 @@
+syntax = "proto3";
+package clawchain.marketplace.v1;
+
+import "amino/amino.proto";
+import "clawchain/marketplace/v1/params.proto";
+import "cosmos/msg/v1/msg.proto";
+import "cosmos_proto/cosmos.proto";
+import "gogoproto/gogo.proto";
+
+option go_package = "clawchain/x/marketplace/types";
+
+// Msg defines the Msg service.
+service Msg {
+  option (cosmos.msg.v1.service) = true;
+
+  // UpdateParams defines a (governance) operation for updating the module
+  // parameters. The authority defaults to the x/gov module account.
+  rpc UpdateParams(MsgUpdateParams) returns (MsgUpdateParamsResponse);
+
+  // ListSkill defines the RPC for listing a skill on the marketplace.
+  rpc ListSkill(MsgListSkill) returns (MsgListSkillResponse);
+
+  // DelistSkill defines the RPC for delisting a skill from the marketplace.
+  rpc DelistSkill(MsgDelistSkill) returns (MsgDelistSkillResponse);
+
+  // PurchaseSkill defines the RPC for purchasing a skill from the marketplace.
+  rpc PurchaseSkill(MsgPurchaseSkill) returns (MsgPurchaseSkillResponse);
+
+  // CreateEscrow defines the RPC for creating an escrow agreement.
+  rpc CreateEscrow(MsgCreateEscrow) returns (MsgCreateEscrowResponse);
+
+  // CompleteEscrow defines the RPC for completing an escrow agreement.
+  rpc CompleteEscrow(MsgCompleteEscrow) returns (MsgCompleteEscrowResponse);
+
+  // CompleteMilestone defines the RPC for releasing one milestone payout.
+  rpc CompleteMilestone(MsgCompleteMilestone) returns (MsgCompleteMilestoneResponse);
+
+  // DisputeEscrow defines the RPC for opening a dispute.
+  rpc DisputeEscrow(MsgDisputeEscrow) returns (MsgDisputeEscrowResponse);
+
+  // ResolveDispute defines the governance RPC for dispute resolution.
+  rpc ResolveDispute(MsgResolveDispute) returns (MsgResolveDisputeResponse);
+
+  // UpdateSkill defines the RPC for updating an existing skill listing.
+  rpc UpdateSkill(MsgUpdateSkill) returns (MsgUpdateSkillResponse);
+}
+
+// MsgUpdateParams is the Msg/UpdateParams request type.
+message MsgUpdateParams {
+  option (cosmos.msg.v1.signer) = "authority";
+  option (amino.name) = "clawchain/x/marketplace/MsgUpdateParams";
+
+  // authority is the address that controls the module (defaults to x/gov unless overwritten).
+  string authority = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+
+  // params defines the module parameters to update.
+  // NOTE: All parameters must be supplied.
+  Params params = 2 [
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
+}
+
+// MsgUpdateParamsResponse defines the response structure for executing a
+// MsgUpdateParams message.
+message MsgUpdateParamsResponse {}
+
+// MsgListSkill defines the message for listing a skill on the marketplace.
+message MsgListSkill {
+  option (cosmos.msg.v1.signer) = "creator";
+  string creator     = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  string name        = 2;
+  string description = 3;
+  string price       = 4;
+  string denom       = 5;
+}
+
+// MsgListSkillResponse defines the response for MsgListSkill.
+message MsgListSkillResponse {
+  uint64 skill_id = 1;
+}
+
+// MsgDelistSkill defines the message for delisting a skill from the marketplace.
+message MsgDelistSkill {
+  option (cosmos.msg.v1.signer) = "creator";
+  string creator  = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  uint64 skill_id = 2;
+}
+
+// MsgDelistSkillResponse defines the response for MsgDelistSkill.
+message MsgDelistSkillResponse {}
+
+// MsgPurchaseSkill defines the message for purchasing a skill from the marketplace.
+message MsgPurchaseSkill {
+  option (cosmos.msg.v1.signer) = "creator";
+  string creator  = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  uint64 skill_id = 2;
+}
+
+// MsgPurchaseSkillResponse defines the response for MsgPurchaseSkill.
+message MsgPurchaseSkillResponse {}
+
+// MsgCreateEscrow defines the message for creating an escrow agreement.
+message MsgCreateEscrow {
+  option (cosmos.msg.v1.signer) = "creator";
+  string creator = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  uint64 skill_id = 2;
+  string description = 3;
+  int64 deadline_blocks = 4;
+  uint64 milestones = 5;
+}
+
+// MsgCreateEscrowResponse defines the response for MsgCreateEscrow.
+message MsgCreateEscrowResponse {
+  uint64 escrow_id = 1;
+}
+
+// MsgCompleteEscrow defines the message for completing escrow.
+message MsgCompleteEscrow {
+  option (cosmos.msg.v1.signer) = "creator";
+  string creator = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  uint64 escrow_id = 2;
+}
+
+// MsgCompleteEscrowResponse defines the response for MsgCompleteEscrow.
+message MsgCompleteEscrowResponse {}
+
+// MsgCompleteMilestone defines the message for completing one milestone.
+message MsgCompleteMilestone {
+  option (cosmos.msg.v1.signer) = "creator";
+  string creator = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  uint64 escrow_id = 2;
+}
+
+// MsgCompleteMilestoneResponse defines the response for MsgCompleteMilestone.
+message MsgCompleteMilestoneResponse {}
+
+// MsgDisputeEscrow defines the message for opening an escrow dispute.
+message MsgDisputeEscrow {
+  option (cosmos.msg.v1.signer) = "creator";
+  string creator = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  uint64 escrow_id = 2;
+  string reason = 3;
+}
+
+// MsgDisputeEscrowResponse defines the response for MsgDisputeEscrow.
+message MsgDisputeEscrowResponse {}
+
+// MsgResolveDispute defines the message for resolving a dispute by authority.
+message MsgResolveDispute {
+  option (cosmos.msg.v1.signer) = "authority";
+  string authority = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  uint64 escrow_id = 2;
+  string in_favor_of = 3 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+}
+
+// MsgResolveDisputeResponse defines the response for MsgResolveDispute.
+message MsgResolveDisputeResponse {}
+
+// MsgUpdateSkill defines the message for updating an existing skill listing.
+message MsgUpdateSkill {
+  option (cosmos.msg.v1.signer) = "creator";
+  string creator = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  uint64 skill_id = 2;
+  string description = 3;
+  string price = 4;
+  string category = 5;
+  repeated string tags = 6;
+  repeated uint64 dependencies = 7;
+}
+
+// MsgUpdateSkillResponse defines the response for MsgUpdateSkill.
+message MsgUpdateSkillResponse {}

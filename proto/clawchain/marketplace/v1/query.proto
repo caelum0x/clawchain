@@ -1,0 +1,349 @@
+syntax = "proto3";
+package clawchain.marketplace.v1;
+
+import "amino/amino.proto";
+import "gogoproto/gogo.proto";
+import "google/api/annotations.proto";
+import "clawchain/marketplace/v1/params.proto";
+
+option go_package = "clawchain/x/marketplace/types";
+
+// SkillRecord defines a skill listing on the marketplace.
+message SkillRecord {
+  uint64 id             = 1;
+  string owner          = 2;
+  string name           = 3;
+  string description    = 4;
+  string price          = 5;
+  string denom          = 6;
+  bool   active         = 7;
+  uint64 purchase_count = 8;
+  uint64 version        = 9;
+  string category       = 10;
+  repeated string tags  = 11;
+  repeated uint64 dependencies = 12;
+  string total_revenue  = 13;
+  int64  block_height   = 14;
+  int64  timestamp      = 15;
+}
+
+message EscrowAgreement {
+  uint64 id                  = 1;
+  uint64 skill_id            = 2;
+  string buyer               = 3;
+  string seller              = 4;
+  string amount              = 5;
+  string denom               = 6;
+  string status              = 7;
+  string description         = 8;
+  int64  deadline_block      = 9;
+  int64  created_at          = 10;
+  int64  completed_at        = 11;
+  uint64 milestones          = 12;
+  uint64 milestones_complete = 13;
+}
+
+message EscrowDispute {
+  uint64 escrow_id   = 1;
+  string initiator   = 2;
+  string reason      = 3;
+  string status      = 4;
+  int64  created_at  = 5;
+  int64  resolved_at = 6;
+}
+
+// Query defines the gRPC querier service.
+service Query {
+  // Params queries the parameters of the module.
+  rpc Params(QueryParamsRequest) returns (QueryParamsResponse) {
+    option (google.api.http).get = "/clawchain/marketplace/v1/params";
+  }
+
+  // Skills queries all listed skills.
+  rpc Skills(QuerySkillsRequest) returns (QuerySkillsResponse) {
+    option (google.api.http).get = "/clawchain/marketplace/v1/skills";
+  }
+
+  // Skill queries a single skill by ID.
+  rpc Skill(QuerySkillRequest) returns (QuerySkillResponse) {
+    option (google.api.http).get = "/clawchain/marketplace/v1/skill/{skill_id}";
+  }
+
+  // Escrow queries a single escrow agreement by ID.
+  rpc Escrow(QueryEscrowRequest) returns (QueryEscrowResponse) {
+    option (google.api.http).get = "/clawchain/marketplace/v1/escrow/{escrow_id}";
+  }
+
+  // Escrows queries all escrows where address is buyer or seller.
+  rpc Escrows(QueryEscrowsRequest) returns (QueryEscrowsResponse) {
+    option (google.api.http).get = "/clawchain/marketplace/v1/escrows/{address}";
+  }
+
+  // Dispute queries dispute details by escrow ID.
+  rpc Dispute(QueryDisputeRequest) returns (QueryDisputeResponse) {
+    option (google.api.http).get = "/clawchain/marketplace/v1/dispute/{escrow_id}";
+  }
+
+  // SkillsByCategory queries skills by category.
+  rpc SkillsByCategory(QuerySkillsByCategoryRequest) returns (QuerySkillsByCategoryResponse) {
+    option (google.api.http).get = "/clawchain/marketplace/v1/skills/category/{category}";
+  }
+
+  // SkillsByOwner queries skills by owner address.
+  rpc SkillsByOwner(QuerySkillsByOwnerRequest) returns (QuerySkillsByOwnerResponse) {
+    option (google.api.http).get = "/clawchain/marketplace/v1/skills/owner/{owner}";
+  }
+
+  // SkillSearch queries skills by text search (name/description/tags).
+  rpc SkillSearch(QuerySkillSearchRequest) returns (QuerySkillSearchResponse) {
+    option (google.api.http).get = "/clawchain/marketplace/v1/skills/search/{query}";
+  }
+
+  // SkillAnalytics queries aggregate analytics for a skill.
+  rpc SkillAnalytics(QuerySkillAnalyticsRequest) returns (QuerySkillAnalyticsResponse) {
+    option (google.api.http).get = "/clawchain/marketplace/v1/skills/analytics/{skill_id}";
+  }
+
+  // ComputeResources queries all GPU compute resources.
+  rpc ComputeResources(QueryComputeResourcesRequest) returns (QueryComputeResourcesResponse) {
+    option (google.api.http).get = "/clawchain/marketplace/v1/compute_resources";
+  }
+
+  // ComputeResource queries a single compute resource by ID.
+  rpc ComputeResource(QueryComputeResourceRequest) returns (QueryComputeResourceResponse) {
+    option (google.api.http).get = "/clawchain/marketplace/v1/compute_resource/{id}";
+  }
+
+  // ComputeJobs queries compute jobs, optionally filtered by address or resource.
+  rpc ComputeJobs(QueryComputeJobsRequest) returns (QueryComputeJobsResponse) {
+    option (google.api.http).get = "/clawchain/marketplace/v1/compute_jobs";
+  }
+
+  // ComputeLeases queries all compute leases.
+  rpc ComputeLeases(QueryComputeLeasesRequest) returns (QueryComputeLeasesResponse) {
+    option (google.api.http).get = "/clawchain/marketplace/v1/compute_leases";
+  }
+
+  // ComputeLeasesForAddress queries compute leases for a specific address.
+  rpc ComputeLeasesForAddress(QueryComputeLeasesForAddressRequest) returns (QueryComputeLeasesForAddressResponse) {
+    option (google.api.http).get = "/clawchain/marketplace/v1/compute_leases/{address}";
+  }
+
+  // ProviderStats queries aggregate stats for a compute provider.
+  rpc ProviderStats(QueryProviderStatsRequest) returns (QueryProviderStatsResponse) {
+    option (google.api.http).get = "/clawchain/marketplace/v1/provider_stats/{address}";
+  }
+}
+
+// QueryParamsRequest is request type for the Query/Params RPC method.
+message QueryParamsRequest {}
+
+// QueryParamsResponse is response type for the Query/Params RPC method.
+message QueryParamsResponse {
+  // params holds all the parameters of this module.
+  Params params = 1 [
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
+}
+
+// QuerySkillsRequest defines the request for querying all skills.
+message QuerySkillsRequest {}
+
+// QuerySkillsResponse defines the response for querying all skills.
+message QuerySkillsResponse {
+  repeated SkillRecord skills = 1 [(gogoproto.nullable) = false];
+}
+
+// QuerySkillRequest defines the request for querying a single skill.
+message QuerySkillRequest {
+  uint64 skill_id = 1;
+}
+
+// QuerySkillResponse defines the response for querying a single skill.
+message QuerySkillResponse {
+  SkillRecord skill = 1 [(gogoproto.nullable) = false];
+}
+
+message QueryEscrowRequest {
+  uint64 escrow_id = 1;
+}
+
+message QueryEscrowResponse {
+  EscrowAgreement escrow = 1 [(gogoproto.nullable) = false];
+}
+
+message QueryEscrowsRequest {
+  string address = 1;
+}
+
+message QueryEscrowsResponse {
+  repeated EscrowAgreement escrows = 1 [(gogoproto.nullable) = false];
+}
+
+message QueryDisputeRequest {
+  uint64 escrow_id = 1;
+}
+
+message QueryDisputeResponse {
+  EscrowDispute dispute = 1 [(gogoproto.nullable) = false];
+}
+
+message QuerySkillsByCategoryRequest {
+  string category = 1;
+}
+
+message QuerySkillsByCategoryResponse {
+  repeated SkillRecord skills = 1 [(gogoproto.nullable) = false];
+}
+
+message QuerySkillsByOwnerRequest {
+  string owner = 1;
+}
+
+message QuerySkillsByOwnerResponse {
+  repeated SkillRecord skills = 1 [(gogoproto.nullable) = false];
+}
+
+message QuerySkillSearchRequest {
+  string query = 1;
+}
+
+message QuerySkillSearchResponse {
+  repeated SkillRecord skills = 1 [(gogoproto.nullable) = false];
+}
+
+message QuerySkillAnalyticsRequest {
+  uint64 skill_id = 1;
+}
+
+message QuerySkillAnalyticsResponse {
+  uint64 skill_id = 1;
+  uint64 purchase_count = 2;
+  string total_revenue = 3;
+  uint64 version = 4;
+}
+
+// GPU Compute Resource types
+message ComputeResourceRecord {
+  uint64 id                    = 1;
+  string owner                 = 2;
+  string name                  = 3;
+  string description           = 4;
+  string gpu_model             = 5;
+  uint32 gpu_count             = 6;
+  uint32 vram_gb               = 7;
+  uint32 cpu_cores             = 8;
+  uint32 ram_gb                = 9;
+  uint32 storage_gb            = 10;
+  string price_per_hour_uclaw  = 11;
+  uint32 min_lease_hours       = 12;
+  uint32 max_lease_hours       = 13;
+  bool   active                = 14;
+  string current_lessee        = 15;
+  int64  lease_expires_at      = 16;
+  string region                = 17;
+  string endpoint              = 18;
+  repeated string tags         = 19;
+  uint64 total_leases          = 20;
+  string total_revenue         = 21;
+}
+
+message ComputeLeaseRecord {
+  uint64 id               = 1;
+  uint64 resource_id      = 2;
+  string lessee           = 3;
+  string provider         = 4;
+  int64  start_block      = 5;
+  int64  end_block        = 6;
+  string total_cost_uclaw = 7;
+  string status           = 8;
+}
+
+message ComputeJobRecord {
+  uint64 id             = 1;
+  uint64 resource_id    = 2;
+  uint64 lease_id       = 3;
+  string submitter      = 4;
+  string provider       = 5;
+  string name           = 6;
+  string job_type       = 7;
+  string execution_type = 8;
+  string docker_image   = 9;
+  string script_content = 10;
+  string input_data_uri = 11;
+  string output_data_uri= 12;
+  string gpu_type       = 13;
+  uint32 gpu_count      = 14;
+  string status         = 15;
+  string result         = 16;
+  string error_message  = 17;
+  int64  submitted_at   = 18;
+  int64  started_at     = 19;
+  int64  completed_at   = 20;
+  string params         = 21;
+}
+
+message ProviderStatsRecord {
+  string address         = 1;
+  uint32 total_resources = 2;
+  uint32 active_leases   = 3;
+  uint64 total_jobs      = 4;
+  uint64 completed_jobs  = 5;
+  uint64 failed_jobs     = 6;
+  string total_revenue   = 7;
+  uint32 avg_rating      = 8;
+  uint64 uptime_blocks   = 9;
+  int64  last_heartbeat  = 10;
+}
+
+// Compute Resources
+message QueryComputeResourcesRequest {
+  bool only_available = 1;
+}
+
+message QueryComputeResourcesResponse {
+  repeated ComputeResourceRecord resources = 1 [(gogoproto.nullable) = false];
+}
+
+message QueryComputeResourceRequest {
+  uint64 id = 1;
+}
+
+message QueryComputeResourceResponse {
+  ComputeResourceRecord resource = 1 [(gogoproto.nullable) = false];
+}
+
+// Compute Jobs
+message QueryComputeJobsRequest {
+  string address     = 1;
+  uint64 resource_id = 2;
+}
+
+message QueryComputeJobsResponse {
+  repeated ComputeJobRecord jobs = 1 [(gogoproto.nullable) = false];
+}
+
+// Compute Leases
+message QueryComputeLeasesRequest {}
+
+message QueryComputeLeasesResponse {
+  repeated ComputeLeaseRecord leases = 1 [(gogoproto.nullable) = false];
+}
+
+message QueryComputeLeasesForAddressRequest {
+  string address = 1;
+}
+
+message QueryComputeLeasesForAddressResponse {
+  repeated ComputeLeaseRecord leases = 1 [(gogoproto.nullable) = false];
+}
+
+// Provider Stats
+message QueryProviderStatsRequest {
+  string address = 1;
+}
+
+message QueryProviderStatsResponse {
+  ProviderStatsRecord stats = 1 [(gogoproto.nullable) = false];
+}

@@ -1,0 +1,215 @@
+syntax = "proto3";
+package clawchain.modelregistry.v1;
+
+import "cosmos/msg/v1/msg.proto";
+import "cosmos_proto/cosmos.proto";
+
+option go_package = "clawchain/x/modelregistry/types";
+
+// Msg defines the modelregistry Msg service.
+service Msg {
+  option (cosmos.msg.v1.service) = true;
+
+  // RegisterModel registers a new AI model.
+  rpc RegisterModel(MsgRegisterModel) returns (MsgRegisterModelResponse);
+
+  // UpdateModel updates an existing model's metadata.
+  rpc UpdateModel(MsgUpdateModel) returns (MsgUpdateModelResponse);
+
+  // PublishVersion publishes a new version of a model.
+  rpc PublishVersion(MsgPublishVersion) returns (MsgPublishVersionResponse);
+
+  // DelistModel deactivates a model.
+  rpc DelistModel(MsgDelistModel) returns (MsgDelistModelResponse);
+
+  // PurchaseAccess purchases access to a paid model.
+  rpc PurchaseAccess(MsgPurchaseAccess) returns (MsgPurchaseAccessResponse);
+
+  // RenewSubscription renews an existing subscription.
+  rpc RenewSubscription(MsgRenewSubscription) returns (MsgRenewSubscriptionResponse);
+
+  // RateModel rates a model.
+  rpc RateModel(MsgRateModel) returns (MsgRateModelResponse);
+
+  // RegisterInferenceProvider registers an inference provider.
+  rpc RegisterInferenceProvider(MsgRegisterInferenceProvider) returns (MsgRegisterInferenceProviderResponse);
+
+  // SetInferencePricing sets pricing for a model's inference.
+  rpc SetInferencePricing(MsgSetInferencePricing) returns (MsgSetInferencePricingResponse);
+
+  // SubmitInferenceJob submits an inference job request.
+  rpc SubmitInferenceJob(MsgSubmitInferenceJob) returns (MsgSubmitInferenceJobResponse);
+
+  // StartInferenceJob marks a job as running (provider only).
+  rpc StartInferenceJob(MsgStartInferenceJob) returns (MsgStartInferenceJobResponse);
+
+  // CompleteInferenceJob completes an inference job with results.
+  rpc CompleteInferenceJob(MsgCompleteInferenceJob) returns (MsgCompleteInferenceJobResponse);
+
+  // FailInferenceJob marks a job as failed.
+  rpc FailInferenceJob(MsgFailInferenceJob) returns (MsgFailInferenceJobResponse);
+
+  // ProviderHeartbeat sends a heartbeat from a provider.
+  rpc ProviderHeartbeat(MsgProviderHeartbeat) returns (MsgProviderHeartbeatResponse);
+}
+
+message MsgRegisterModel {
+  option (cosmos.msg.v1.signer) = "owner";
+  string owner = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  string name = 2;
+  string description = 3;
+  string framework = 4;
+  string architecture = 5;
+  string parameter_count = 6;
+  string license = 7;
+  repeated string tags = 8;
+  string storage_type = 9;
+  string storage_uri = 10;
+  string checksum_sha256 = 11;
+  uint64 size_bytes = 12;
+  string access_type = 13;
+  string price_per_query_uclaw = 14;
+  string price_one_time_uclaw = 15;
+  string price_subscription_uclaw = 16;
+  uint64 subscription_period_blocks = 17;
+}
+
+message MsgRegisterModelResponse {
+  uint64 model_id = 1;
+}
+
+message MsgUpdateModel {
+  option (cosmos.msg.v1.signer) = "caller";
+  string caller = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  uint64 model_id = 2;
+  string name = 3;
+  string description = 4;
+  string framework = 5;
+  string access_type = 6;
+  string price_per_query_uclaw = 7;
+  string price_one_time_uclaw = 8;
+}
+
+message MsgUpdateModelResponse {}
+
+message MsgPublishVersion {
+  option (cosmos.msg.v1.signer) = "caller";
+  string caller = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  uint64 model_id = 2;
+  string storage_uri = 3;
+  string checksum_sha256 = 4;
+  uint64 size_bytes = 5;
+  string changelog = 6;
+}
+
+message MsgPublishVersionResponse {
+  uint64 version_id = 1;
+}
+
+message MsgDelistModel {
+  option (cosmos.msg.v1.signer) = "caller";
+  string caller = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  uint64 model_id = 2;
+}
+
+message MsgDelistModelResponse {}
+
+message MsgPurchaseAccess {
+  option (cosmos.msg.v1.signer) = "buyer";
+  string buyer = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  uint64 model_id = 2;
+  uint64 subscription_periods = 3;
+}
+
+message MsgPurchaseAccessResponse {}
+
+message MsgRenewSubscription {
+  option (cosmos.msg.v1.signer) = "buyer";
+  string buyer = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  uint64 model_id = 2;
+  uint64 periods = 3;
+}
+
+message MsgRenewSubscriptionResponse {
+  int64 new_expiry_height = 1;
+}
+
+message MsgRateModel {
+  option (cosmos.msg.v1.signer) = "rater";
+  string rater = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  uint64 model_id = 2;
+  uint32 rating = 3;
+}
+
+message MsgRateModelResponse {}
+
+message MsgRegisterInferenceProvider {
+  option (cosmos.msg.v1.signer) = "address";
+  string address = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  repeated uint64 model_ids = 2;
+  uint64 max_concurrent = 3;
+  string endpoint = 4;
+}
+
+message MsgRegisterInferenceProviderResponse {}
+
+message MsgSetInferencePricing {
+  option (cosmos.msg.v1.signer) = "caller";
+  string caller = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  uint64 model_id = 2;
+  string price_per_token = 3;
+  string price_per_query = 4;
+  string min_payment = 5;
+  uint64 max_tokens = 6;
+}
+
+message MsgSetInferencePricingResponse {}
+
+message MsgSubmitInferenceJob {
+  option (cosmos.msg.v1.signer) = "requester";
+  string requester = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  uint64 model_id = 2;
+  uint64 model_version = 3;
+  string input = 4;
+  uint64 max_tokens = 5;
+  string temperature = 6;
+  string payment = 7;
+}
+
+message MsgSubmitInferenceJobResponse {
+  uint64 job_id = 1;
+}
+
+message MsgStartInferenceJob {
+  option (cosmos.msg.v1.signer) = "provider";
+  string provider = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  uint64 job_id = 2;
+}
+
+message MsgStartInferenceJobResponse {}
+
+message MsgCompleteInferenceJob {
+  option (cosmos.msg.v1.signer) = "provider";
+  string provider = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  uint64 job_id = 2;
+  string output = 3;
+  uint64 tokens_used = 4;
+}
+
+message MsgCompleteInferenceJobResponse {}
+
+message MsgFailInferenceJob {
+  option (cosmos.msg.v1.signer) = "provider";
+  string provider = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  uint64 job_id = 2;
+  string error_msg = 3;
+}
+
+message MsgFailInferenceJobResponse {}
+
+message MsgProviderHeartbeat {
+  option (cosmos.msg.v1.signer) = "address";
+  string address = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+}
+
+message MsgProviderHeartbeatResponse {}

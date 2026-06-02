@@ -1,0 +1,22 @@
+syntax = "proto3";
+package clawchain.modelregistry.v1;
+
+import "amino/amino.proto";
+import "gogoproto/gogo.proto";
+
+option go_package = "clawchain/x/modelregistry/types";
+
+// Params defines the modelregistry module parameters.
+message ModelRegistryParams {
+  option (amino.name) = "clawchain/x/modelregistry/Params";
+  option (gogoproto.equal) = true;
+
+  // min_deposit_uclaw is the minimum deposit for registering a model.
+  uint64 min_deposit_uclaw = 1;
+
+  // max_models is the maximum number of models a single owner can register.
+  uint64 max_models = 2;
+
+  // platform_fee_bps is the platform fee in basis points (e.g., 500 = 5%).
+  uint64 platform_fee_bps = 3;
+}

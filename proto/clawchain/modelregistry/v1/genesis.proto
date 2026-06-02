@@ -1,0 +1,15 @@
+syntax = "proto3";
+package clawchain.modelregistry.v1;
+
+import "gogoproto/gogo.proto";
+import "clawchain/modelregistry/v1/types.proto";
+import "clawchain/modelregistry/v1/params.proto";
+
+option go_package = "clawchain/x/modelregistry/types";
+
+// GenesisState defines the modelregistry module's genesis state.
+message ModelRegistryGenesisState {
+  ModelRegistryParams params = 1 [(gogoproto.nullable) = false];
+  repeated ModelRecord models = 2 [(gogoproto.nullable) = false];
+  uint64 model_count = 3;
+}

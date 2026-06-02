@@ -1,0 +1,116 @@
+syntax = "proto3";
+package clawchain.modelregistry.v1;
+
+import "google/api/annotations.proto";
+import "clawchain/modelregistry/v1/types.proto";
+import "clawchain/modelregistry/v1/params.proto";
+
+option go_package = "clawchain/x/modelregistry/types";
+
+// Query defines the modelregistry gRPC query service.
+service Query {
+  // Model returns a single model by ID.
+  rpc Model(QueryModelRequest) returns (QueryModelResponse) {
+    option (google.api.http).get = "/clawchain/modelregistry/v1/model/{model_id}";
+  }
+
+  // Models returns all models, optionally filtered.
+  rpc Models(QueryModelsRequest) returns (QueryModelsResponse) {
+    option (google.api.http).get = "/clawchain/modelregistry/v1/models";
+  }
+
+  // ModelVersions returns all versions of a model.
+  rpc ModelVersions(QueryModelVersionsRequest) returns (QueryModelVersionsResponse) {
+    option (google.api.http).get = "/clawchain/modelregistry/v1/model/{model_id}/versions";
+  }
+
+  // InferenceJob returns a single inference job by ID.
+  rpc InferenceJob(QueryInferenceJobRequest) returns (QueryInferenceJobResponse) {
+    option (google.api.http).get = "/clawchain/modelregistry/v1/inference/job/{job_id}";
+  }
+
+  // InferenceJobs returns inference jobs, optionally filtered.
+  rpc InferenceJobs(QueryInferenceJobsRequest) returns (QueryInferenceJobsResponse) {
+    option (google.api.http).get = "/clawchain/modelregistry/v1/inference/jobs";
+  }
+
+  // InferenceProviders returns registered inference providers.
+  rpc InferenceProviders(QueryInferenceProvidersRequest) returns (QueryInferenceProvidersResponse) {
+    option (google.api.http).get = "/clawchain/modelregistry/v1/inference/providers";
+  }
+
+  // InferencePricing returns pricing for a model.
+  rpc InferencePricing(QueryInferencePricingRequest) returns (QueryInferencePricingResponse) {
+    option (google.api.http).get = "/clawchain/modelregistry/v1/inference/pricing/{model_id}";
+  }
+
+  // Params returns the modelregistry module parameters.
+  rpc Params(QueryModelRegistryParamsRequest) returns (QueryModelRegistryParamsResponse) {
+    option (google.api.http).get = "/clawchain/modelregistry/v1/params";
+  }
+}
+
+message QueryModelRequest {
+  uint64 model_id = 1;
+}
+
+message QueryModelResponse {
+  ModelRecord model = 1;
+}
+
+message QueryModelsRequest {
+  string framework = 1;
+  string tag = 2;
+  bool only_free = 3;
+}
+
+message QueryModelsResponse {
+  repeated ModelRecord models = 1;
+}
+
+message QueryModelVersionsRequest {
+  uint64 model_id = 1;
+}
+
+message QueryModelVersionsResponse {
+  repeated ModelVersion versions = 1;
+}
+
+message QueryInferenceJobRequest {
+  uint64 job_id = 1;
+}
+
+message QueryInferenceJobResponse {
+  InferenceJob job = 1;
+}
+
+message QueryInferenceJobsRequest {
+  uint64 model_id = 1;
+  string status = 2;
+}
+
+message QueryInferenceJobsResponse {
+  repeated InferenceJob jobs = 1;
+}
+
+message QueryInferenceProvidersRequest {
+  uint64 model_id = 1;
+}
+
+message QueryInferenceProvidersResponse {
+  repeated InferenceProvider providers = 1;
+}
+
+message QueryInferencePricingRequest {
+  uint64 model_id = 1;
+}
+
+message QueryInferencePricingResponse {
+  InferencePricing pricing = 1;
+}
+
+message QueryModelRegistryParamsRequest {}
+
+message QueryModelRegistryParamsResponse {
+  ModelRegistryParams params = 1;
+}

@@ -1,0 +1,73 @@
+syntax = "proto3";
+
+package clawchain.messaging.v1;
+
+import "amino/amino.proto";
+import "clawchain/messaging/v1/params.proto";
+import "gogoproto/gogo.proto";
+import "google/api/annotations.proto";
+
+option go_package = "clawchain/x/messaging/types";
+
+// Query defines the gRPC querier service.
+service Query {
+  // Parameters queries the parameters of the module.
+  rpc Params(QueryParamsRequest) returns (QueryParamsResponse) {
+    option (google.api.http).get = "/clawchain/messaging/v1/params";
+  }
+
+  // Messages queries messages for an address (inbox or outbox).
+  rpc Messages(QueryMessagesRequest) returns (QueryMessagesResponse) {
+    option (google.api.http).get = "/clawchain/messaging/v1/messages/{address}";
+  }
+
+  // Conversation queries messages between two addresses.
+  rpc Conversation(QueryConversationRequest) returns (QueryConversationResponse) {
+    option (google.api.http).get = "/clawchain/messaging/v1/conversation/{address_a}/{address_b}";
+  }
+}
+
+// QueryParamsRequest is request type for the Query/Params RPC method.
+message QueryParamsRequest {}
+
+// QueryParamsResponse is response type for the Query/Params RPC method.
+message QueryParamsResponse {
+  // params holds all the parameters of this module.
+  Params params = 1 [
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
+}
+
+// QueryMessagesRequest defines the request for querying messages.
+message QueryMessagesRequest {
+  string address = 1;
+}
+
+// QueryMessagesResponse defines the response for querying messages.
+message QueryMessagesResponse {
+  repeated MessageEntry messages = 1;
+}
+
+// QueryConversationRequest defines the request for querying a conversation.
+message QueryConversationRequest {
+  string address_a = 1;
+  string address_b = 2;
+}
+
+// QueryConversationResponse defines the response for querying a conversation.
+message QueryConversationResponse {
+  repeated MessageEntry messages = 1;
+}
+
+// MessageEntry represents a single on-chain message.
+message MessageEntry {
+  uint64 id = 1;
+  string sender = 2;
+  string recipient = 3;
+  string ciphertext = 4;
+  string nonce = 5;
+  int64 block_height = 6;
+  int64 timestamp = 7;
+  bool acknowledged = 8;
+}

@@ -1,0 +1,137 @@
+syntax = "proto3";
+package clawchain.reputation.v1;
+
+import "amino/amino.proto";
+import "clawchain/reputation/v1/params.proto";
+import "gogoproto/gogo.proto";
+import "google/api/annotations.proto";
+
+option go_package = "clawchain/x/reputation/types";
+
+// Query defines the gRPC querier service.
+service Query {
+  // Params queries the parameters of the module.
+  rpc Params(QueryParamsRequest) returns (QueryParamsResponse) {
+    option (google.api.http).get = "/clawchain/reputation/v1/params";
+  }
+
+  // Reputation queries the reputation record for an agent.
+  rpc Reputation(QueryReputationRequest) returns (QueryReputationResponse) {
+    option (google.api.http).get = "/clawchain/reputation/v1/reputation/{agent_address}";
+  }
+
+  // Ratings queries the ratings for an agent.
+  rpc Ratings(QueryRatingsRequest) returns (QueryRatingsResponse) {
+    option (google.api.http).get = "/clawchain/reputation/v1/ratings/{agent_address}";
+  }
+
+  // Endorsements queries the endorsements for an agent.
+  rpc Endorsements(QueryEndorsementsRequest) returns (QueryEndorsementsResponse) {
+    option (google.api.http).get = "/clawchain/reputation/v1/endorsements/{agent_address}";
+  }
+
+  // TopAgents queries the top agents by reputation.
+  rpc TopAgents(QueryTopAgentsRequest) returns (QueryTopAgentsResponse) {
+    option (google.api.http).get = "/clawchain/reputation/v1/top_agents";
+  }
+}
+
+// QueryParamsRequest is request type for the Query/Params RPC method.
+message QueryParamsRequest {}
+
+// QueryParamsResponse is response type for the Query/Params RPC method.
+message QueryParamsResponse {
+  // params holds all the parameters of this module.
+  Params params = 1 [
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
+}
+
+// ReputationRecord defines the reputation state for an agent (transport type).
+message ReputationRecord {
+  string agent_address = 1;
+  uint64 total_ratings = 2;
+  uint64 rating_sum = 3;
+  uint64 avg_rating_bps = 4;
+  uint64 intents_created = 5;
+  uint64 intents_completed = 6;
+  uint64 skill_purchases = 7;
+  uint64 endorsements = 8;
+  int64 last_updated = 9;
+  // Heartbeat-SLA-derived uptime score (0..10000 bps). Starts at 10000.
+  uint64 uptime_score_bps = 10;
+  // Count of SLA penalties applied when agents became stale.
+  uint64 heartbeat_sla_penalties = 11;
+  // Count of SLA recovery rewards applied when agents came back live.
+  uint64 heartbeat_sla_recoveries = 12;
+  // Count of completed tasks that met SLA deadline.
+  uint64 task_sla_on_time_count = 13;
+  // Count of completed tasks that missed SLA deadline.
+  uint64 task_sla_late_count = 14;
+  // Cumulative bps penalties applied from task-SLA misses.
+  uint64 task_sla_penalty_bps_total = 15;
+  // Cumulative bps rewards applied from task-SLA on-time completions.
+  uint64 task_sla_reward_bps_total = 16;
+}
+
+// Rating defines a rating entry (transport type).
+message Rating {
+  uint64 id = 1;
+  string rater = 2;
+  string rated_agent = 3;
+  uint64 skill_id = 4;
+  uint32 score = 5;
+  string comment = 6;
+  int64 block_height = 7;
+}
+
+// Endorsement defines an endorsement entry (transport type).
+message Endorsement {
+  uint64 id = 1;
+  string endorser = 2;
+  string endorsed = 3;
+  string reason = 4;
+  int64 block_height = 5;
+}
+
+// QueryReputationRequest defines the request for Reputation query.
+message QueryReputationRequest {
+  string agent_address = 1;
+}
+
+// QueryReputationResponse defines the response for Reputation query.
+message QueryReputationResponse {
+  ReputationRecord reputation = 1 [(gogoproto.nullable) = false];
+  bool found = 2;
+}
+
+// QueryRatingsRequest defines the request for Ratings query.
+message QueryRatingsRequest {
+  string agent_address = 1;
+}
+
+// QueryRatingsResponse defines the response for Ratings query.
+message QueryRatingsResponse {
+  repeated Rating ratings = 1 [(gogoproto.nullable) = false];
+}
+
+// QueryEndorsementsRequest defines the request for Endorsements query.
+message QueryEndorsementsRequest {
+  string agent_address = 1;
+}
+
+// QueryEndorsementsResponse defines the response for Endorsements query.
+message QueryEndorsementsResponse {
+  repeated Endorsement endorsements = 1 [(gogoproto.nullable) = false];
+}
+
+// QueryTopAgentsRequest defines the request for TopAgents query.
+message QueryTopAgentsRequest {
+  uint64 limit = 1;
+}
+
+// QueryTopAgentsResponse defines the response for TopAgents query.
+message QueryTopAgentsResponse {
+  repeated ReputationRecord agents = 1 [(gogoproto.nullable) = false];
+}

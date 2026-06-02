@@ -1,0 +1,70 @@
+syntax = "proto3";
+
+package clawchain.messaging.v1;
+
+import "amino/amino.proto";
+import "clawchain/messaging/v1/params.proto";
+import "cosmos/msg/v1/msg.proto";
+import "cosmos_proto/cosmos.proto";
+import "gogoproto/gogo.proto";
+
+option go_package = "clawchain/x/messaging/types";
+
+// Msg defines the Msg service.
+service Msg {
+  option (cosmos.msg.v1.service) = true;
+
+  // UpdateParams defines a (governance) operation for updating the module
+  // parameters. The authority defaults to the x/gov module account.
+  rpc UpdateParams(MsgUpdateParams) returns (MsgUpdateParamsResponse);
+
+  // SendMessage sends an encrypted message on-chain.
+  rpc SendMessage(MsgSendMessage) returns (MsgSendMessageResponse);
+
+  // AckMessage acknowledges receipt of a message.
+  rpc AckMessage(MsgAckMessage) returns (MsgAckMessageResponse);
+}
+
+// MsgUpdateParams is the Msg/UpdateParams request type.
+message MsgUpdateParams {
+  option (cosmos.msg.v1.signer) = "authority";
+  option (amino.name) = "clawchain/x/messaging/MsgUpdateParams";
+
+  // authority is the address that controls the module (defaults to x/gov unless overwritten).
+  string authority = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+
+  // params defines the module parameters to update.
+  // NOTE: All parameters must be supplied.
+  Params params = 2 [
+    (gogoproto.nullable) = false,
+    (amino.dont_omitempty) = true
+  ];
+}
+
+// MsgUpdateParamsResponse defines the response structure for executing a
+// MsgUpdateParams message.
+message MsgUpdateParamsResponse {}
+
+// MsgSendMessage defines the message for sending an encrypted on-chain message.
+message MsgSendMessage {
+  option (cosmos.msg.v1.signer) = "sender";
+  string sender = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  string recipient = 2 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  string ciphertext = 3;
+  string nonce = 4;
+}
+
+// MsgSendMessageResponse defines the response for MsgSendMessage.
+message MsgSendMessageResponse {
+  uint64 message_id = 1;
+}
+
+// MsgAckMessage defines the message for acknowledging receipt of a message.
+message MsgAckMessage {
+  option (cosmos.msg.v1.signer) = "creator";
+  string creator = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  uint64 message_id = 2;
+}
+
+// MsgAckMessageResponse defines the response for MsgAckMessage.
+message MsgAckMessageResponse {}

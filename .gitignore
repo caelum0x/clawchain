@@ -10,6 +10,11 @@ release/
 clawchain/
 # but DO track clawd's generated TS proto codecs, whose path contains clawchain/
 !cmd/clawd/src/generated/proto/clawchain/
+# and DO track the hand-written proto SOURCES (the `clawchain/` rule above is for the
+# buf staging dir + generated trees, not the source of truth). Without this the proto
+# sources drift from generated code unnoticed — see docs/known-issues/proto-generated-drift.md
+!proto/clawchain/
+!proto/clawchain/**
 .tmp/
 bin/
 proto/_deps/

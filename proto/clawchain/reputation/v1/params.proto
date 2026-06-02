@@ -1,0 +1,28 @@
+syntax = "proto3";
+package clawchain.reputation.v1;
+
+import "amino/amino.proto";
+import "gogoproto/gogo.proto";
+
+option go_package = "clawchain/x/reputation/types";
+
+// Params defines the parameters for the module.
+message Params {
+  option (amino.name) = "clawchain/x/reputation/Params";
+  option (amino.message_encoding) = "";
+  uint64 max_comment_length = 1;
+  // Reputation uptime score penalty (bps) when an agent becomes stale.
+  uint64 heartbeat_penalty_bps = 2;
+  // Reputation uptime score recovery reward (bps) when an agent recovers.
+  uint64 heartbeat_recovery_bps = 3;
+  // Task-SLA on-time reward (bps) applied when a completed task meets deadline.
+  uint64 task_sla_on_time_reward_bps = 4;
+  // Task-SLA late penalty (bps) per lateness step when a task misses deadline.
+  uint64 task_sla_late_penalty_bps = 5;
+  // Number of blocks per lateness step for task SLA penalties.
+  uint64 task_sla_lateness_step_blocks = 6;
+  // Reputation score decay rate in basis points applied every decay_interval_blocks.
+  uint64 decay_rate_bps = 7;
+  // Number of blocks between each reputation decay application.
+  uint64 decay_interval_blocks = 8;
+}

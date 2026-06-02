@@ -6,11 +6,8 @@ import (
 	"cosmossdk.io/core/store"
 	"cosmossdk.io/depinject"
 	"cosmossdk.io/depinject/appconfig"
-	txsigning "cosmossdk.io/x/tx/signing"
 	"github.com/cosmos/cosmos-sdk/codec"
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/reflect/protoreflect"
 
 	"clawchain/x/modelregistry/keeper"
 	"clawchain/x/modelregistry/types"
@@ -20,34 +17,10 @@ var _ depinject.OnePerModuleType = AppModule{}
 
 func (AppModule) IsOnePerModuleType() {}
 
-// ProvideCustomGetSigners registers the MsgRenewSubscription signer getter.
-// The message type was added post-codegen so it lacks the cosmos.msg.v1.signer
-// proto extension; this custom getter tells the signing context to extract the
-// "buyer" field.
-func ProvideCustomGetSigners(addressCodec address.Codec) txsigning.CustomGetSigner {
-	return txsigning.CustomGetSigner{
-		MsgType: "clawchain.modelregistry.v1.MsgRenewSubscription",
-		Fn: func(msg proto.Message) ([][]byte, error) {
-			// Get the "buyer" field via proto reflection.
-			refMsg := msg.ProtoReflect()
-			fd := refMsg.Descriptor().Fields().ByName(protoreflect.Name("buyer"))
-			if fd == nil {
-				return nil, nil
-			}
-			buyer := refMsg.Get(fd).String()
-			addr, err := addressCodec.StringToBytes(buyer)
-			if err != nil {
-				return nil, err
-			}
-			return [][]byte{addr}, nil
-		},
-	}
-}
-
 func init() {
 	appconfig.Register(
 		&types.Module{},
-		appconfig.Provide(ProvideModule, ProvideCustomGetSigners),
+		appconfig.Provide(ProvideModule),
 	)
 }
 
