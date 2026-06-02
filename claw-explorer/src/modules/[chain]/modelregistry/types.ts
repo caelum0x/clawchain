@@ -71,8 +71,31 @@ export interface InferenceProvider {
   last_heartbeat: string;
 }
 
+export interface ModelVersion {
+  id: string;
+  model_id: string;
+  version: string;
+  storage_uri: string;
+  checksum_sha256: string;
+  size_bytes: string;
+  changelog: string;
+  created_at: string;
+}
+
 export interface QueryModelsResponse {
   models?: ModelRecord[];
+}
+
+export interface QueryModelResponse {
+  model?: ModelRecord;
+}
+
+export interface QueryModelVersionsResponse {
+  versions?: ModelVersion[];
+}
+
+export interface QueryInferenceJobResponse {
+  job?: InferenceJob;
 }
 
 export interface QueryInferenceJobsResponse {

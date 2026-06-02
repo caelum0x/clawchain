@@ -8,7 +8,7 @@ import type {
   ParamsResponse,
 } from './types';
 
-defineProps(['chain']);
+const props = defineProps(['chain']);
 
 const blockchain = useBlockchain();
 
@@ -119,7 +119,14 @@ onMounted(() => {
             </thead>
             <tbody>
               <tr v-for="p in proposals" :key="p.proposal_id">
-                <td>{{ p.proposal_id }}</td>
+                <td>
+                  <RouterLink
+                    :to="`/${props.chain}/clawgov/${p.proposal_id}`"
+                    class="text-primary dark:invert"
+                  >
+                    {{ p.proposal_id }}
+                  </RouterLink>
+                </td>
                 <td>
                   <div class="font-semibold">{{ p.title }}</div>
                   <div class="text-xs text-gray-500 truncate max-w-xs">{{ p.description }}</div>

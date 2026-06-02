@@ -122,7 +122,14 @@ onMounted(() => {
         </thead>
         <tbody>
           <tr v-for="(v, index) in models" :key="index">
-            <td>{{ v.id }}</td>
+            <td>
+              <RouterLink
+                :to="`/${props.chain}/modelregistry/${v.id}`"
+                class="text-primary hover:text-indigo-400"
+              >
+                {{ v.id }}
+              </RouterLink>
+            </td>
             <td>{{ v.name }}</td>
             <td>{{ v.framework }}</td>
             <td>
@@ -158,7 +165,14 @@ onMounted(() => {
         </thead>
         <tbody>
           <tr v-for="(v, index) in jobs" :key="index">
-            <td>{{ v.job_id }}</td>
+            <td>
+              <RouterLink
+                :to="`/${props.chain}/modelregistry/job/${v.job_id}`"
+                class="text-primary hover:text-indigo-400"
+              >
+                {{ v.job_id }}
+              </RouterLink>
+            </td>
             <td>{{ v.model_id }}</td>
             <td>
               <span class="badge badge-outline">{{ v.status }}</span>

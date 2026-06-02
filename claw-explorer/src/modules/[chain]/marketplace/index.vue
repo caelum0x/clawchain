@@ -107,8 +107,16 @@ onMounted(() => {
             </thead>
             <tbody>
               <tr v-for="(s, index) in skills" :key="index">
-                <td>{{ s.id }}</td>
-                <td class="font-medium">{{ s.name }}</td>
+                <td>
+                  <RouterLink :to="`/${chain}/marketplace/${s.id}`" class="text-primary hover:underline">
+                    {{ s.id }}
+                  </RouterLink>
+                </td>
+                <td class="font-medium">
+                  <RouterLink :to="`/${chain}/marketplace/${s.id}`" class="text-primary hover:underline">
+                    {{ s.name }}
+                  </RouterLink>
+                </td>
                 <td class="truncate max-w-[200px]" :title="s.owner">{{ s.owner }}</td>
                 <td>{{ s.category || '-' }}</td>
                 <td class="text-right">{{ formatPrice(s) }}</td>

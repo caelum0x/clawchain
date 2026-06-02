@@ -34,3 +34,16 @@ export interface ParamsResponse {
 export interface SkillsResponse {
   skills: SkillRecord[];
 }
+
+// GET /clawchain/marketplace/v1/skill/{skill_id}
+export interface SkillResponse {
+  skill: SkillRecord;
+}
+
+// GET /clawchain/marketplace/v1/skills/analytics/{skill_id}
+export interface SkillAnalytics {
+  skill_id: string;
+  purchase_count: string;
+  total_revenue: string;
+  version: string;
+}
