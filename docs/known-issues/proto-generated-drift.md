@@ -1,5 +1,12 @@
 # Known issue: proto sources drifted from generated `*.pb.go` (blocks new proto-gen features)
 
+> **RESOLVED 2026-06-02** in commit `4388d0a5`: the gitignore trap is fixed (proto sources
+> under `proto/clawchain` are now version-tracked), `scripts/sync-generated-go-pb.sh` cleans
+> the stray staging dir, and the 5-module drift was reconciled — `make proto-gen` is now
+> idempotent with `go build ./...` and `go test ./...` green. `MsgSubmitUsageAttestation`
+> subsequently landed via proto-gen in `6eea59de`. This doc is kept as a record of the issue
+> and the (still-recommended) follow-up below.
+
 _Found 2026-06-02 while attempting P4 `MsgSubmitUsageAttestation` in `x/modelregistry`._
 
 ## Symptom
