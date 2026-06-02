@@ -312,9 +312,12 @@ and/or the DEX, and an oracle index as a published "fundamental." This gives uti
   `MsgSubmitUsageAttestation` in `x/modelregistry` (`6eea59de`) records a completed job's
   attestation (provider-only, status-gated) with a keeper test. The dispute path
   `MsgDisputeInferenceJob` (`2289e156`) also landed (requester-gated, sets disputed/reason/
-  disputed_at + event, keeper test). Remaining P4: wire the reputation-slash on dispute
-  (currently a documented hook — modelregistry has no reputation keeper injected yet), and
-  the optional `x/modeltoken` module migration.**
+  disputed_at + event, keeper test). The reputation slash on dispute is now WIRED
+  (`691e8a5a`): x/modelregistry calls a new `x/reputation` `SlashReputation` keeper method via
+  depinject (no import cycle; validated by `TestNewApp`), docking the provider on dispute.
+  **The P4 inference-settlement surface (attestation → dispute → slash) is COMPLETE and
+  verified.** Only remaining P4 item: the optional `x/modeltoken` module migration — explicitly
+  conditional on the CosmWasm vault outgrowing contract limits (not currently needed).**
 
 ## Acceptance (per phase)
 
