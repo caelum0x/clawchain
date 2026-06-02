@@ -1,38 +1,19 @@
 <script lang="ts" setup>
 import { useBlockchain } from '@/stores';
-import { onMounted, ref } from 'vue';
-import type {
-  ParamsResponse,
-  DenomsFromCreatorResponse,
-  DenomAuthorityMetadataResponse,
-  TokenfactoryParams,
-  DenomAuthorityMetadata,
-} from './types';
+import { computed, onMounted, ref } from 'vue';
+import type { FactoryDenom, SupplyResponse } from './types';
 
 defineProps(['chain']);
 
 const blockchain = useBlockchain();
 
-const params = ref(null as TokenfactoryParams | null);
-
+const denoms = ref([] as FactoryDenom[]);
 const loading = ref(true);
 const error = ref('');
 
-// Lookup state: factory denoms created by a given creator address.
-const creatorInput = ref('');
-const creatorDenoms = ref([] as string[]);
-const creatorLoading = ref(false);
-const creatorError = ref('');
-const creatorDone = ref(false);
-
-// Lookup state: authority (admin) metadata for a given denom.
-const denomInput = ref('');
-const authority = ref(null as DenomAuthorityMetadata | null);
-const authorityLoading = ref(false);
-const authorityError = ref('');
-const authorityDone = ref(false);
-
-const BASE = '/osmosis/tokenfactory/v1beta1';
+// Client-side filter by creator address (replaces the chain denoms_from_creator query,
+// which the tokenfactory module does not expose — see the note below).
+const creatorFilter = ref('');
 
 function restBase(): string {
   return blockchain.endpoint?.address || '';
@@ -46,12 +27,28 @@ async function fetchJson<T>(path: string): Promise<T> {
   return (await res.json()) as T;
 }
 
+/** Parse `factory/<creator>/<subdenom>` into its parts. */
+function parseFactoryDenom(denom: string, amount: string): FactoryDenom {
+  // denom = factory/<creator>/<subdenom>; subdenom may itself contain '/'.
+  const rest = denom.slice('factory/'.length);
+  const slash = rest.indexOf('/');
+  const creator = slash >= 0 ? rest.slice(0, slash) : rest;
+  const subdenom = slash >= 0 ? rest.slice(slash + 1) : '';
+  return { denom, creator, subdenom, amount };
+}
+
 async function load() {
   loading.value = true;
   error.value = '';
   try {
-    const paramRes = await fetchJson<ParamsResponse>(`${BASE}/params`);
-    params.value = paramRes.params || null;
+    // Tokenfactory denoms are minted into bank, so the canonical way to enumerate them is
+    // the standard bank supply endpoint (the tokenfactory module ships no query server).
+    const res = await fetchJson<SupplyResponse>(
+      '/cosmos/bank/v1beta1/supply?pagination.limit=1000',
+    );
+    denoms.value = (res.supply || [])
+      .filter((c) => c.denom.startsWith('factory/'))
+      .map((c) => parseFactoryDenom(c.denom, c.amount));
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e);
   } finally {
@@ -59,51 +56,11 @@ async function load() {
   }
 }
 
-async function lookupCreator() {
-  const creator = creatorInput.value.trim();
-  creatorError.value = '';
-  creatorDenoms.value = [];
-  creatorDone.value = false;
-  if (!creator) {
-    creatorError.value = 'Enter a creator address to look up.';
-    return;
-  }
-  creatorLoading.value = true;
-  try {
-    const res = await fetchJson<DenomsFromCreatorResponse>(
-      `${BASE}/denoms_from_creator/${creator}`,
-    );
-    creatorDenoms.value = res.denoms || [];
-  } catch (e) {
-    creatorError.value = e instanceof Error ? e.message : String(e);
-  } finally {
-    creatorLoading.value = false;
-    creatorDone.value = true;
-  }
-}
-
-async function lookupAuthority() {
-  const denom = denomInput.value.trim();
-  authorityError.value = '';
-  authority.value = null;
-  authorityDone.value = false;
-  if (!denom) {
-    authorityError.value = 'Enter a denom to look up.';
-    return;
-  }
-  authorityLoading.value = true;
-  try {
-    const res = await fetchJson<DenomAuthorityMetadataResponse>(
-      `${BASE}/denoms/${encodeURIComponent(denom)}/authority_metadata`,
-    );
-    authority.value = res.authority_metadata || null;
-  } catch (e) {
-    authorityError.value = e instanceof Error ? e.message : String(e);
-  } finally {
-    authorityLoading.value = false;
-    authorityDone.value = true;
-  }
-}
+const filtered = computed(() => {
+  const q = creatorFilter.value.trim().toLowerCase();
+  if (!q) return denoms.value;
+  return denoms.value.filter((d) => d.creator.toLowerCase().includes(q));
+});
 
 onMounted(() => {
   load();
@@ -112,119 +69,69 @@ onMounted(() => {
 
 <template>
   <div>
-    <!-- Header / module params -->
+    <!-- Header -->
     <div class="bg-base-100 px-4 pt-3 pb-4 rounded mb-4 shadow">
-      <h2 class="card-title truncate w-full mb-4">Token Factory</h2>
-
-      <div v-if="params">
-        <h3 class="font-semibold text-sm mb-2">Denom Creation Fee</h3>
-        <div
-          v-if="params.denom_creation_fee && params.denom_creation_fee.length"
-          class="flex flex-wrap gap-2"
-        >
-          <span
-            v-for="(c, index) in params.denom_creation_fee"
-            :key="index"
-            class="badge badge-primary badge-lg"
-          >{{ c.amount }} {{ c.denom }}</span>
-        </div>
-        <div v-else class="text-center text-gray-500 py-4 text-sm">
-          No denom creation fee configured (denom creation is free)
-        </div>
-      </div>
+      <h2 class="card-title truncate w-full mb-2">Token Factory</h2>
+      <p class="text-xs text-gray-500">
+        Factory denoms (<code>factory/&lt;creator&gt;/&lt;subdenom&gt;</code>, including AI model
+        tokens) are listed from bank supply. Admin / authority metadata is not shown — the
+        chain's tokenfactory module exposes no query server.
+      </p>
     </div>
 
     <!-- Error state -->
     <div v-if="error" class="alert alert-error mb-4 text-sm">
-      <span>Failed to load token factory data: {{ error }}</span>
+      <span>Failed to load token factory denoms: {{ error }}</span>
     </div>
 
     <!-- Loading state -->
-    <div v-if="loading" class="bg-base-100 px-4 py-6 rounded mb-4 shadow text-center text-sm text-gray-500">
-      Loading token factory data...
+    <div
+      v-if="loading"
+      class="bg-base-100 px-4 py-6 rounded mb-4 shadow text-center text-sm text-gray-500"
+    >
+      Loading factory denoms...
     </div>
 
-    <template v-else-if="!error">
-      <!-- Denoms by creator -->
-      <div class="bg-base-100 px-4 pt-3 pb-4 rounded mb-4 shadow">
-        <h2 class="card-title truncate w-full mb-4">Denoms by Creator</h2>
-        <div class="flex flex-col sm:flex-row gap-2 mb-4">
-          <input
-            v-model="creatorInput"
-            type="text"
-            placeholder="Enter creator address (claw1...)"
-            class="input input-bordered input-sm flex-1 text-sm"
-            @keyup.enter="lookupCreator"
-          />
-          <button class="btn btn-primary btn-sm" :disabled="creatorLoading" @click="lookupCreator">
-            {{ creatorLoading ? 'Looking up...' : 'Look up' }}
-          </button>
-        </div>
-
-        <div v-if="creatorError" class="alert alert-error mb-2 text-sm">
-          <span>{{ creatorError }}</span>
-        </div>
-
-        <template v-if="creatorDone && !creatorError">
-          <div class="overflow-x-auto">
-            <table class="table table-compact w-full text-sm">
-              <thead class="bg-base-200">
-                <tr>
-                  <th class="text-right">#</th>
-                  <th>Factory Denom</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="(d, index) in creatorDenoms" :key="index">
-                  <td class="text-right">{{ index + 1 }}</td>
-                  <td class="truncate max-w-md">{{ d }}</td>
-                </tr>
-                <tr v-if="creatorDenoms.length === 0">
-                  <td colspan="2" class="text-center text-gray-500 py-4">
-                    No factory denoms created by this address
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </template>
+    <!-- Factory denoms -->
+    <div v-else-if="!error" class="bg-base-100 px-4 pt-3 pb-4 rounded mb-4 shadow">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+        <h2 class="card-title truncate">Factory Denoms ({{ filtered.length }})</h2>
+        <input
+          v-model="creatorFilter"
+          type="text"
+          placeholder="Filter by creator (claw1...)"
+          class="input input-bordered input-sm text-sm w-full sm:w-72"
+        />
       </div>
 
-      <!-- Denom authority (admin) lookup -->
-      <div class="bg-base-100 px-4 pt-3 pb-4 rounded mb-4 shadow">
-        <h2 class="card-title truncate w-full mb-4">Denom Authority</h2>
-        <div class="flex flex-col sm:flex-row gap-2 mb-4">
-          <input
-            v-model="denomInput"
-            type="text"
-            placeholder="Enter denom (factory/claw1.../subdenom)"
-            class="input input-bordered input-sm flex-1 text-sm"
-            @keyup.enter="lookupAuthority"
-          />
-          <button class="btn btn-primary btn-sm" :disabled="authorityLoading" @click="lookupAuthority">
-            {{ authorityLoading ? 'Looking up...' : 'Look up' }}
-          </button>
-        </div>
-
-        <div v-if="authorityError" class="alert alert-error mb-2 text-sm">
-          <span>{{ authorityError }}</span>
-        </div>
-
-        <template v-if="authorityDone && !authorityError">
-          <div v-if="authority" class="grid grid-cols-1 gap-4">
-            <div class="rounded-sm bg-base-200 px-4 py-3">
-              <div class="text-xs text-gray-500">Admin</div>
-              <div class="text-sm font-semibold break-all">
-                {{ authority.admin || '(no admin)' }}
-              </div>
-            </div>
-          </div>
-          <div v-else class="text-center text-gray-500 py-4 text-sm">
-            No authority metadata found for this denom.
-          </div>
-        </template>
+      <div class="overflow-x-auto">
+        <table class="table table-compact w-full text-sm">
+          <thead class="bg-base-200">
+            <tr>
+              <th class="text-right">#</th>
+              <th>Denom</th>
+              <th>Creator</th>
+              <th>Subdenom</th>
+              <th class="text-right">Supply</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="(d, index) in filtered" :key="d.denom">
+              <td class="text-right">{{ index + 1 }}</td>
+              <td class="truncate max-w-xs font-mono text-xs">{{ d.denom }}</td>
+              <td class="truncate max-w-[12rem] font-mono text-xs">{{ d.creator }}</td>
+              <td class="truncate max-w-[10rem]">{{ d.subdenom }}</td>
+              <td class="text-right">{{ d.amount }}</td>
+            </tr>
+            <tr v-if="filtered.length === 0">
+              <td colspan="5" class="text-center text-gray-500 py-4">
+                No factory denoms found
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
-    </template>
+    </div>
   </div>
 </template>
 

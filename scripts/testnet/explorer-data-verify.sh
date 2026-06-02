@@ -376,11 +376,15 @@ send_tx "$DEV_KEY" "resolve-inference-dispute" resolve-inference-dispute "$JOB_I
 RESOLVE_TX="$LAST_TX_HASH"
 echo ""
 
-# ── tokenfactory: create a denom so the tokenfactory tab has data ──────────────
+# ── tokenfactory: create + MINT a denom so it appears in bank supply ───────────
+# The tokenfactory module has no query server (docs/known-issues/tokenfactory-no-query-server.md);
+# factory denoms are enumerated from bank supply, which only lists MINTED denoms — so mint some.
 send_tx_raw "$DEV_KEY" "tokenfactory create-denom" tokenfactory create-denom "$TF_SUBDENOM"
 TF_TX="$LAST_TX_HASH"
 TF_DENOM="factory/${REQ_ADDR}/${TF_SUBDENOM}"
-ok "Created tokenfactory denom: $TF_DENOM"
+# tokenfactory mint takes [amount] [denom] as two positional args.
+send_tx_raw "$DEV_KEY" "tokenfactory mint" tokenfactory mint "1000000" "$TF_DENOM"
+ok "Created + minted tokenfactory denom: $TF_DENOM"
 echo ""
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -446,16 +450,18 @@ respond_only "oracle/params"       "/clawchain/oracle/v1beta1/params"
 respond_only "privacy/tree_stats"  "/clawchain/privacy/v1/tree_stats"
 respond_only "reputation/params"   "/clawchain/reputation/v1/params"
 respond_only "governance/proposals" "/clawchain/governance/v1/proposals"
-respond_only "tokenfactory/params" "/osmosis/tokenfactory/v1beta1/params"
 
-# ── 4f. tokenfactory: denoms_from_creator must list the created denom ──
-rest_get "tokenfactory/denoms_from_creator" "/osmosis/tokenfactory/v1beta1/denoms_from_creator/${REQ_ADDR}"
+# ── 4f. tokenfactory: the explorer tab lists factory denoms from BANK SUPPLY
+# (the tokenfactory module exposes no query server — /osmosis/tokenfactory/v1beta1/* is 501;
+#  see docs/known-issues/tokenfactory-no-query-server.md). Assert the minted factory denom is
+#  present in bank supply, which is exactly what the explorer tokenfactory tab reads. ──
+rest_get "tokenfactory(bank supply)" "/cosmos/bank/v1beta1/supply?pagination.limit=1000"
 TF_LISTED=$(printf '%s' "$REST_BODY" | jq -r --arg d "$TF_DENOM" \
-  '[.denoms[]? | select(. == $d)] | length')
+  '[.supply[]? | select(.denom == $d)] | length')
 [ "${TF_LISTED:-0}" -ge 1 ] 2>/dev/null \
-  || fail "denoms_from_creator did not list $TF_DENOM.\nBody:\n$REST_BODY"
-ok "[tokenfactory/denoms_from_creator] lists $TF_DENOM (200+JSON)"
-VERIFIED_ENDPOINTS+=("/osmosis/tokenfactory/v1beta1/denoms_from_creator/{creator} -> $TF_DENOM listed")
+  || fail "bank supply did not list minted factory denom $TF_DENOM.\nBody:\n$REST_BODY"
+ok "[tokenfactory] factory denom $TF_DENOM present in bank supply (200+JSON)"
+VERIFIED_ENDPOINTS+=("/cosmos/bank/v1beta1/supply -> factory denom $TF_DENOM present (tokenfactory tab source)")
 echo ""
 
 # ══════════════════════════════════════════════════════════════════════════════

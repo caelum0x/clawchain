@@ -1,31 +1,25 @@
-// Types for the x/tokenfactory (osmosis fork) REST query surface.
-// Field names mirror the JSON tags emitted by the gRPC-gateway (snake_case),
-// sourced from the osmosis tokenfactory query proto / pb.go.
-// REST base: /osmosis/tokenfactory/v1beta1
+// Types for the Token Factory explorer tab.
+//
+// The chain's x/tokenfactory module exposes NO query server (no Params/DenomsFromCreator/
+// DenomAuthorityMetadata gRPC queries — see docs/known-issues/tokenfactory-no-query-server.md).
+// Factory denoms are minted into bank, so the tab enumerates them from the standard,
+// implemented bank supply endpoint instead: GET /cosmos/bank/v1beta1/supply.
 
 export interface Coin {
   denom: string;
   amount: string;
 }
 
-// Params defines the parameters for the tokenfactory module.
-export interface TokenfactoryParams {
-  denom_creation_fee: Coin[];
+export interface SupplyResponse {
+  supply: Coin[];
+  pagination?: { next_key: string | null; total: string };
 }
 
-// DenomAuthorityMetadata specifies the admin for a token factory denom.
-export interface DenomAuthorityMetadata {
-  admin: string;
-}
-
-export interface ParamsResponse {
-  params: TokenfactoryParams;
-}
-
-export interface DenomsFromCreatorResponse {
-  denoms: string[];
-}
-
-export interface DenomAuthorityMetadataResponse {
-  authority_metadata: DenomAuthorityMetadata;
+// A bank-supply coin whose denom is a tokenfactory denom (factory/<creator>/<subdenom>),
+// parsed into its parts for display.
+export interface FactoryDenom {
+  denom: string;
+  creator: string;
+  subdenom: string;
+  amount: string;
 }
