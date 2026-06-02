@@ -79,11 +79,27 @@ func (m *mockBankKeeper) SendCoinsFromModuleToAccount(_ context.Context, senderM
 	return nil
 }
 
+// mockReputationKeeper records SlashReputation calls so dispute tests can
+// assert the provider was slashed. It implements types.ReputationKeeper.
+type mockReputationKeeper struct {
+	slashed map[string]uint64
+}
+
+func newMockReputationKeeper() *mockReputationKeeper {
+	return &mockReputationKeeper{slashed: make(map[string]uint64)}
+}
+
+func (m *mockReputationKeeper) SlashReputation(_ context.Context, agentAddress string, points uint64) error {
+	m.slashed[agentAddress] += points
+	return nil
+}
+
 type fixture struct {
-	ctx          context.Context
-	keeper       keeper.Keeper
-	addressCodec address.Codec
-	bankKeeper   *mockBankKeeper
+	ctx              context.Context
+	keeper           keeper.Keeper
+	addressCodec     address.Codec
+	bankKeeper       *mockBankKeeper
+	reputationKeeper *mockReputationKeeper
 }
 
 func initFixture(t *testing.T) *fixture {
@@ -97,14 +113,16 @@ func initFixture(t *testing.T) *fixture {
 
 	authority := authtypes.NewModuleAddress(types.GovModuleName)
 	bk := newMockBankKeeper()
+	rk := newMockReputationKeeper()
 
-	k := keeper.NewKeeper(storeService, encCfg.Codec, addressCodec, authority, bk)
+	k := keeper.NewKeeper(storeService, encCfg.Codec, addressCodec, authority, bk, rk)
 
 	return &fixture{
-		ctx:          ctx,
-		keeper:       k,
-		addressCodec: addressCodec,
-		bankKeeper:   bk,
+		ctx:              ctx,
+		keeper:           k,
+		addressCodec:     addressCodec,
+		bankKeeper:       bk,
+		reputationKeeper: rk,
 	}
 }
 

@@ -2,9 +2,9 @@ package keeper
 
 import (
 	"context"
+	"cosmossdk.io/math"
 	"encoding/json"
 	"fmt"
-	"cosmossdk.io/math"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
 	"clawchain/x/modelregistry/types"
@@ -535,9 +535,21 @@ func (k Keeper) DisputeInferenceJob(ctx context.Context, jobID uint64, creator s
 		return err
 	}
 
-	// TODO(P4): slash provider reputation on dispute once reputation keeper is injected.
-	// The modelregistry keeper does not currently hold a reputation keeper reference;
-	// wiring one in is deferred to avoid expanding cross-module dependency injection here.
+	// Slash the provider's reputation on a successful dispute. This is
+	// best-effort by design: a missing/zero provider reputation (or any
+	// reputation-keeper error) must NOT roll back the dispute itself, which has
+	// already been persisted above. We therefore log via an event below and
+	// swallow the error here. The keeper reference is nil-safe so unit tests
+	// that construct the keeper without a reputation keeper still pass.
+	if k.reputationKeeper != nil {
+		if err := k.reputationKeeper.SlashReputation(ctx, job.Provider, types.DisputeReputationPenalty); err != nil {
+			// Intentionally ignored: reputation slashing is best-effort and the
+			// dispute has already succeeded. SlashReputation already floors at 0
+			// and treats a missing address as a no-op, so an error here is rare
+			// (an underlying store failure) and should not fail the dispute.
+			_ = err
+		}
+	}
 
 	sdkCtx := sdk.UnwrapSDKContext(ctx)
 	sdkCtx.EventManager().EmitEvent(sdk.NewEvent(

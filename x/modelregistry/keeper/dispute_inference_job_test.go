@@ -43,6 +43,9 @@ func TestDisputeInferenceJobSuccess(t *testing.T) {
 	require.True(t, job.Disputed)
 	require.Equal(t, "output did not match prompt", job.DisputeReason)
 	require.Equal(t, sdk.UnwrapSDKContext(f.ctx).BlockTime().Unix(), job.DisputedAt)
+
+	// The disputed job's provider should be slashed by the dispute penalty.
+	require.Equal(t, types.DisputeReputationPenalty, f.reputationKeeper.slashed[job.Provider])
 }
 
 // TestDisputeInferenceJobNotRequester verifies a caller that is not the original

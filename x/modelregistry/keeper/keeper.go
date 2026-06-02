@@ -12,11 +12,12 @@ import (
 )
 
 type Keeper struct {
-	storeService corestore.KVStoreService
-	cdc          codec.Codec
-	addressCodec address.Codec
-	authority    []byte
-	bankKeeper   types.BankKeeper
+	storeService     corestore.KVStoreService
+	cdc              codec.Codec
+	addressCodec     address.Codec
+	authority        []byte
+	bankKeeper       types.BankKeeper
+	reputationKeeper types.ReputationKeeper
 
 	Schema            collections.Schema
 	Params            collections.Item[types.ModelRegistryParams]
@@ -40,6 +41,7 @@ func NewKeeper(
 	addressCodec address.Codec,
 	authority []byte,
 	bankKeeper types.BankKeeper,
+	reputationKeeper types.ReputationKeeper,
 ) Keeper {
 	if _, err := addressCodec.BytesToString(authority); err != nil {
 		panic(fmt.Sprintf("invalid authority address %s: %s", authority, err))
@@ -48,11 +50,12 @@ func NewKeeper(
 	sb := collections.NewSchemaBuilder(storeService)
 
 	k := Keeper{
-		storeService: storeService,
-		cdc:          cdc,
-		addressCodec: addressCodec,
-		authority:    authority,
-		bankKeeper:   bankKeeper,
+		storeService:     storeService,
+		cdc:              cdc,
+		addressCodec:     addressCodec,
+		authority:        authority,
+		bankKeeper:       bankKeeper,
+		reputationKeeper: reputationKeeper,
 
 		Params:            collections.NewItem(sb, types.ParamsKey, "params", codec.CollValue[types.ModelRegistryParams](cdc)),
 		Models:            collections.NewMap(sb, types.ModelsKey, "models", collections.Uint64Key, collections.StringValue),
