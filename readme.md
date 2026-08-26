@@ -312,7 +312,10 @@ Release workflows and artifact provenance are tracked under `.github/workflows/`
 
 ## License
 
-License information should be reviewed before production release. Add a repository-level `LICENSE` file before broader public distribution if one is not already present.
+ClawChain is licensed under the [Apache License, Version 2.0](./LICENSE). This
+matches the licensing of the project's core dependencies (Cosmos SDK, CometBFT,
+and related Apache-2.0 libraries). Unless stated otherwise in a subdirectory,
+all source in this repository is distributed under those terms.
 
 ## Learn More
 
